@@ -6,6 +6,8 @@ import os, sys, shutil
 FILE_PATH = None  # 文件路径
 DIR_PATH = None  # 文件夹路径
 
+IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
+
 
 def ensure_exist(dir_path: str = None) -> bool:
     """
@@ -21,6 +23,19 @@ def ensure_exist(dir_path: str = None) -> bool:
     if not os.path.isdir(dir_path):  # 判断文件夹是否存在,如果不存在isdir返回Flase
         os.makedirs(dir_path)
         return True
+
+
+def check_exist(path: str) -> bool:
+    """检查文件是否存在"""
+    return os.path.exists(path)
+
+
+def check_image(file_path: str) -> bool:
+    """检查文件是否是图像"""
+    if get_file_extension(file_path) in IMAGE_EXTENSION:
+        return True
+    else:
+        return False
 
 
 def open_file_use_explorer(file_path: str = None) -> bool:

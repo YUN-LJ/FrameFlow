@@ -1,26 +1,35 @@
-class IMAGE:
-    """
-    用于处理图像的类,使用的是PIL库和opencv库
+"""提供简易的照片处理"""
+from PIL import Image, ImageFile
 
-    SetPath是必须要运行的
-    所有的处理都是针对于设置的这个文件
-    """
+from . import file
 
-    def __init__(self, image_path=None, ignoretruncation=False):
-        """
-        :param image_path:照片路径
-        :param ignoretruncation:忽略照片截断(完整性)
-        """
+
+class Image_PIL:
+    def __init__(self, image_path: str):
         self.__image_path = image_path
-        if self.__image_path is not None:
-            self.SetPath(image_path)
-        if ignoretruncation:
-            self.__IgnoreTruncation()
+        self.__image = None  # ImageFile.ImageFile对象
 
-    def __IgnoreTruncation(self):
+    @staticmethod
+    def ignore_truncation():
+        """忽略文件截断"""
         from PIL import ImageFile
         # 允许加载截断的图片文件
         ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+    def open_image(self, image_path: str) -> ImageFile.ImageFile:
+        """
+        将图片加载为ImageFile对象
+
+        :param image_path:文件绝对路径
+        """
+        if not file.check_exist(image_path):
+            raise FileNotFoundError(f'{image_path}文件不存在')
+        if not file.check_image(image_path):
+            raise TypeError(f'{image_path}文件不是照片')
+        self.__image = Image.open(image_path)
+
+
+class IMAGE:
 
     def GetSize(self) -> int:
         # 获取图片的长宽

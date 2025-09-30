@@ -38,7 +38,7 @@ def get_new_data(clear=False) -> pd.DataFrame:
         thread = Thread(
             target=run,
             args=(dir_path,),  # 注意：元组形式传递参数
-            daemon=Thread  # 守护线程,主线程结束后子线程会被立即终止
+            daemon=True  # 守护线程,主线程结束后子线程会被立即终止
         )
         threads.append(thread)
         # 启动线程
@@ -74,6 +74,7 @@ def save_data(extension='xlsx') -> bool:
 
     :param extension:保存的文件格式 -> xlsx、csv
     """
+    import os
     try:
         target_path = os.path.join(RUN_PATH, f'temp/image_data.{extension}')
         if extension == 'xlsx':
