@@ -143,6 +143,26 @@ def get_files_path(dir_path: str = None, only_file=False, only_dir=False) -> lis
     return path
 
 
+def get_files_size(file_path: str = None, unit='MB') -> float:
+    """
+    获取文件尺寸
+
+    :param file_path: 文件路径
+    :param unit: 度量单位MB、KB、B
+    """
+    if file_path is None:
+        if FILE_PATH is not None:
+            file_path = FILE_PATH
+        else:
+            raise ValueError('没有指定文件->请指定FILE_PATH或传入file_path')
+    if unit == 'B':
+        return os.path.getsize(file_path)
+    elif unit == 'KB':
+        return os.path.getsize(file_path) / 1024
+    elif unit == 'MB':
+        return os.path.getsize(file_path) / 1024 / 1024
+
+
 def del_file(file_path: str) -> bool:
     """
     删除文件或者文件夹

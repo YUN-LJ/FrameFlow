@@ -6,8 +6,8 @@ from . import file
 
 class Image_PIL:
     def __init__(self, image_path: str):
-        self.__image_path = image_path
-        self.__image = None  # ImageFile.ImageFile对象
+        self.__image_path = image_path  # 照片路径
+        self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
 
     @staticmethod
     def ignore_truncation():
@@ -27,56 +27,90 @@ class Image_PIL:
         if not file.check_image(image_path):
             raise TypeError(f'{image_path}文件不是照片')
         self.__image = Image.open(image_path)
+        self.__image_path = image_path
+        return self.__image
 
-
-class IMAGE:
-
-    def GetSize(self) -> int:
+    @property
+    def get_size(self) -> tuple[int, int]:
         # 获取图片的长宽
         width, height = self.__image.size
         return width, height
 
     @property
-    def CheckIsVScreen(self) -> bool:
-        # 判断照片是否是横屏,是返回True,否则返回Flase
-        width, height = self.GetSize()  # 获取长宽信息
+    def check_w_screen(self) -> bool:
+        """判断照片是否是横屏"""
+        width, height = self.get_size  # 获取长宽信息
         if round(width / height, 2) >= 1.0:
             return True
         else:
             return False
 
-    def Zip(self, max_size=15) -> bool:
+    def resize(self, resolution='1920x1080', stretch=False) -> tuple[int, int]:
         """
-        将照片压缩到限值之下
+        将照片按照指定尺寸输出,但照片是竖屏时输出的分辨率宽度只有对应K数的一半
+        1K:1920x1080;2k:3840x2160;自定义分辨率使用1920x1080格式
+        图像缩放，通过resize()方法来实现
+        可用的插值方法包括：
+        Image.Resampling.NEAREST：最近邻插值（速度最快，但质量可能较差）。
+        Image.Resampling.BILINEAR：双线性插值（速度较快，质量较好）。
+        Image.Resampling.BICUBIC：双三次插值（速度较慢，但质量通常最好）。
+        Image.Resampling.LANCZOS：Lanczos 插值（需要 PILLOW 额外支持）。
+
+        :param resolution:分辨率
+        :param stretch:拉伸
+        :return :width,height 返回实际的宽高
+        """
+        if stretch:  # 拉伸缩放时直接采用指定的分辨率
+            width = int(resolution.split('x')[0])
+            height = int(resolution.split('x')[1])
+        else:  # 非拉伸缩放时竖屏照片修改width,横屏修改height
+            # 获取原图像宽高比
+            w, h = self.get_size
+            AR = w / h
+            if self.check_w_screen:
+                width = int(resolution.split('x')[0])
+                height = int(width * AR)
+            else:
+                height = int(resolution.split('x')[1])
+                width = int(height / AR)
+        self.__image = self.__image.resize((width, height), Image.Resampling.LANCZOS)
+        return width, height
+
+    def Zip(self, max_size=15, quality=100) -> ImageFile.ImageFile:
+        """
+        将照片压缩到小于限制(图像尺寸接近max_size且一定下雨max_size)
+
         :param max_size:照片的最大尺寸MB
-        :return: self.image PIL Image对象
+        :param quality:保存质量
         """
-        width, height = self.GetSize()  # 获取长宽信息
-        image_size = os.path.getsize(self.__image_path) / 1024 / 1024  # 获取文件大小MB
+        import io
+        from threading import Thread
+        # 获取长宽信息
+        width, height = self.get_size
+        # 照片的大小
+        image_size = file.get_files_size(self.__image_path, unit='MB')
+        # 照片的格式
+        image_ext = file.get_file_extension(self.__image_path).upper()
         img_byte_arr = io.BytesIO()  # 开辟内存空间类似于物理磁盘可以保存数据
-        # image_size = len(self.image.tobytes()) / 1024 / 1024  # 将照片转成字节对象并测量长度获的大小
+        # 压缩照片大小
         while image_size > max_size:
-            width, height = round(width * 0.9), round(height * 0.9)  # 减少照片的分辨率已达到压缩的目的
-            # image_compression = Image.new('RGB', (width, height))  # 创建一个新的画布
+            # 减少照片的分辨率已达到压缩的目的
+            width, height = round(width * 0.9), round(height * 0.9)
             self.__image = self.__image.resize((width, height), Image.Resampling.LANCZOS)  # 压缩算法
-            self.__image.save(img_byte_arr, 'JPEG', quality=100)  # 保存至内存中
-            # image_compression.paste(self.image, box=(0, 0))  # 指定左上角坐标x,y
-            # image_compression.save(img_byte_arr, 'JPEG', quality=100)
-            # 重新获取内存中self.image的大小,将指针移动到末尾并获取位置（即数据大小）
+
+            # 保存至内存中
+            self.__image.save(img_byte_arr, image_ext, quality=quality)
+
+            # 重新获取内存中self.__image的大小,将指针移动到末尾并获取位置（即数据大小）
             img_byte_arr.seek(0, io.SEEK_END)
-            image_size = img_byte_arr.tell() / 1024 / 1024
-            General.Print(image_size,
-                          'IMAGE正在压缩:',
-                          'MB',
-                          '6.2f',
-                          'red')
+            image_size = img_byte_arr.tell() / 1024 / 1024  # MB度量单位
             # 如果照片大小没有满足要求则清空img_byte_arr中的数据
             if image_size > max_size:
                 img_byte_arr.truncate(0)  # 清空数据
                 img_byte_arr.seek(0)  # 将指针重置到开头
-            # self.image = image_compression
-        else:
-            return True
+
+
+class IMAGE:
 
     def Merge(self, 拼接对象='self'):
         # 将两张同高度的照片拼接起来
@@ -92,51 +126,6 @@ class IMAGE:
             return self.__image
         else:
             pass
-
-    def Resize(self, 指定分辨率='1920x1080', 保持比例=True):
-        """
-        将照片按照指定尺寸输出,但照片是竖屏时输出的分辨率宽度只有对应K数的一半
-        1K:1920x1080;2k:3840x2160;自定义分辨率使用1920x1080格式
-        self.image.save(file_path, quality=100)
-        file_path为保存的地址,需要带扩展名,如.png,.jpg,.jpeg;quality是质量,降低改值一样能起到减小照片大小的作用
-        图像缩放，通过resize()方法来实现
-        可用的插值方法包括：
-        Image.Resampling.NEAREST：最近邻插值（速度最快，但质量可能较差）。
-        Image.Resampling.BILINEAR：双线性插值（速度较快，质量较好）。
-        Image.Resampling.BICUBIC：双三次插值（速度较慢，但质量通常最好）。
-        Image.Resampling.LANCZOS：Lanczos 插值（需要 PILLOW 额外支持）。
-        """
-        option = 指定分辨率;
-        AR = 保持比例
-        width = int(option.split('x')[0])
-        if AR:
-            w, h = self.GetSize()  # 获取长宽信息
-            AR = h / w
-        else:
-            AR = int(option.split('x')[1]) / width
-        height = round(width * AR)
-        self.__image = self.__image.resize((width, height), Image.Resampling.LANCZOS)
-        return round(AR, 1), width, height
-
-    def SetPath(self, image_path):
-        """
-        设置图片的文件路径
-        :param image_path:文件绝对路径
-        """
-        if not os.path.exists(image_path):
-            return print(f'ImageSolve文件不存在:{image_path}')
-        extension = Get.FileExtension(image_path)
-        if extension != '.png' and extension != '.jpg' and \
-                extension != '.jpeg' and extension != '.bmp':
-            print('IMAGE:文件不是图片类型')
-            return False
-        self.__image_path = image_path
-        try:
-            self.__image = Image.open(image_path)
-        except OSError:
-            print(f'ImageSolve文件已损坏{image_path}')
-            return False
-        return True
 
     def SetWallpaperReg(self, image_path=None):
         """
