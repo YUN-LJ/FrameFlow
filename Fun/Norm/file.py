@@ -6,6 +6,8 @@ import os, sys, shutil
 FILE_PATH = None  # 文件路径
 DIR_PATH = None  # 文件夹路径
 
+IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
+
 
 def ensure_exist(dir_path: str = None) -> bool:
     """
@@ -21,6 +23,19 @@ def ensure_exist(dir_path: str = None) -> bool:
     if not os.path.isdir(dir_path):  # 判断文件夹是否存在,如果不存在isdir返回Flase
         os.makedirs(dir_path)
         return True
+
+
+def check_exist(path: str) -> bool:
+    """检查文件是否存在"""
+    return os.path.exists(path)
+
+
+def check_image(file_path: str) -> bool:
+    """检查文件是否是图像"""
+    if get_file_extension(file_path) in IMAGE_EXTENSION:
+        return True
+    else:
+        return False
 
 
 def open_file_use_explorer(file_path: str = None) -> bool:
@@ -126,6 +141,26 @@ def get_files_path(dir_path: str = None, only_file=False, only_dir=False) -> lis
                 continue
             path.append(root)  # 添加该目录下的全部目录绝对路径
     return path
+
+
+def get_files_size(file_path: str = None, unit='MB') -> float:
+    """
+    获取文件尺寸
+
+    :param file_path: 文件路径
+    :param unit: 度量单位MB、KB、B
+    """
+    if file_path is None:
+        if FILE_PATH is not None:
+            file_path = FILE_PATH
+        else:
+            raise ValueError('没有指定文件->请指定FILE_PATH或传入file_path')
+    if unit == 'B':
+        return os.path.getsize(file_path)
+    elif unit == 'KB':
+        return os.path.getsize(file_path) / 1024
+    elif unit == 'MB':
+        return os.path.getsize(file_path) / 1024 / 1024
 
 
 def del_file(file_path: str) -> bool:

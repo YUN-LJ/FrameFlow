@@ -25,7 +25,7 @@ def ProgramStartTime(pid: int) -> float:
     return -1.0
 
 
-def NowTime(format="%Y-%m-%d-%H-%M-%S"):
+def now_time(format="%Y-%m-%d-%H-%M-%S"):
     """
     获取当前时间
     :param format:获取时间的格式

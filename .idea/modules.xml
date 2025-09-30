@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/AutoWallpaper.iml" filepath="$PROJECT_DIR$/.idea/AutoWallpaper.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/autowall.iml" filepath="$PROJECT_DIR$/.idea/autowall.iml" />
     </modules>
   </component>
 </project>
