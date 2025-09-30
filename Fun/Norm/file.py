@@ -197,8 +197,8 @@ def move_file(file_path: str, target_path: str, replace=False) -> bool:
         ensure_exist(target_path)
         if os.path.isfile(file_path):
             # 转为目标文件路径
-            file_name = os.path.basename(path)
-            tartat_path = os.path.join(dir_path, file_name)
+            file_name = os.path.basename(file_path)
+            tartat_path = os.path.join(file_path, file_name)
         # 文件不存在时移动
         if not os.path.exists(tartat_path):
             shutil.move(file_path, tartat_path)  # 移动文件
@@ -228,8 +228,8 @@ def copy_file(file_path: str, target_path: str, replace=False) -> bool:
         ensure_exist(target_path)
         if os.path.isfile(file_path):
             # 转为目标文件路径
-            file_name = os.path.basename(path)
-            tartat_path = os.path.join(dir_path, file_name)
+            file_name = os.path.basename(file_path)
+            tartat_path = os.path.join(file_path, file_name)
         # 文件不存在时复制
         if not os.path.exists(tartat_path):
             shutil.copy(file_path, tartat_path)  # 移动文件

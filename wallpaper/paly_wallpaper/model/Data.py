@@ -11,6 +11,28 @@ ALL_DIRS = GlobalValues.user_dir_path  # 照片文件夹路径
 ALL_FILES = pd.DataFrame(columns=COLUMNS)  # 所有照片的信息
 
 
+def load_data(data_path: str) -> pd.DataFrame:
+    """
+    加载本地数据
+
+    :param data_path:数据路径
+    """
+    global ALL_DIRS, ALL_FILES
+    if not file.check_exist(data_path):
+        raise FileNotFoundError(f'文件{data_path}不存在')
+    if file.get_file_extension(data_path) == 'csv':
+        ALL_FILES = pd.read_csv(data_path)
+    elif file.get_file_extension(data_path) == 'xlsx':
+        ALL_FILES = pd.read_excel(data_path)
+    ALL_DIRS = set(ALL_FILES.groupby('所在目录').groups.keys())
+    GlobalValues.user_dir_path = ALL_DIRS
+    return ALL_FILES
+
+
+def check_valid() -> bool:
+    """检查ALL_FILES表中是否有无效数据,如果有则会删除无效数据"""
+
+
 def get_new_data(clear=False) -> pd.DataFrame:
     """
     重新扫描磁盘获取数据
