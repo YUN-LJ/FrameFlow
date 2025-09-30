@@ -10,5 +10,5 @@ if __name__ == '__main__':
     start = time.time()
     data = model.Data.get_new_data()
     print(data.head())
-    print(data.loc[0],'测试分支test')
+    print(data.loc[0])
     print('执行时间',time.time()-start)
