@@ -26,19 +26,5 @@ class PInvokeModule{
 class PAbstractModule{
     
 }
-class PConcreteModuleA{
-    
-}
-class PConcreteModuleB{
-    
-}
-class PConcreteModuleC{
-    
-}
-<<interface>> PAbstractModule
-PControlLayer *-- PInvokeModule
-PAbstractModule <|-- PConcreteModuleA
-PAbstractModule <|-- PConcreteModuleB
-PAbstractModule <|-- PConcreteModuleC
 ```
-<!-- markdown version 0.1.0 -->
+<!-- markdown version 0.1.0>
