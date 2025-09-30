@@ -4,6 +4,12 @@ from PIL import Image, ImageFile
 from . import file, get
 
 
+def ignore_truncation():
+    """忽略文件截断"""
+    # 允许加载截断的图片文件
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+
 def SetWallpaperReg(image_path: str) -> bool:
     """
     用于将照片设置为壁纸
@@ -71,13 +77,6 @@ class Image_PIL:
     def __init__(self, image_path: str):
         self.__image_path = image_path  # 照片路径
         self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
-
-    @staticmethod
-    def ignore_truncation():
-        """忽略文件截断"""
-        from PIL import ImageFile
-        # 允许加载截断的图片文件
-        ImageFile.LOAD_TRUNCATED_IMAGES = True
 
     def open_image(self, image_path: str) -> ImageFile.ImageFile:
         """
