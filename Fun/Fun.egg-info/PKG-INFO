@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: Fun
+Version: 1.4
+Summary: 基础功能函数
+Author: LJ
+Author-email: 3028405217@qq.com
+Requires-Python: >=3.9
+Requires-Dist: psutil>=7.1.0
+Requires-Dist: ntplib>=0.4.0

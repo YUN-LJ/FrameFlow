@@ -1,0 +1,8 @@
+安装
+.\pip install -e E:\code\Python\simple\AutoWallpaper\Fun
+卸载
+.\pip uninstall -y Fun
+Fun\data为数据文件
+Fun\libs内为依赖文件
+使用nuitka打包时相对解压路径设置为Fun\libs\
+如果遇到pycharm中能运行但是cmd中运行会出现什么没有此对象的报错重新安装一下改包,问题导致的原因可能是模块的名字改了
