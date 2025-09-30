@@ -6,4 +6,5 @@ start_time: 2025/9/26
 基于python3.12.9
 """
 if __name__ == '__main__':
+    print(1)
     pass
