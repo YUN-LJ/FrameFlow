@@ -1,0 +1,16 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+# 忽略.idea文件夹
+/.idea/
+# 忽略打包命令
+/Nuitka打包命令.txt
+# 忽略python解释器
+/python3.12
+*.pyc
+__pycache__/
