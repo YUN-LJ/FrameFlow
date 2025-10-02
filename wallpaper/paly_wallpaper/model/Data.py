@@ -1,5 +1,5 @@
 """M层数据获取和保存"""
-import pandas as pd
+import os, pandas as pd
 from Fun.Norm import file, general
 
 from . import GlobalValues
@@ -9,28 +9,53 @@ COLUMNS = ['所在目录', '子文件路径', '是否播放', '扫描时间']  #
 IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
 ALL_DIRS = GlobalValues.user_dir_path  # 照片文件夹路径
 ALL_FILES = pd.DataFrame(columns=COLUMNS)  # 所有照片的信息
+TEMP_DIR = os.path.join(RUN_PATH, 'temp')
+file.ensure_exist(TEMP_DIR)
+DATA_NAME = 'image_data.xlsx'
 
 
-def load_data(data_path: str) -> pd.DataFrame:
+def load_data(data_path: str = None) -> bool:
     """
     加载本地数据
 
     :param data_path:数据路径
     """
+    if data_path is None:
+        data_path = os.path.join(TEMP_DIR, DATA_NAME)
+    if not file.check_exist(data_path):
+        return False
     global ALL_DIRS, ALL_FILES
     if not file.check_exist(data_path):
         raise FileNotFoundError(f'文件{data_path}不存在')
-    if file.get_file_extension(data_path) == 'csv':
-        ALL_FILES = pd.read_csv(data_path)
-    elif file.get_file_extension(data_path) == 'xlsx':
-        ALL_FILES = pd.read_excel(data_path)
-    ALL_DIRS = set(ALL_FILES.groupby('所在目录').groups.keys())
-    GlobalValues.user_dir_path = ALL_DIRS
-    return ALL_FILES
+    try:
+        if file.get_file_extension(data_path) == 'csv':
+            ALL_FILES = pd.read_csv(data_path)
+        elif file.get_file_extension(data_path) == 'xlsx':
+            ALL_FILES = pd.read_excel(data_path)
+        check_valid()  # 检查数据
+        ALL_DIRS = set(ALL_FILES.groupby('所在目录').groups.keys())
+        GlobalValues.user_dir_path = ALL_DIRS
+        return True
+    except:
+        return False
 
 
-def check_valid() -> bool:
+def check_valid():
     """检查ALL_FILES表中是否有无效数据,如果有则会删除无效数据"""
+    global ALL_FILES
+
+    def check(row):
+        dir_path = row['所在目录']
+        image_name = row['子文件路径']
+        # state = row['是否播放']
+        image_path = dir_path + image_name
+        if dir_path in ALL_DIRS and file.check_exist(image_path):
+            # 目录被选择且文件存在,保留
+            return True
+        else:
+            return False
+
+    ALL_FILES = ALL_FILES[ALL_FILES.apply(check, axis=1)]
 
 
 def get_new_data(clear=False) -> pd.DataFrame:
@@ -46,11 +71,12 @@ def get_new_data(clear=False) -> pd.DataFrame:
     # 获取全部文件路径
     def run(dir_path):
         files_path = file.get_files_path(dir_path, only_file=True)
-        # 利用filter过滤其中的非照片路径
-        image_files_path = filter(
-            lambda file_path: file.get_file_extension(file_path) in IMAGE_EXTENSION,
-            files_path)
-        add_data(dir_path, image_files_path)
+        if files_path != []:
+            # 利用filter过滤其中的非照片路径
+            image_files_path = filter(
+                lambda file_path: file.get_file_extension(file_path) in IMAGE_EXTENSION,
+                files_path)
+            add_data(dir_path, image_files_path)
 
     # 存储线程的列表
     threads = []
@@ -71,6 +97,15 @@ def get_new_data(clear=False) -> pd.DataFrame:
     return ALL_FILES
 
 
+def get_random_row() -> pd.DataFrame:
+    """从未播放的数据中随机获取一行数据"""
+    try:
+        return ALL_FILES[ALL_FILES['是否播放'] == False].sample(n=1)
+    except ValueError as e:
+        if reset_state():
+            return ALL_FILES[ALL_FILES['是否播放'] == False].sample(n=1)
+
+
 def add_data(dir_path: str, files_path: list) -> pd.DataFrame:
     """
     将数据新增到ALL_FILES中
@@ -87,7 +122,53 @@ def add_data(dir_path: str, files_path: list) -> pd.DataFrame:
     new_data = pd.DataFrame(data, columns=COLUMNS)
     # 表合并
     ALL_FILES = pd.concat([ALL_FILES, new_data], ignore_index=True)  # 重置索引
+    # 数据去重
+    ALL_FILES.drop_duplicates(subset=['所在目录', '子文件路径'], keep='first', inplace=True)
     return ALL_FILES
+
+
+def add_image_dir(dir_path: str) -> bool:
+    """新增照片目录"""
+    if file.check_exist(dir_path) and file.check_dir(dir_path):
+        ALL_DIRS.add(dir_path)
+        GlobalValues.user_dir_path.add(dir_path)
+        return True
+    else:
+        return False
+
+
+def del_image_dir(dir_path: list) -> bool:
+    """删除照片路径"""
+    try:
+        for item in dir_path:
+            ALL_DIRS.remove(item)
+        check_valid()
+        return True
+    except:
+        check_valid()
+        return False
+
+
+def clear_image_dir() -> bool:
+    """清空照片目录"""
+    global ALL_FILES
+    ALL_DIRS.clear()
+    GlobalValues.user_dir_path.clear()
+    ALL_FILES = pd.DataFrame(columns=COLUMNS)
+    return True
+
+
+def update_state(row: pd.DataFrame, state=True) -> bool:
+    """更新表中照片的播放状态"""
+    ALL_FILES.loc[row.index[0], '是否播放'] = state
+    return True
+
+
+def reset_state() -> bool:
+    """重置全部图片的状态"""
+    global ALL_FILES
+    ALL_FILES['是否播放'] = False
+    return True
 
 
 def save_data(extension='xlsx') -> bool:
@@ -96,9 +177,10 @@ def save_data(extension='xlsx') -> bool:
 
     :param extension:保存的文件格式 -> xlsx、csv
     """
-    import os
+    global DATA_NAME
     try:
-        target_path = os.path.join(RUN_PATH, f'temp/image_data.{extension}')
+        DATA_NAME = f'{DATA_NAME.split('.')[0]}.{extension}'
+        target_path = os.path.join(TEMP_DIR, DATA_NAME)
         if extension == 'xlsx':
             ALL_FILES.to_excel(target_path, index=False)
         elif extension == 'csv':
