@@ -41,7 +41,7 @@ class PySide6GUI(MSFluentWindow):
         self.initNavigation()
 
         # 切换至主页
-        # self.stackedWidget.currentChanged.connect(lambda index: AddPage(self.stackedWidget.currentWidget(), index))
+        self.stackedWidget.currentChanged.connect(lambda index: AddPage(self.stackedWidget.currentWidget(), index))
 
     def sub_widget(self):
         self.subwidget = {
@@ -73,6 +73,29 @@ class Widget(QFrame):
 
         # 必须给子界面设置全局唯一的对象名
         self.setObjectName(text.replace(' ', '-'))
+
+
+class AddPage:
+    page_dict = {
+
+    }
+    page_object = {}  # 实例化对象
+
+    def __init__(self, widget: QWidget, index: int):
+        self.widget = widget
+        self.page_change(index)
+
+    def page_change(self, index: int) -> bool:
+        """页面改变时"""
+        function_name = AddPage.page_dict.get(index, False)
+        if function_name:
+            if not self.widget.hBoxLayout.count():
+                window = function_name()
+                self.widget.hBoxLayout.addWidget(window)
+                AddPage.page_object.update({function_name: window})
+            return True
+        else:
+            return False
 
 
 def start_GUI():

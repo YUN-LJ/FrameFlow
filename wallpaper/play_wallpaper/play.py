@@ -5,10 +5,13 @@ from threading import Thread
 from Fun.Norm import image
 from screeninfo import get_monitors
 
-try:
-    from .model import Data
-except:
-    from model import Data
+import sys, os
+
+# 获取当前文件的目录
+parent_dir = os.path.dirname(os.path.realpath(__file__))
+# 将父级目录添加到模块搜索路径
+sys.path.append(parent_dir)
+from model import Data
 
 
 class WallPaper:
@@ -163,11 +166,12 @@ class WallPaper:
 
 if __name__ == '__main__':
     import time
-    start=time.time()
+
+    start = time.time()
     a = WallPaper()
     a.add_user_dir(
         [r'E:\user_file\Pictures\壁纸\wallhaven'],
         update=False)  # 应该有个配置文件保存上次选择的文件夹路径
-    a.load_data() # 加载本地数据
-    print(f'time:{time.time()-start}')
+    a.load_data()  # 加载本地数据
+    print(f'time:{time.time() - start}')
     a.run(True)
