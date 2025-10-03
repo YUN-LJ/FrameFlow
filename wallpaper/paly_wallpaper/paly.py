@@ -163,7 +163,6 @@ class WallPaper:
 
 if __name__ == '__main__':
     import time
-
     start=time.time()
     a = WallPaper()
     a.add_user_dir(
