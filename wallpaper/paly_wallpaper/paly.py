@@ -1,18 +1,173 @@
 """壁纸播放模块"""
-from .model import Data
+import pandas as pd
+from threading import Thread
+
+from Fun.Norm import image
+from screeninfo import get_monitors
+
+try:
+    from .model import Data
+except:
+    from model import Data
 
 
-class Wallpaper:
+class WallPaper:
     """实现壁纸播放的类"""
 
-
     def __init__(self):
-        pass
+        self.__data_state = False  # 数据加载状态
+        self.__paly_state = False  # 播放状态,False表示未播放
+        self.__screen = str  # 当前屏幕最大尺寸
+        self.__row = pd.DataFrame  # 随机获取的一行数据
+        self.__image_path = str  # 当前播放的照片路径
+        self.__image = None  # 当前播放的照片的PIL图像对象
+        self.__stretch = False  # 处理照片缩放时是否拉伸
+        self.__paly_time = 10.0  # 播放间隔时间单位秒
+        self.get_max_screen()  # 获取屏幕最大尺寸
 
+    def __image_process(self) -> bool:
+        """图像处理"""
+        try:
+            # 获取图像路径
+            self.__get_image_path()
+            # 打开图像
+            self.__image = self.IM.open_image(self.__image_path)
+            # 图像拼接
+            if not self.IM.check_w_screen:
+                self.__image = self.IM.merge()
+            # 图像缩放
+            self.__image = self.IM.resize(self.screen, stretch=self.__stretch)
+            # 图像压缩
+            self.__image = self.IM.zip(15)
+            return True
+        except Exception as e:
+            print(f'Wallpaper-image_process错误:\n{e}')
+            return False
 
-    def run(self):
-        """执行播放"""
+    def __set_image_wallpaper(self) -> bool:
+        """设置壁纸"""
+        try:
+            image.set_wallpaper_API(self.__image)
+            Data.update_state(self.__row)
+            Data.save_data()
+            return True
+        except Exception as e:
+            print(f'Wallpaper-set_image_wallpaper错误:\n{e}')
+            return False
+
+    def __get_image_path(self):
+        """获取图像路径"""
+        self.__row = Data.get_random_row()
+        self.__image_path = self.__row['所在目录'] + self.__row['子文件路径']
+        self.__image_path = self.__image_path.loc[self.__image_path.index[0]]
+
+    def get_max_screen(self) -> str:
+        """
+        获取最大屏幕分辨率,以宽为准
+        返回:1920x1080"""
+        # 获取所有屏幕信息
+        monitors = get_monitors()
+        max_width = 0
+        max_height = 0
+        for monitor in monitors:
+            cur_width = monitor.width
+            cur_height = monitor.height
+            if cur_width > max_width:
+                max_width = cur_width
+                max_height = cur_height
+        self.screen = f'{max_width}x{max_height}'
+        return self.screen
+
+    def load_data(self):
+        """从本地加载数据,如果加载失败则播放,会将播放状态切为False"""
+        if not Data.load_data():
+            print(f'Wallpaper:暂无本地数据!')
+            self.__data_state = False
+        else:
+            self.__data_state = True
+
+    def set_play_time(self, play_time=10.0) -> float:
+        """设置播放间隔"""
+        self.__paly_time = play_time
+        return self.__paly_time
+
+    def play_wallpaper(self):
+        """壁纸播放"""
+        import time
+        start_time = 0
+        while True:
+            if self.__paly_state:
+                if self.__data_state:  # 如果内存中加载的数据的情况下
+                    if time.time() - start_time >= self.__paly_time:
+                        self.IM = image.Image_PIL()
+                        if self.__image_process():
+                            print(f'当前播放:{self.__image_path}\n播放间隔:{time.time() - start_time}')
+                            self.__set_image_wallpaper()
+                            start_time = time.time()
+                        else:
+                            start_time = time.time()
+                            time.sleep(0.3)
+                    else:
+                        time.sleep(0.3)
+                else:
+                    self.update_data()
+            else:
+                break
+
+    def add_user_dir(self, dir_path: list, update=True) -> bool:
+        """添加新的照片路径"""
+        for item in dir_path:
+            Data.add_image_dir(item)
+        if update:
+            self.update_data()
+        return True
+
+    def del_user_dir(self, dir_path: list, update=True) -> bool:
+        Data.del_image_dir(dir_path)
+        if update:
+            self.update_data()
+        return True
+
+    def clear_user_dir(self) -> bool:
+        """清空照片路径"""
+        Data.clear_image_dir()
+        self.__data_state = False
+
+    def update_data(self):
+        try:
+            Data.get_new_data()
+            Data.save_data()
+            self.__data_state = True
+            return True
+        except Exception as e:
+            self.__data_state = False
+            print(f'Wallpaper-update_data错误:\n{e}')
+            return False
+
+    def stop(self):
+        """停止播放"""
+        self.__paly_state = False
+
+    def run(self, cmd=False):
+        """
+        执行播放
+
+        :param cmd:cmd模式下运行(主线程会等待全部子线程结束后才会结束)
+        """
+        self.__paly_state = True
+        if cmd:
+            Thread(target=self.play_wallpaper).start()
+        else:
+            Thread(target=self.play_wallpaper, daemon=True).start()
 
 
 if __name__ == '__main__':
-    pass
+    import time
+    start=time.time()
+    a = WallPaper()
+    a.add_user_dir(
+        [r'E:\user_file\Pictures\壁纸\wallhaven'],
+        update=False)  # 应该有个配置文件保存上次选择的文件夹路径
+    a.load_data() # 加载本地数据
+    print(f'time:{time.time()-start}')
+    a.run(True)
