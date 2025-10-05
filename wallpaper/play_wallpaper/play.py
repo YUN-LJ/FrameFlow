@@ -5,13 +5,10 @@ from threading import Thread
 from Fun.Norm import image
 from screeninfo import get_monitors
 
-import sys, os
-
-# 获取当前文件的目录
-parent_dir = os.path.dirname(os.path.realpath(__file__))
-# 将父级目录添加到模块搜索路径
-sys.path.append(parent_dir)
-from model import Data
+try:
+    from .model import Data
+except:
+    from model import Data
 
 
 class WallPaper:

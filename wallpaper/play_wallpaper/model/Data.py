@@ -9,9 +9,9 @@ COLUMNS = ['所在目录', '子文件路径', '是否播放', '扫描时间']  #
 IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
 ALL_DIRS = GlobalValues.user_dir_path  # 照片文件夹路径
 ALL_FILES = pd.DataFrame(columns=COLUMNS)  # 所有照片的信息
-TEMP_DIR = os.path.join(RUN_PATH, 'temp') # 缓存路径,默认在程序启动目录下
+TEMP_DIR = os.path.join(RUN_PATH, 'temp')  # 缓存路径,默认在程序启动目录下
 file.ensure_exist(TEMP_DIR)
-DATA_NAME = 'image_data.csv' # 保存文件和加载文件的名称,目前只支持xlsx和csv格式,csv加载快占用空间大,xlsx占用空间小加载慢
+DATA_NAME = 'image_data.csv'  # 保存文件和加载文件的名称,目前只支持xlsx和csv格式,csv加载快占用空间大,xlsx占用空间小加载慢
 
 
 def load_data(data_path: str = None) -> bool:

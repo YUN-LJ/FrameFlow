@@ -1,5 +1,5 @@
 # 图形库
-from PySide6.QtWidgets import QHBoxLayout, QFrame
+from PySide6.QtWidgets import QHBoxLayout, QFrame,QWidget
 from PySide6.QtGui import QIcon
 # 美化库
 from qfluentwidgets import NavigationItemPosition, MSFluentWindow, setThemeColor
@@ -75,11 +75,16 @@ class Widget(QFrame):
         self.setObjectName(text.replace(' ', '-'))
 
 
+# 导入子窗口
+from sub_ui.wallpaper.wallpaper_win import WallPaperWin
+
+
 class AddPage:
     page_dict = {
-
+        1: WallPaperWin,
     }
-    page_object = {}  # 实例化对象
+
+    # page_object = {}  # 实例化对象
 
     def __init__(self, widget: QWidget, index: int):
         self.widget = widget
@@ -92,7 +97,7 @@ class AddPage:
             if not self.widget.hBoxLayout.count():
                 window = function_name()
                 self.widget.hBoxLayout.addWidget(window)
-                AddPage.page_object.update({function_name: window})
+                # AddPage.page_object.update({function_name: window})
             return True
         else:
             return False
