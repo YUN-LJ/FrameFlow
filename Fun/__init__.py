@@ -1,13 +1,17 @@
 # 声明对外接口
-__all__ = ['GUI_Qt','Norm','System']  # 明确导出的成员
+__all__ = ['GUI_Qt', 'Norm', 'System','AutoGUI']  # 明确导出的成员
 
 import importlib
+
 # 模块名与模块路径的映射字典（仅需模块名即可，因为都是同级模块）
 _MODULE_MAP = {
     'GUI_Qt': '.GUI_Qt',
     'Norm': '.Norm',
-    'System': '.System'
+    'System': '.System',
+    'AutoGUI': '.AutoGUI',
 }
+
+
 def __getattr__(name):
     """延迟导入内部模块"""
     if name not in __all__:

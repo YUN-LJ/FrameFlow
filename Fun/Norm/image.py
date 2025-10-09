@@ -10,7 +10,11 @@ def ignore_truncation():
     ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
+<<<<<<< HEAD
 def SetWallpaperReg(image_path: str) -> bool:
+=======
+def set_wallpaper_reg(image_path: str) -> bool:
+>>>>>>> 082bad9211121b1d2a7649a965dcbad7c453bb8e
     """
     用于将照片设置为壁纸
 
@@ -31,7 +35,7 @@ def SetWallpaperReg(image_path: str) -> bool:
     return True
 
 
-def SetWallpaperAPI(image_data) -> bool:
+def set_wallpaper_API(image_data) -> bool:
     """
     从内存中的图像数据设置Windows壁纸
 
@@ -74,9 +78,14 @@ def SetWallpaperAPI(image_data) -> bool:
 
 
 class Image_PIL:
-    def __init__(self, image_path: str):
+    def __init__(self, image_path: str = None):
         self.__image_path = image_path  # 照片路径
+<<<<<<< HEAD
         self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
+=======
+        if image_path is not None:
+            self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
+>>>>>>> 082bad9211121b1d2a7649a965dcbad7c453bb8e
 
     def open_image(self, image_path: str) -> ImageFile.ImageFile:
         """
@@ -131,10 +140,10 @@ class Image_PIL:
             AR = w / h
             if self.check_w_screen:
                 width = int(resolution.split('x')[0])
-                height = int(width * AR)
+                height = int(width / AR)
             else:
                 height = int(resolution.split('x')[1])
-                width = int(height / AR)
+                width = int(height * AR)
         self.__image = self.__image.resize((width, height), Image.Resampling.LANCZOS)
         return width, height
 
@@ -149,11 +158,16 @@ class Image_PIL:
         from threading import Thread
         # 获取长宽信息
         width, height = self.get_size
-        # 照片的大小
-        image_size = file.get_files_size(self.__image_path, unit='MB')
         # 照片的格式
         image_ext = file.get_file_extension(self.__image_path).upper()
         img_byte_arr = io.BytesIO()  # 开辟内存空间类似于物理磁盘可以保存数据
+        # 保存至内存中
+        self.__image.save(img_byte_arr, 'BMP', quality=quality)
+        # 照片的大小
+        img_byte_arr.seek(0, io.SEEK_END)
+        image_size = img_byte_arr.tell() / 1024 / 1024  # MB度量单位
+        img_byte_arr.truncate(0)  # 清空数据
+        img_byte_arr.seek(0)  # 将指针重置到开头
         # 压缩照片大小
         while image_size > max_size:
             # 减少照片的分辨率已达到压缩的目的
@@ -161,7 +175,7 @@ class Image_PIL:
             self.__image = self.__image.resize((width, height), Image.Resampling.LANCZOS)  # 压缩算法
 
             # 保存至内存中
-            self.__image.save(img_byte_arr, image_ext, quality=quality)
+            self.__image.save(img_byte_arr, 'BMP', quality=quality)
 
             # 重新获取内存中self.__image的大小,将指针移动到末尾并获取位置（即数据大小）
             img_byte_arr.seek(0, io.SEEK_END)
