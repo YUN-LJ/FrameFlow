@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'GUI.ui'
+## Form generated from reading UI file 'wallpaper_ui.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.9.2
 ##
@@ -45,29 +45,30 @@ class Ui_wallpaper(object):
         self.tableWidget_dirs_path.setHorizontalHeaderItem(2, __qtablewidgetitem2)
         self.tableWidget_dirs_path.setObjectName(u"tableWidget_dirs_path")
         self.tableWidget_dirs_path.setStyleSheet(u"QTableWidget {\n"
-"                gridline-color: #eee;\n"
-"                selection-background-color: #e3f2fd;\n"
-"selection-color: #333;\n"
-"            }\n"
-"            QHeaderView::section {\n"
-"                \n"
-"	\n"
-"	\n"
+"    gridline-color: #eee;\n"
+"    selection-background-color: #e3f2fd;\n"
+"    selection-color: #333; /* \u9009\u4e2d\u5355\u5143\u683c\u7684\u5b57\u4f53\u989c\u8272 */\n"
+"    color: #555; /* \u9ed8\u8ba4\u5b57\u4f53\u989c\u8272\uff08\u672a\u9009\u4e2d\u72b6\u6001\uff09 */\n"
+"    font-family: \"Microsoft YaHei\", sans-serif; /* \u53ef\u9009\uff1a\u8bbe\u7f6e\u5b57\u4f53 */\n"
+"    font-size: 12px; /* \u53ef\u9009\uff1a\u8bbe\u7f6e\u5b57\u4f53\u5927\u5c0f */\n"
+"}\n"
+"QHeaderView::section {\n"
 "	background-color: rgb(217, 217, 217);\n"
-"                color: black;\n"
-"                font-weight:bold;\n"
-"                border: none;\n"
-"                padding: 5px;\n"
-"            }")
+"	color: black;\n"
+"	font-weight:bold;\n"
+"	border: none;\n"
+"	padding: 5px;\n"
+"}")
 
         self.horizontalLayout.addWidget(self.tableWidget_dirs_path)
 
         self.scrollArea_options = QScrollArea(wallpaper)
         self.scrollArea_options.setObjectName(u"scrollArea_options")
+        self.scrollArea_options.setMinimumSize(QSize(120, 0))
         self.scrollArea_options.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 111, 496))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 118, 496))
         self.verticalLayout_2 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.pushButton_add = PrimaryPushButton(self.scrollAreaWidgetContents)

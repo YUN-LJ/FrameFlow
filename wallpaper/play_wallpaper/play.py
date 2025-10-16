@@ -2,13 +2,15 @@
 import pandas as pd
 from threading import Thread
 
-from Fun.Norm import image
+from Fun.Norm import image, ini, file
 from screeninfo import get_monitors
 
 try:
     from .model import Data
 except:
     from model import Data
+
+INI_FILE = f'{Data.TEMP_DIR}/config.ini'
 
 
 class WallPaper:
@@ -24,6 +26,7 @@ class WallPaper:
         self.__stretch = False  # 处理照片缩放时是否拉伸
         self.__paly_time = 10.0  # 播放间隔时间单位秒
         self.get_max_screen()  # 获取屏幕最大尺寸
+        self.__ini = ini.INI(INI_FILE, 'Set')
 
     def __image_process(self) -> bool:
         """图像处理"""
@@ -80,6 +83,15 @@ class WallPaper:
 
     def load_data(self):
         """从本地加载数据,如果加载失败则播放,会将播放状态切为False"""
+        if file.check_exist(INI_FILE):
+            config_values = self.__ini.get_values()
+            dir_list = []
+            for key, value in config_values.items():
+                if key == 'paly_time':
+                    self.__paly_time = float(value)
+                elif key.isdigit():
+                    dir_list.append(value)
+            self.add_user_dir(dir_list, False)
         if not Data.load_data():
             print(f'Wallpaper:暂无本地数据!')
             self.__data_state = False
@@ -160,15 +172,29 @@ class WallPaper:
         else:
             Thread(target=self.play_wallpaper, daemon=True).start()
 
+    def save_set(self) -> bool:
+        """
+        保存当前的配置文件
+        """
+        try:
+            all_dir_path = {'paly_time': self.__paly_time}
+            all_dir_path.update({index: item for index, item in enumerate(Data.ALL_DIRS)})
+            self.__ini.append_values(all_dir_path)
+        except Exception as e:
+            print(f'Wallpaper-save_set 错误:\n{e}')
+
 
 if __name__ == '__main__':
     import time
 
     start = time.time()
     a = WallPaper()
-    a.add_user_dir(
-        [r'E:\user_file\Pictures\壁纸\wallhaven'],
-        update=False)  # 应该有个配置文件保存上次选择的文件夹路径
+    # a.add_user_dir(
+    #     [r'E:\user_file\Pictures\壁纸\wallhaven'],
+    #     update=False)  # 应该有个配置文件保存上次选择的文件夹路径
     a.load_data()  # 加载本地数据
-    print(f'time:{time.time() - start}')
+    print(f'加载用时:{time.time() - start}')
+    # a.set_play_time(10)  # 设置播放时间
+    # a.save_set() # 保存播放间隔时间和选择的文件夹路径
     a.run(True)
+    # a.stop()  # 停止播放

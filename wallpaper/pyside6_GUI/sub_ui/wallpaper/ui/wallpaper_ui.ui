@@ -35,20 +35,20 @@
       <widget class="TableWidget" name="tableWidget_dirs_path">
        <property name="styleSheet">
         <string notr="true">QTableWidget {
-                gridline-color: #eee;
-                selection-background-color: #e3f2fd;
-selection-color: #333;
-            }
-            QHeaderView::section {
-                
-	
-	
+    gridline-color: #eee;
+    selection-background-color: #e3f2fd;
+    selection-color: #333; /* 选中单元格的字体颜色 */
+    color: #555; /* 默认字体颜色（未选中状态） */
+    font-family: &quot;Microsoft YaHei&quot;, sans-serif; /* 可选：设置字体 */
+    font-size: 12px; /* 可选：设置字体大小 */
+}
+QHeaderView::section {
 	background-color: rgb(217, 217, 217);
-                color: black;
-                font-weight:bold;
-                border: none;
-                padding: 5px;
-            }</string>
+	color: black;
+	font-weight:bold;
+	border: none;
+	padding: 5px;
+}</string>
        </property>
        <column>
         <property name="text">
@@ -69,6 +69,12 @@ selection-color: #333;
      </item>
      <item>
       <widget class="QScrollArea" name="scrollArea_options">
+       <property name="minimumSize">
+        <size>
+         <width>120</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="widgetResizable">
         <bool>true</bool>
        </property>
@@ -77,7 +83,7 @@ selection-color: #333;
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>111</width>
+          <width>118</width>
           <height>496</height>
          </rect>
         </property>

@@ -1,9 +1,12 @@
 # 图形库
-from PySide6.QtWidgets import QHBoxLayout, QFrame,QWidget
+from PySide6.QtWidgets import QHBoxLayout, QFrame, QWidget
 from PySide6.QtGui import QIcon
 # 美化库
-from qfluentwidgets import NavigationItemPosition, MSFluentWindow, setThemeColor
-from qfluentwidgets import FluentIcon as FIF
+from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
+                            setThemeColor, FluentIcon as FIF)
+from qframelesswindow.utils import getSystemAccentColor
+
+import ctypes, sys
 
 # 导入资源文件
 try:
@@ -16,6 +19,12 @@ ICO_PATH = {
     '壁纸播放': FIF.PHOTO,
     '设置': FIF.SETTING,
 }
+LIGHT = """QWidget {
+            background-color: rgb(250,248,252);
+            color: black;}"""
+DACK = """QWidget {
+            background-color: rgb(45,45,45);
+            color: black;}"""
 
 
 class PySide6GUI(MSFluentWindow):
@@ -27,12 +36,15 @@ class PySide6GUI(MSFluentWindow):
         self.setWindowIcon(QIcon(f":/icons/ico_main.png"))
         self.setWindowTitle('FrameFlow-画框')
 
+        # 设置任务栏图标
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FrameFlow-画框")
+
         # 设置窗口居中
         rect = app.primaryScreen().availableGeometry()
         w, h = rect.width(), rect.height()
         self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
         # 设置主题色
-        setThemeColor('#7da3d3')
+        # setThemeColor('#7da3d3')
 
         # 列出全部子窗口
         self.sub_widget()
@@ -97,6 +109,10 @@ class AddPage:
             if not self.widget.hBoxLayout.count():
                 window = function_name()
                 self.widget.hBoxLayout.addWidget(window)
+                # 全局主题,由于延迟机制,每次在初始化子窗口时都需要设置一次主题色
+                # 只能获取 Windows 和 macOS 的主题色
+                if sys.platform in ["win32", "darwin"]:
+                    setThemeColor(getSystemAccentColor(), save=False)
                 # AddPage.page_object.update({function_name: window})
             return True
         else:
@@ -108,6 +124,8 @@ def start_GUI():
     global app
     app = QApplication([])
     GUI = PySide6GUI()
+    # 设置所有QWidget类背景色为浅色
+    GUI.setStyleSheet(LIGHT)
     GUI.show()
     app.exec()
 
