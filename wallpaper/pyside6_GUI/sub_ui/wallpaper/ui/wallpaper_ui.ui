@@ -97,8 +97,8 @@ QHeaderView::section {
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>106</width>
-            <height>202</height>
+            <width>118</width>
+            <height>199</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -125,19 +125,6 @@ QHeaderView::section {
              </property>
              <property name="text">
               <string>删除目录</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="PrimaryPushButton" name="pushButton_pause">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>40</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>暂停播放</string>
              </property>
             </widget>
            </item>

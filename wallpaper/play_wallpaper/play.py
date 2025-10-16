@@ -201,6 +201,7 @@ class WallPaper:
         try:
             all_dir_path = {'paly_time': self.__paly_time}
             all_dir_path.update({index: item for index, item in enumerate(Data.ALL_DIRS)})
+            self.__ini.del_section()
             self.__ini.append_values(all_dir_path)
         except Exception as e:
             print(f'Wallpaper-save_set 错误:\n{e}')
@@ -211,9 +212,9 @@ if __name__ == '__main__':
 
     start = time.time()
     a = WallPaper()
-    a.add_user_dir(
-        [r'E:/user_file/Pictures/壁纸/暂时储存/测试'],
-        update=False)  # 应该有个配置文件保存上次选择的文件夹路径
+    # a.add_user_dir(
+    #     [r'E:/user_file/Pictures/壁纸/暂时储存/测试'],
+    #     update=False)  # 应该有个配置文件保存上次选择的文件夹路径
     a.load_data()  # 加载本地数据
     print(f'加载用时:{time.time() - start}')
     # a.set_play_time(10)  # 设置播放时间

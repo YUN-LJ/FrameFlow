@@ -116,7 +116,17 @@ class WallPaperWin(Ui_wallpaper, QWidget):
 
     def __pushButton_add(self, dirs_path: list | set = None, init=False):
         if dirs_path is None:
-            dirs_path = [PySide6Mod.get_exist_dir()]
+            max_row = self.tableWidget_dirs_path.rowCount()
+            item = self.tableWidget_dirs_path.item(max_row - 1, 0)
+            if item is not None:
+                item = f'{item.text()}/..'
+                path = PySide6Mod.get_exist_dir(dir_path=item)
+            else:
+                path = PySide6Mod.get_exist_dir()
+            if path == '':
+                return
+            else:
+                dirs_path = [path]
         if isinstance(dirs_path, set):
             dirs_path = list(dirs_path)
         if dirs_path != []:
@@ -145,9 +155,30 @@ class WallPaperWin(Ui_wallpaper, QWidget):
             self.pushButton_start.setText('开始')
             self.__wallpaper.stop()
 
+    def __pushButton_del(self):
+        # 获取所有选中的项目
+        selected_items = self.tableWidget_dirs_path.selectedItems()
+        all_selectcell = []
+        del_row = []
+        if selected_items:
+            # 输出依次输出选中单元格的信息
+            for item in selected_items:
+                col = item.column()
+                if col == 0:
+                    value = item.text()
+                    row = item.row()
+                    all_selectcell.append(value)
+                    del_row.append(row)
+        if all_selectcell != []:
+            del_row = sorted(del_row, reverse=True)
+            for index in del_row:
+                self.tableWidget_dirs_path.removeRow(index)
+            self.__wallpaper.del_user_dir(all_selectcell)
+            self.__wallpaper.save_set()
+
     def __bind(self):
         """控件绑定"""
-
+        self.pushButton_del.clicked.connect(self.__pushButton_del)
         self.pushButton_add.clicked.connect(lambda: self.__pushButton_add())
         self.pushButton_start.clicked.connect(self.__pushButton_start)
 
