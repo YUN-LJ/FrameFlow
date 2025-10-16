@@ -8,6 +8,7 @@
 /dataSources.local.xml
 # 忽略.idea文件夹
 /.idea/
+/.venv/
 # 忽略打包命令
 /Nuitka打包命令.txt
 # 忽略python解释器
