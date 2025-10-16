@@ -9,12 +9,7 @@ def ignore_truncation():
     # 允许加载截断的图片文件
     ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-
-<<<<<<< HEAD
-def SetWallpaperReg(image_path: str) -> bool:
-=======
 def set_wallpaper_reg(image_path: str) -> bool:
->>>>>>> 082bad9211121b1d2a7649a965dcbad7c453bb8e
     """
     用于将照片设置为壁纸
 
@@ -80,12 +75,8 @@ def set_wallpaper_API(image_data) -> bool:
 class Image_PIL:
     def __init__(self, image_path: str = None):
         self.__image_path = image_path  # 照片路径
-<<<<<<< HEAD
-        self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
-=======
         if image_path is not None:
             self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
->>>>>>> 082bad9211121b1d2a7649a965dcbad7c453bb8e
 
     def open_image(self, image_path: str) -> ImageFile.ImageFile:
         """
