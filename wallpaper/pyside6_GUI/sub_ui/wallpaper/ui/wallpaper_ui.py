@@ -15,9 +15,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QScrollArea,
-    QSizePolicy, QSpacerItem, QTableWidgetItem, QVBoxLayout,
-    QWidget)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QLabel,
+    QScrollArea, QSizePolicy, QSpacerItem, QTableWidgetItem,
+    QVBoxLayout, QWidget)
 
 from qfluentwidgets.components.widgets import PrimaryPushButton
 from qfluentwidgets.components.widgets.table_view import TableWidget
@@ -32,8 +32,10 @@ class Ui_wallpaper(object):
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        self.verticalLayout_3 = QVBoxLayout()
+        self.verticalLayout_3.setObjectName(u"verticalLayout_3")
+        self.horizontalLayout_2 = QHBoxLayout()
+        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
         self.tableWidget_dirs_path = TableWidget(wallpaper)
         if (self.tableWidget_dirs_path.columnCount() < 3):
             self.tableWidget_dirs_path.setColumnCount(3)
@@ -44,6 +46,7 @@ class Ui_wallpaper(object):
         __qtablewidgetitem2 = QTableWidgetItem()
         self.tableWidget_dirs_path.setHorizontalHeaderItem(2, __qtablewidgetitem2)
         self.tableWidget_dirs_path.setObjectName(u"tableWidget_dirs_path")
+        self.tableWidget_dirs_path.setMinimumSize(QSize(0, 80))
         self.tableWidget_dirs_path.setStyleSheet(u"QTableWidget {\n"
 "    gridline-color: #eee;\n"
 "    selection-background-color: #e3f2fd;\n"
@@ -53,22 +56,23 @@ class Ui_wallpaper(object):
 "    font-size: 12px; /* \u53ef\u9009\uff1a\u8bbe\u7f6e\u5b57\u4f53\u5927\u5c0f */\n"
 "}\n"
 "QHeaderView::section {\n"
-"	background-color: rgb(217, 217, 217);\n"
+"	background-color: rgb(250,248,252);\n"
 "	color: black;\n"
 "	font-weight:bold;\n"
 "	border: none;\n"
 "	padding: 5px;\n"
 "}")
 
-        self.horizontalLayout.addWidget(self.tableWidget_dirs_path)
+        self.horizontalLayout_2.addWidget(self.tableWidget_dirs_path)
 
         self.scrollArea_options = QScrollArea(wallpaper)
         self.scrollArea_options.setObjectName(u"scrollArea_options")
         self.scrollArea_options.setMinimumSize(QSize(120, 0))
+        self.scrollArea_options.setMaximumSize(QSize(120, 16777215))
         self.scrollArea_options.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 118, 496))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 106, 202))
         self.verticalLayout_2 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.pushButton_add = PrimaryPushButton(self.scrollAreaWidgetContents)
@@ -89,18 +93,47 @@ class Ui_wallpaper(object):
 
         self.verticalLayout_2.addWidget(self.pushButton_pause)
 
+        self.pushButton_start = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_start.setObjectName(u"pushButton_start")
+        self.pushButton_start.setMinimumSize(QSize(0, 40))
+
+        self.verticalLayout_2.addWidget(self.pushButton_start)
+
         self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
         self.verticalLayout_2.addItem(self.verticalSpacer)
 
         self.scrollArea_options.setWidget(self.scrollAreaWidgetContents)
 
-        self.horizontalLayout.addWidget(self.scrollArea_options)
+        self.horizontalLayout_2.addWidget(self.scrollArea_options)
 
-        self.horizontalLayout.setStretch(0, 6)
-        self.horizontalLayout.setStretch(1, 1)
 
-        self.verticalLayout.addLayout(self.horizontalLayout)
+        self.verticalLayout_3.addLayout(self.horizontalLayout_2)
+
+        self.horizontalLayout = QHBoxLayout()
+        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout.addItem(self.horizontalSpacer)
+
+        self.label_image = QLabel(wallpaper)
+        self.label_image.setObjectName(u"label_image")
+        self.label_image.setMinimumSize(QSize(500, 280))
+        self.label_image.setMaximumSize(QSize(500, 280))
+
+        self.horizontalLayout.addWidget(self.label_image)
+
+        self.horizontalSpacer_2 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout.addItem(self.horizontalSpacer_2)
+
+
+        self.verticalLayout_3.addLayout(self.horizontalLayout)
+
+        self.verticalLayout_3.setStretch(0, 7)
+        self.verticalLayout_3.setStretch(1, 10)
+
+        self.verticalLayout.addLayout(self.verticalLayout_3)
 
 
         self.retranslateUi(wallpaper)
@@ -119,5 +152,7 @@ class Ui_wallpaper(object):
         self.pushButton_add.setText(QCoreApplication.translate("wallpaper", u"\u65b0\u589e\u76ee\u5f55", None))
         self.pushButton_del.setText(QCoreApplication.translate("wallpaper", u"\u5220\u9664\u76ee\u5f55", None))
         self.pushButton_pause.setText(QCoreApplication.translate("wallpaper", u"\u6682\u505c\u64ad\u653e", None))
+        self.pushButton_start.setText(QCoreApplication.translate("wallpaper", u"\u5f00\u59cb", None))
+        self.label_image.setText("")
     # retranslateUi
 

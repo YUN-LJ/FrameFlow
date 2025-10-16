@@ -3,7 +3,8 @@ from PySide6.QtWidgets import QHBoxLayout, QFrame, QWidget
 from PySide6.QtGui import QIcon
 # 美化库
 from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
-                            setThemeColor, FluentIcon as FIF)
+                            setThemeColor, setTheme,Theme,
+                            FluentIcon as FIF)
 from qframelesswindow.utils import getSystemAccentColor
 
 import ctypes, sys
@@ -109,10 +110,6 @@ class AddPage:
             if not self.widget.hBoxLayout.count():
                 window = function_name()
                 self.widget.hBoxLayout.addWidget(window)
-                # 全局主题,由于延迟机制,每次在初始化子窗口时都需要设置一次主题色
-                # 只能获取 Windows 和 macOS 的主题色
-                if sys.platform in ["win32", "darwin"]:
-                    setThemeColor(getSystemAccentColor(), save=False)
                 # AddPage.page_object.update({function_name: window})
             return True
         else:
@@ -126,6 +123,12 @@ def start_GUI():
     GUI = PySide6GUI()
     # 设置所有QWidget类背景色为浅色
     GUI.setStyleSheet(LIGHT)
+    setTheme(Theme.LIGHT)
+    # 全局主题
+    # 只能获取 Windows 和 macOS 的主题色
+    if sys.platform in ["win32", "darwin"]:
+        # save=True时对后续创建的对象也会生效,否则只对当前存在的对象生效
+        setThemeColor(getSystemAccentColor(), save=False,lazy=True)
     GUI.show()
     app.exec()
 

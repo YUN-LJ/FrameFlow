@@ -22,6 +22,7 @@ class WallPaper:
         self.__screen = str  # 当前屏幕最大尺寸
         self.__row = pd.DataFrame  # 随机获取的一行数据
         self.__image_path = str  # 当前播放的照片路径
+        self.__func = None  # 每次切换照片时自动调用
         self.__image = None  # 当前播放的照片的PIL图像对象
         self.__stretch = False  # 处理照片缩放时是否拉伸
         self.__paly_time = 10.0  # 播放间隔时间单位秒
@@ -81,6 +82,11 @@ class WallPaper:
         self.screen = f'{max_width}x{max_height}'
         return self.screen
 
+    @property
+    def get_dirs_path(self) -> set:
+        """获取当前目录"""
+        return Data.ALL_DIRS
+
     def load_data(self):
         """从本地加载数据,如果加载失败则播放,会将播放状态切为False"""
         if file.check_exist(INI_FILE):
@@ -103,6 +109,14 @@ class WallPaper:
         self.__paly_time = play_time
         return self.__paly_time
 
+    def set_play_func(self, func):
+        """
+        设置自动调用函数
+
+        :param func:每播放一张壁纸时自动调用,会传入当然播放的照片路径
+        """
+        self.__func = func
+
     def play_wallpaper(self):
         """壁纸播放"""
         import time
@@ -113,8 +127,13 @@ class WallPaper:
                     if time.time() - start_time >= self.__paly_time:
                         self.IM = image.Image_PIL()
                         if self.__image_process():
-                            print(f'当前播放:{self.__image_path}\n播放间隔:{time.time() - start_time}')
+                            print(f'当前播放:{self.__image_path}\n播放间隔:{time.time() - start_time:.2f}s')
                             self.__set_image_wallpaper()
+                            if self.__func is not None:
+                                try:
+                                    self.__func(self.__image_path)
+                                except Exception as e:
+                                    print(f'函数{self.__func} 错误:{e}')
                             start_time = time.time()
                         else:
                             start_time = time.time()
@@ -128,11 +147,14 @@ class WallPaper:
 
     def add_user_dir(self, dir_path: list, update=True) -> bool:
         """添加新的照片路径"""
-        for item in dir_path:
-            Data.add_image_dir(item)
-        if update:
-            self.update_data()
-        return True
+        if isinstance(dir_path, list):
+            for item in dir_path:
+                Data.add_image_dir(item)
+            if update:
+                self.update_data()
+            return True
+        else:
+            raise TypeError(f'"{dir_path}":必须是list类型而不是{type(dir_path)}')
 
     def del_user_dir(self, dir_path: list, update=True) -> bool:
         Data.del_image_dir(dir_path)
@@ -189,9 +211,9 @@ if __name__ == '__main__':
 
     start = time.time()
     a = WallPaper()
-    # a.add_user_dir(
-    #     [r'E:\user_file\Pictures\壁纸\wallhaven'],
-    #     update=False)  # 应该有个配置文件保存上次选择的文件夹路径
+    a.add_user_dir(
+        [r'E:/user_file/Pictures/壁纸/暂时储存/测试'],
+        update=False)  # 应该有个配置文件保存上次选择的文件夹路径
     a.load_data()  # 加载本地数据
     print(f'加载用时:{time.time() - start}')
     # a.set_play_time(10)  # 设置播放时间

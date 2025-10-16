@@ -455,7 +455,9 @@ class Cv2ShowQt:
         elif isinstance(image, str):
             # 使用OpenCV读取图片
             try:
-                cv_image = cv2.imread(image)
+                # cv_image = cv2.imread(image)
+                # 以下这种方式读取图片可以避免中文路径的问题
+                cv_image = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_COLOR)
                 if cv_image is None:
                     raise ValueError(image)
             except Exception as e:
@@ -484,6 +486,7 @@ class Cv2ShowQt:
 
         # 在标签上显示图像
         self.__lable.setPixmap(QPixmap.fromImage(scaled_image))
+        self.__lable.setAlignment(Qt.AlignCenter)  # 设置居中对齐
 
     def __play_video(self, video_path: str):
         # 打开视频文件
