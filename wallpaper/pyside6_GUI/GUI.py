@@ -3,9 +3,12 @@ from PySide6.QtWidgets import QHBoxLayout, QFrame, QWidget
 from PySide6.QtGui import QIcon
 # 美化库
 from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
-                            setThemeColor, setTheme,Theme,
+                            setThemeColor, setTheme, Theme,
                             FluentIcon as FIF)
 from qframelesswindow.utils import getSystemAccentColor
+
+#
+from Fun.GUI_Qt.PySide6Mod import TrayIcon
 
 import ctypes, sys
 
@@ -33,19 +36,11 @@ class PySide6GUI(MSFluentWindow):
 
     def __init__(self):
         super().__init__()
-        self.resize(1000, 600)
         self.setWindowIcon(QIcon(f":/icons/ico_main.png"))
         self.setWindowTitle('FrameFlow-画框')
 
         # 设置任务栏图标
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FrameFlow-画框")
-
-        # 设置窗口居中
-        rect = app.primaryScreen().availableGeometry()
-        w, h = rect.width(), rect.height()
-        self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
-        # 设置主题色
-        # setThemeColor('#7da3d3')
 
         # 列出全部子窗口
         self.sub_widget()
@@ -54,6 +49,7 @@ class PySide6GUI(MSFluentWindow):
         self.initNavigation()
 
         # 切换至主页
+        self.stackedWidget.setCurrentIndex(0)
         self.stackedWidget.currentChanged.connect(lambda index: AddPage(self.stackedWidget.currentWidget(), index))
 
     def sub_widget(self):
@@ -73,8 +69,19 @@ class PySide6GUI(MSFluentWindow):
         # 设置
         self.addSubInterface(self.subwidget['设置'], ICO_PATH['设置'], '设置', position=NavigationItemPosition.BOTTOM)
 
+    def closeEvent(self, event):
+        # 重写关闭函数,只隐藏窗口不退出
+        self.hide()
+        event.ignore()
+
     def show(self):
-        self.stackedWidget.setCurrentIndex(0)
+        self.resize(1000, 600)
+        # 设置窗口居中
+        rect = app.primaryScreen().availableGeometry()
+        w, h = rect.width(), rect.height()
+        self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
+        # 设置主题色
+        # setThemeColor('#7da3d3')
         super().show()
 
 
@@ -90,10 +97,12 @@ class Widget(QFrame):
 
 # 导入子窗口
 from sub_ui.wallpaper.wallpaper_win import WallPaperWin
+from sub_ui.home.home_win import HomeWin
 
 
 class AddPage:
     page_dict = {
+        0: HomeWin,
         1: WallPaperWin,
     }
 
@@ -105,10 +114,11 @@ class AddPage:
 
     def page_change(self, index: int) -> bool:
         """页面改变时"""
+        global GUI
         function_name = AddPage.page_dict.get(index, False)
         if function_name:
             if not self.widget.hBoxLayout.count():
-                window = function_name()
+                window = function_name(GUI)
                 self.widget.hBoxLayout.addWidget(window)
                 # AddPage.page_object.update({function_name: window})
             return True
@@ -118,7 +128,7 @@ class AddPage:
 
 def start_GUI():
     from PySide6.QtWidgets import QApplication
-    global app
+    global app, GUI
     app = QApplication([])
     GUI = PySide6GUI()
     # 设置所有QWidget类背景色为浅色
@@ -128,8 +138,12 @@ def start_GUI():
     # 只能获取 Windows 和 macOS 的主题色
     if sys.platform in ["win32", "darwin"]:
         # save=True时对后续创建的对象也会生效,否则只对当前存在的对象生效
-        setThemeColor(getSystemAccentColor(), save=False,lazy=True)
-    GUI.show()
+        setThemeColor(getSystemAccentColor(), save=False, lazy=True)
+    tray = TrayIcon(GUI)
+    tray.show()
+    # 加载主页
+    AddPage(GUI.stackedWidget.currentWidget(), 0)
+    # GUI.show()
     app.exec()
 
 

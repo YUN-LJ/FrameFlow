@@ -87,6 +87,11 @@ class WallPaper:
         """获取当前目录"""
         return Data.ALL_DIRS
 
+    @property
+    def get_play_time(self) -> float:
+        """获取当前播放时间间隔"""
+        return self.__paly_time
+
     def load_data(self):
         """从本地加载数据,如果加载失败则播放,会将播放状态切为False"""
         if file.check_exist(INI_FILE):

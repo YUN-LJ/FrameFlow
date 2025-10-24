@@ -11,7 +11,10 @@ setup(
     # 指定依赖库，安装时会自动下载
     install_requires=[
         "psutil>=7.1.0",  # 可以指定版本号，>=表示最低版本要求
-        "ntplib>=0.4.0"
+        "ntplib>=0.4.0",
+        "pythonnet>=3.0.5",
+        "matplotlib>=3.9.4",
+        "opencv-python>=4.12.0.88",
     ],
     # 包内的依赖文件(相对路径)
     package_data={

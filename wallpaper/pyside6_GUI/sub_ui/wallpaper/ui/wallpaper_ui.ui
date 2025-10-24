@@ -97,8 +97,8 @@ QHeaderView::section {
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>118</width>
-            <height>199</height>
+            <width>106</width>
+            <height>202</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -138,6 +138,19 @@ QHeaderView::section {
              </property>
              <property name="text">
               <string>开始</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="PrimaryPushButton" name="pushButton_set">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>40</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>设置</string>
              </property>
             </widget>
            </item>

@@ -1,4 +1,4 @@
-"""子窗口界面"""
+"""壁纸播放"""
 from . import wallpaper_win
 
 # 声明对外接口

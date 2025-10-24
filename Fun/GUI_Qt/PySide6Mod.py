@@ -4,11 +4,12 @@
 from Fun.Norm import get
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QWindow
-from PySide6.QtWidgets import (QCheckBox, QLineEdit,
-                               QPushButton, QTextEdit,
-                               QFileDialog, QListWidget,
-                               QWidget, QHBoxLayout,
-                               QApplication, QTableWidget, QTableWidgetItem)
+from PySide6.QtWidgets import (
+    QCheckBox, QLineEdit,
+    QPushButton, QTextEdit,
+    QFileDialog, QListWidget,
+    QWidget, QHBoxLayout,
+    QApplication, QTableWidget, QTableWidgetItem)
 
 
 def get_QCheckBox_state(obj_list: list[QCheckBox]) -> list[(QCheckBox, bool)]:
@@ -206,7 +207,7 @@ def EmbeddedWindow(title: str, window: QWidget, accurate: bool = True):
     Layout.addWidget(pyside6window)
     return True
 
-
+# 窗口无边框移动
 class ReMouseWidget(QWidget):
     # 重写了鼠标响应事件
     def __init__(self, ):
@@ -286,6 +287,61 @@ class ReMouseWidget(QWidget):
     def leaveEvent(self, event):
         # 鼠标离开窗口
         pass
+
+
+# 系统托盘
+import os
+from PySide6.QtWidgets import QSystemTrayIcon, QMenu
+from PySide6.QtGui import QAction, QIcon
+
+
+class TrayIcon(QSystemTrayIcon):
+
+    def __init__(self, SetUI, parent=None):
+        super(TrayIcon, self).__init__(parent)
+        self.ui = SetUI
+        self.createMenu()
+
+    def createMenu(self):
+        self.menu = QMenu()
+        self.showAction1 = QAction('显示', self, triggered=self.show_window)
+        self.quitAction = QAction('退出', self, triggered=self.quit)
+
+        self.menu.addAction(self.showAction1)
+        self.menu.addAction(self.quitAction)
+        self.setContextMenu(self.menu)
+
+        # 设置图标
+        self.setIcon(QIcon(":/icons/ico_main.png"))
+        self.icon = self.MessageIcon.Information
+
+        # 把鼠标点击图标的信号和槽连接
+        self.activated.connect(self.onIconClicked)
+
+    def show_window(self):
+        # 若是最小化，则先正常显示窗口，再变为活动窗口（暂时显示在最前面）
+        # self.ui.showNormal()
+        self.ui.show()
+        self.ui.activateWindow()
+
+    def quit(self):
+        # QtWidgets.qApp.quit()
+        os._exit(0)  # 强制退出
+
+    # 鼠标点击icon传递的信号会带有一个整形的值
+    # 1是表示单击右键，2是双击左键，3是单击左键，4是用鼠标中键点击
+    def onIconClicked(self, reason):
+        # 鼠标左键单击或者双击时触发
+        if reason == self.ActivationReason.Trigger or \
+                reason == self.ActivationReason.DoubleClick:
+            if self.ui.isMinimized() or not self.ui.isVisible():
+                # 若是最小化，则先正常显示窗口，再变为活动窗口（暂时显示在最前面）
+                self.show_window()
+                # self.ui.setWindowFlags(QtCore.Qt.Window)
+                # self.ui.show()
+            else:
+                self.ui.close()
+
 
 
 if __name__ == '__main__':

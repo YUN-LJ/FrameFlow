@@ -18,18 +18,38 @@ from qfluentwidgets import FluentIcon as FIF
 from play_wallpaper import play
 
 # 本项目公用库
-from Fun.GUI_Qt import PySide6Mod, PlotCv2Mod
+from Fun.GUI_Qt import PySide6Mod, PlotCv2Mod, qfdialog
 from Fun.Norm import get, file
 
 # 导入UI界面
 try:
     from .ui.wallpaper_ui import Ui_wallpaper
+    from .ui.set import Ui_set
 except:
     from ui.wallpaper_ui import Ui_wallpaper
+    from ui.set import Ui_set
+
+
+class Dialog(qfdialog.DialogBase):
+
+    def __init__(self, wallpaper, parent=None):
+        super().__init__(Ui_set, parent)
+        self.wallpaper = wallpaper
+        self.data_init()
+
+    def data_init(self):
+        self.ui.spinBox_paly_time.setValue(self.wallpaper.get_play_time)
+
+    def get_all_data(self):
+        play_time = self.ui.spinBox_paly_time.value()
+        if play_time == self.wallpaper.get_play_time:
+            play_time = -1.0
+        return {'play_time': play_time}
 
 
 class WallPaperWin(Ui_wallpaper, QWidget):
     def __init__(self, parent=None):
+        self.__parent = parent
         super().__init__(parent)
         self.setupUi(self)
         # 初始化图像显示
@@ -176,11 +196,22 @@ class WallPaperWin(Ui_wallpaper, QWidget):
             self.__wallpaper.del_user_dir(all_selectcell)
             self.__wallpaper.save_set()
 
+    def __pushButton_set(self):
+        """壁纸播放设置"""
+        dialog = Dialog(self.__wallpaper, self.__parent)
+        if dialog.exec() == 1:
+            data = dialog.get_all_data()
+            if data['play_time'] != -1:
+                self.__wallpaper.set_play_time(data['play_time'])
+                # 保存当前设置
+                self.__wallpaper.save_set()
+
     def __bind(self):
         """控件绑定"""
         self.pushButton_del.clicked.connect(self.__pushButton_del)
         self.pushButton_add.clicked.connect(lambda: self.__pushButton_add())
         self.pushButton_start.clicked.connect(self.__pushButton_start)
+        self.pushButton_set.clicked.connect(self.__pushButton_set)
 
 
 if __name__ == '__main__':

@@ -72,7 +72,7 @@ class Ui_wallpaper(object):
         self.scrollArea_options.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 118, 199))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 106, 202))
         self.verticalLayout_2 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.pushButton_add = PrimaryPushButton(self.scrollAreaWidgetContents)
@@ -92,6 +92,12 @@ class Ui_wallpaper(object):
         self.pushButton_start.setMinimumSize(QSize(0, 40))
 
         self.verticalLayout_2.addWidget(self.pushButton_start)
+
+        self.pushButton_set = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_set.setObjectName(u"pushButton_set")
+        self.pushButton_set.setMinimumSize(QSize(0, 40))
+
+        self.verticalLayout_2.addWidget(self.pushButton_set)
 
         self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
@@ -146,6 +152,7 @@ class Ui_wallpaper(object):
         self.pushButton_add.setText(QCoreApplication.translate("wallpaper", u"\u65b0\u589e\u76ee\u5f55", None))
         self.pushButton_del.setText(QCoreApplication.translate("wallpaper", u"\u5220\u9664\u76ee\u5f55", None))
         self.pushButton_start.setText(QCoreApplication.translate("wallpaper", u"\u5f00\u59cb", None))
+        self.pushButton_set.setText(QCoreApplication.translate("wallpaper", u"\u8bbe\u7f6e", None))
         self.label_image.setText("")
     # retranslateUi
 
