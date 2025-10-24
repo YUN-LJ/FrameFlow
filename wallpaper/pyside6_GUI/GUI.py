@@ -1,3 +1,4 @@
+"""PySide6GUI界面"""
 # 图形库
 from PySide6.QtWidgets import QHBoxLayout, QFrame, QWidget
 from PySide6.QtGui import QIcon
@@ -7,7 +8,6 @@ from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
                             FluentIcon as FIF)
 from qframelesswindow.utils import getSystemAccentColor
 
-#
 from Fun.GUI_Qt.PySide6Mod import TrayIcon
 
 import ctypes, sys

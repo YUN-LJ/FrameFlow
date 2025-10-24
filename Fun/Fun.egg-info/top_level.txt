@@ -1,3 +1,0 @@
-AutoGUI
-GUI_Qt
-Norm

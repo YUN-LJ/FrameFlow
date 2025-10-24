@@ -1,5 +1,5 @@
 # 声明对外接口
-__all__ = ['GUI_Qt', 'Norm', 'System','AutoGUI']  # 明确导出的成员
+__all__ = ['GUI_Qt', 'Norm','AutoGUI']  # 明确导出的成员
 
 import importlib
 
@@ -7,7 +7,6 @@ import importlib
 _MODULE_MAP = {
     'GUI_Qt': '.GUI_Qt',
     'Norm': '.Norm',
-    'System': '.System',
     'AutoGUI': '.AutoGUI',
 }
 
