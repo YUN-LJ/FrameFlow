@@ -1,6 +1,5 @@
 """壁纸播放窗口"""
-import sys, os
-
+import os,sys
 # 获取当前文件的目录
 current_dir = os.path.dirname(os.path.realpath(__file__))
 # 计算父级目录的路径(wallpaper路径)
@@ -22,12 +21,8 @@ from Fun.GUI_Qt import PySide6Mod, PlotCv2Mod, qfdialog
 from Fun.Norm import get, file
 
 # 导入UI界面
-try:
-    from .ui.wallpaper_ui import Ui_wallpaper
-    from .ui.set import Ui_set
-except:
-    from ui.wallpaper_ui import Ui_wallpaper
-    from ui.set import Ui_set
+from .ui.wallpaper_ui import Ui_wallpaper
+from .ui.set import Ui_set
 
 
 class Dialog(qfdialog.DialogBase):

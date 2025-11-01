@@ -79,30 +79,31 @@ class HardMonitor:
                         temp = sensor.Value
                         hdd_TEMP.update({ss_name: temp})
         if avg:
-            # 处理成平均值
-            for cpu_name in cpu_TEMP:
-                cpu_name = f'{cpu_name[:cpu_name.find('cpu')]}cpu'
-                break
             try:
+                # 处理成平均值
+                cpu_name = next(iter(cpu_TEMP))
+                cpu_name = f'{cpu_name[:cpu_name.find('cpu')]}cpu'
                 cpu_avg_temp = round(sum(cpu_TEMP.values()) / len(cpu_TEMP), 2)
             except Exception as e:
-                print(f'HaedMonitor-get_TEMP:数据获取失败,请以管理员权限运行\n{e}')
+                print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
+                cpu_name = 'cpu'
                 cpu_avg_temp = 0
             cpu_TEMP = {cpu_name: cpu_avg_temp}
 
-            for gpu_name in gpu_TEMP:
-                gpu_name = f'{gpu_name[:gpu_name.find('gpu')]}gpu'
-                break
             try:
+                gpu_name = next(iter(gpu_TEMP))
+                gpu_name = f'{gpu_name[:gpu_name.find('gpu')]}gpu'
                 gpu_avg_temp = round(sum(gpu_TEMP.values()) / len(gpu_TEMP), 2)
             except Exception as e:
-                print(f'HaedMonitor-get_TEMP:数据获取失败,请以管理员权限运行\n{e}')
+                print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
+                gpu_name = 'gpu'
                 gpu_avg_temp = 0
             gpu_TEMP = {gpu_name: gpu_avg_temp}
+
             try:
                 hdds_avg_temp = round(sum(hdd_TEMP.values()) / len(hdd_TEMP), 2)
             except Exception as e:
-                print(f'HaedMonitor-get_TEMP:数据获取失败,请以管理员权限运行\n{e}')
+                print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
                 hdds_avg_temp = 0
             hdd_TEMP = {'hdd': hdds_avg_temp}
 
@@ -159,21 +160,29 @@ class HardMonitor:
                         ram_LOAD.update({ss_name: load})
         if stat:
             # 处理成平均值
-            for cpu_name in cpu_LOAD:
+            try:
+                cpu_name = next(iter(cpu_LOAD))
                 cpu_name = f'{cpu_name[:cpu_name.find('cpu')]}cpu'
-                break
-            cpu_avg_load = round(sum(cpu_LOAD.values()), 2)
+                cpu_avg_load = round(sum(cpu_LOAD.values()), 2)
+            except Exception as e:
+                print(f'HaedMonitor-get_LOAD:数据获取失败\n{e}')
+                cpu_name = 'cpu'
+                cpu_avg_load = 0
             cpu_LOAD = {cpu_name: cpu_avg_load}
 
-            for gpu_name in gpu_LOAD:
+            try:
+                gpu_name = next(iter(gpu_LOAD))
                 gpu_name = f'{gpu_name[:gpu_name.find('gpu')]}gpu'
-                break
-            count = 1
-            for i in gpu_LOAD.values():
-                if i >= 1.0:
-                    count += 1
-            gpu_avg_temp = round(sum(gpu_LOAD.values()) / count, 2)
-            gpu_LOAD = {gpu_name: gpu_avg_temp}
+                count = 1
+                for i in gpu_LOAD.values():
+                    if i >= 1.0:
+                        count += 1
+                gpu_avg_load = round(sum(gpu_LOAD.values()) / count, 2)
+            except Exception as e:
+                print(f'HaedMonitor-get_LOAD:数据获取失败\n{e}')
+                gpu_name = 'gpu'
+                gpu_avg_load = 0
+            gpu_LOAD = {gpu_name: gpu_avg_load}
 
             ram_avg_load = round(sum(ram_LOAD.values()), 2)
             ram_LOAD = {'ram': ram_avg_load}

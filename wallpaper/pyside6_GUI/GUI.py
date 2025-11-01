@@ -2,6 +2,7 @@
 # 图形库
 from PySide6.QtWidgets import QHBoxLayout, QFrame, QWidget
 from PySide6.QtGui import QIcon
+
 # 美化库
 from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
                             setThemeColor, setTheme, Theme,
@@ -14,9 +15,9 @@ import ctypes, sys
 
 # 导入资源文件
 try:
-    from . import res
-except:
     import res
+except:
+    from . import res
 
 ICO_PATH = {
     '主页': FIF.HOME,
@@ -96,8 +97,12 @@ class Widget(QFrame):
 
 
 # 导入子窗口
-from sub_ui.wallpaper.wallpaper_win import WallPaperWin
-from sub_ui.home.home_win import HomeWin
+try:
+    from sub_ui.wallpaper.wallpaper_win import WallPaperWin
+    from sub_ui.home.home_win import HomeWin
+except:
+    from .sub_ui.wallpaper.wallpaper_win import WallPaperWin
+    from .sub_ui.home.home_win import HomeWin
 
 
 class AddPage:
@@ -143,7 +148,7 @@ def start_GUI():
     tray.show()
     # 加载主页
     AddPage(GUI.stackedWidget.currentWidget(), 0)
-    # GUI.show()
+    GUI.show()
     app.exec()
 
 

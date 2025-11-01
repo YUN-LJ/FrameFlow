@@ -12,7 +12,7 @@ class INI:
         :param section_name:节名
         """
         if ini_file is None:
-            self.RUN_PATH = get.run_path()
+            self.RUN_PATH = get.run_dir()
             self.INI_FILE = f'{self.RUN_PATH}/config.ini'  # ini文件路径,默认为运行路径
         else:
             self.INI_FILE = ini_file

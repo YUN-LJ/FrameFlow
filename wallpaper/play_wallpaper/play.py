@@ -129,19 +129,21 @@ class WallPaper:
         while True:
             if self.__paly_state:
                 if self.__data_state:  # 如果内存中加载的数据的情况下
-                    if time.time() - start_time >= self.__paly_time:
+                    now = time.time()
+                    diff = now - start_time
+                    if diff >= self.__paly_time:
                         self.IM = image.Image_PIL()
                         if self.__image_process():
-                            print(f'当前播放:{self.__image_path}\n播放间隔:{time.time() - start_time:.2f}s')
+                            print(f'当前播放:{self.__image_path}\n播放间隔:{diff:.2f}s')
                             self.__set_image_wallpaper()
                             if self.__func is not None:
                                 try:
                                     self.__func(self.__image_path)
                                 except Exception as e:
                                     print(f'函数{self.__func} 错误:{e}')
-                            start_time = time.time()
+                            start_time = now
                         else:
-                            start_time = time.time()
+                            start_time = now()
                             time.sleep(0.3)
                     else:
                         time.sleep(0.3)

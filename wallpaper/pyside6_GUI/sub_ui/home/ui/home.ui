@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
+    <width>876</width>
     <height>400</height>
    </rect>
   </property>
@@ -39,7 +39,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>586</width>
+        <width>862</width>
         <height>498</height>
        </rect>
       </property>
@@ -54,13 +54,13 @@
          </property>
          <item>
           <layout class="QGridLayout" name="gridLayout">
-           <item row="0" column="1">
-            <widget class="QLabel" name="label_gpu_temp">
+           <item row="1" column="2">
+            <widget class="QLabel" name="label_ram_load">
              <property name="styleSheet">
               <string notr="true">font: 16pt &quot;Microsoft YaHei UI&quot;;</string>
              </property>
              <property name="text">
-              <string>GPU温度:xx℃</string>
+              <string>RAM使用率:xx%</string>
              </property>
             </widget>
            </item>
@@ -74,16 +74,6 @@
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="label_cpu_load">
-             <property name="styleSheet">
-              <string notr="true">font: 16pt &quot;Microsoft YaHei UI&quot;;</string>
-             </property>
-             <property name="text">
-              <string>CPU使用率:xx%</string>
-             </property>
-            </widget>
-           </item>
            <item row="0" column="0">
             <widget class="QLabel" name="label_cpu_temp">
              <property name="styleSheet">
@@ -91,6 +81,13 @@
              </property>
              <property name="text">
               <string>CPU温度:xx℃</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="4">
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>更新时间</string>
              </property>
             </widget>
            </item>
@@ -104,17 +101,27 @@
              </property>
             </widget>
            </item>
-           <item row="1" column="2">
-            <widget class="QLabel" name="label_ram_load">
+           <item row="0" column="1">
+            <widget class="QLabel" name="label_gpu_temp">
              <property name="styleSheet">
               <string notr="true">font: 16pt &quot;Microsoft YaHei UI&quot;;</string>
              </property>
              <property name="text">
-              <string>RAM使用率:xx%</string>
+              <string>GPU温度:xx℃</string>
              </property>
             </widget>
            </item>
-           <item row="1" column="4">
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_cpu_load">
+             <property name="styleSheet">
+              <string notr="true">font: 16pt &quot;Microsoft YaHei UI&quot;;</string>
+             </property>
+             <property name="text">
+              <string>CPU使用率:xx%</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="5">
             <widget class="SpinBox" name="spinBox">
              <property name="minimum">
               <number>1</number>
@@ -124,12 +131,18 @@
              </property>
             </widget>
            </item>
-           <item row="0" column="4">
-            <widget class="QLabel" name="label">
-             <property name="text">
-              <string>更新时间</string>
+           <item row="0" column="3">
+            <spacer name="horizontalSpacer">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
              </property>
-            </widget>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
            </item>
           </layout>
          </item>

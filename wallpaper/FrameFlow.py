@@ -6,4 +6,11 @@ start_time: 2025/9/26
 基于python3.12.9
 """
 if __name__ == '__main__':
-    pass
+    try:
+        from pyside6_GUI import GUI
+
+        GUI.start_GUI()
+    except Exception as e:
+        print(e)
+        input('请按任意退出')
+        exit()

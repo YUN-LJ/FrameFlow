@@ -9,6 +9,7 @@ def ignore_truncation():
     # 允许加载截断的图片文件
     ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+
 def set_wallpaper_reg(image_path: str) -> bool:
     """
     用于将照片设置为壁纸

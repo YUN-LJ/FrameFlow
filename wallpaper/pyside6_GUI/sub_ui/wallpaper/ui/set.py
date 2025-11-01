@@ -46,6 +46,8 @@ class Ui_set(object):
         self.spinBox_paly_time = SpinBox(set)
         self.spinBox_paly_time.setObjectName(u"spinBox_paly_time")
         self.spinBox_paly_time.setMinimumSize(QSize(0, 40))
+        self.spinBox_paly_time.setMinimum(3)
+        self.spinBox_paly_time.setMaximum(60)
 
         self.gridLayout.addWidget(self.spinBox_paly_time, 0, 2, 1, 1)
 

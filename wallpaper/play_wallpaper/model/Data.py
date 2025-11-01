@@ -1,5 +1,5 @@
 """M层数据获取和保存"""
-import os, pandas as pd
+import os, pandas as pd, numpy as np
 from Fun.Norm import file, general
 
 from . import GlobalValues
@@ -11,7 +11,12 @@ ALL_DIRS = GlobalValues.user_dir_path  # 照片文件夹路径
 ALL_FILES = pd.DataFrame(columns=COLUMNS)  # 所有照片的信息
 TEMP_DIR = os.path.join(RUN_PATH, 'temp')  # 缓存路径,默认在程序启动目录下
 file.ensure_exist(TEMP_DIR)
-DATA_NAME = 'image_data.csv'  # 保存文件和加载文件的名称,目前只支持xlsx和csv格式,csv加载快占用空间大,xlsx占用空间小加载慢
+
+# 保存文件和加载文件的名称,
+# 目前只支持xlsx、csv、pkl格式，
+# csv加载快占用空间大,xlsx占用空间小加载慢
+# pkl由于采用了gzip压缩所以后缀为pkl.gz,加载速度最快的格式(大约13ms)
+DATA_NAME = 'image_data.pkl.gz'
 
 
 def load_data(data_path: str = None) -> bool:
@@ -32,6 +37,8 @@ def load_data(data_path: str = None) -> bool:
             ALL_FILES = pd.read_csv(data_path)
         elif file.get_file_extension(data_path) == 'xlsx':
             ALL_FILES = pd.read_excel(data_path)
+        elif file.get_file_extension(data_path) == 'gz':
+            ALL_FILES = pd.read_pickle(data_path, compression='gzip')
         check_valid()  # 检查数据
         ALL_DIRS = set(ALL_FILES.groupby('所在目录').groups.keys())
         GlobalValues.user_dir_path = ALL_DIRS
@@ -41,6 +48,27 @@ def load_data(data_path: str = None) -> bool:
 
 
 def check_valid():
+    """检查ALL_FILES表中是否有无效数据,如果有则会删除无效数据"""
+    global ALL_FILES
+
+    # 1. 向量化拼接路径（替代逐行拼接）
+    ALL_FILES['image_path'] = ALL_FILES['所在目录'] + ALL_FILES['子文件路径']
+
+    # 2. 批量判断目录是否在ALL_DIRS中（向量化操作）
+    dir_valid = ALL_FILES['所在目录'].isin(ALL_DIRS)
+
+    # 3. 批量检查文件是否存在（关键优化：减少IO调用次数）
+    # 方法1：如果file.check_exist支持批量路径（推荐，需file模块支持）
+    # path_valid = np.array(file.check_exist(ALL_FILES['image_path'].tolist()))
+
+    # 方法2：如果file.check_exist仅支持单个路径，用np.vectorize加速（比apply快）
+    path_valid = np.vectorize(file.check_exist)(ALL_FILES['image_path'])
+
+    # 4. 合并条件，过滤有效数据
+    ALL_FILES = ALL_FILES[dir_valid & path_valid]
+
+
+def check_valid_old():
     """检查ALL_FILES表中是否有无效数据,如果有则会删除无效数据"""
     global ALL_FILES
 
@@ -178,12 +206,17 @@ def save_data() -> bool:
     """
     global DATA_NAME
     try:
-        extension = DATA_NAME.split('.')[1]
+        extension = file.get_file_extension(DATA_NAME)
         target_path = os.path.join(TEMP_DIR, DATA_NAME)
         if extension == 'xlsx':
             ALL_FILES.to_excel(target_path, index=False)
         elif extension == 'csv':
             ALL_FILES.to_csv(target_path, index=False, encoding='utf-8')
+        elif extension == 'gz':
+            # compression：可选参数，默认为
+            # 'infer'，表示自动根据文件扩展名检测压缩格式，也可以显式指定为
+            # 'gzip'、'bz2'、'xz'等。
+            ALL_FILES.to_pickle(target_path, compression='gzip')
         return True
     except Exception as e:
         print(f'save_data 错误: {e}')

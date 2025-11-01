@@ -53,7 +53,7 @@ def QPushButton_Bind(obj_list: list[(QPushButton, 'def_name')]) -> bool:
     return True
 
 
-def get_exist_dir(caption: str = '选择文件夹', dir_path: str = get.run_path()) -> str:
+def get_exist_dir(caption: str = '选择文件夹', dir_path: str = get.run_dir()) -> str:
     """
     用于选择单个目录,外部调用时需要用lambda :方法
 
@@ -61,19 +61,15 @@ def get_exist_dir(caption: str = '选择文件夹', dir_path: str = get.run_path
     :param dir_path:初始目录,默认为文件启动路径
     :return dir:str
     """
-    # 设置对话框选项：只显示文件夹，不解析符号链接，允许多选
-    options = QFileDialog.Options()
-    options |= QFileDialog.ShowDirsOnly  # 只显示文件夹
-
     dir = QFileDialog.getExistingDirectory(parent=None,  # 父对象
                                            caption=caption,  # 对话框标题提示词
                                            dir=dir_path,  # 默认显示目录
-                                           options=options
+                                           options=QFileDialog.ShowDirsOnly  # 只显示文件夹
                                            )
     return dir
 
 
-def get_exist_files(caption: str = '', dir_path: str = get.run_path(), ext=None) -> list[str]:
+def get_exist_files(caption: str = '', dir_path: str = get.run_dir(), ext=None) -> list[str]:
     """
     用于选择单个文件,外部调用时需要用lambda :方法
     :param caption:窗口标题
@@ -149,15 +145,24 @@ def AppendListWidgetitems(items: list, listwidget: QListWidget):
     listwidget.addItems(new_items)
 
 
-def EmbeddedWindow(title: str, window: QWidget, accurate: bool = True):
+def embed_qt(title: str, layout: QHBoxLayout, accurate: bool = True) -> int:
     """
-    将窗口嵌入到pyside6窗口中
+    将窗口嵌入到Pyside6窗口中
+    需要外部窗口随着pyside6一同关闭需要重写closeEvent
+    def closeEvent(self, event):
+        # 发送关闭消息给外部窗口（Windows API）
+        if self.hwnd:
+            import win32gui,win32con
+            # WM_CLOSE 消息：通知窗口关闭
+            win32gui.SendMessage(self.hwnd, win32con.WM_CLOSE, 0, 0)
+        super().closeEvent(event)  # 继续执行 Qt 窗口的关闭逻辑
 
     :param title:查找的窗口标题str,由于pyside6嵌入窗口时不能使用大写字母
-    :param window:需要嵌入的窗口对象QWidget
+    :param layout:需要嵌入的窗口对象QWidget
     :param accurate:是否开启精确查找bool
-    :return :bool
+    :return :窗口句柄hwnd
     """
+    from PySide6.QtGui import QWindow
     import win32gui, win32process
     # 获取窗口句柄
     # windowhandle = win32gui.FindWindowEx(0, 0,
@@ -183,13 +188,14 @@ def EmbeddedWindow(title: str, window: QWidget, accurate: bool = True):
         # pid = win32process.GetWindowThreadProcessId(hwnd)[1]
         # 根据窗口句柄获取程序的窗口标题,精确匹配模式
         if accurate == True and win32gui.GetWindowText(hwnd) == title:
+            pid = win32process.GetWindowThreadProcessId(hwnd)[1]
             print(f'Pyside6Mod精确句柄:{hwnd}')
             print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
             break
         elif accurate == False and \
                 win32gui.GetWindowText(hwnd).find(title) != -1:  # 需要优化
             pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-            # print('找到的PID:', pid)
+            print('找到的PID:', pid)
             print(f'Pyside6Mod模糊句柄:{hwnd}')
             print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
             break
@@ -198,14 +204,13 @@ def EmbeddedWindow(title: str, window: QWidget, accurate: bool = True):
     if hwnd == 0:  # 没有匹配到窗口
         return False
     # 根据窗口句柄嵌入到pyqt5界面中
-    consolewindow = QWindow.fromWinId(hwnd)
+    console_window = QWindow.fromWinId(hwnd)
     # 创建一个Qwiget用于容纳consolewindow
-    pyside6window = QWidget.createWindowContainer(consolewindow)
-    # 创建新的容器用于容纳widget
-    Layout = QHBoxLayout(window)
-    Layout.setContentsMargins(0, 0, 0, 0)
-    Layout.addWidget(pyside6window)
-    return True
+    widget_window = QWidget.createWindowContainer(console_window)
+    # 将widget_window添加到布局中
+    layout.addWidget(widget_window)
+    return hwnd
+
 
 # 窗口无边框移动
 class ReMouseWidget(QWidget):
@@ -341,7 +346,6 @@ class TrayIcon(QSystemTrayIcon):
                 # self.ui.show()
             else:
                 self.ui.close()
-
 
 
 if __name__ == '__main__':

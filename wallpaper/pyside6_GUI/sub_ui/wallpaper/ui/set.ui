@@ -65,6 +65,12 @@
          <height>40</height>
         </size>
        </property>
+       <property name="minimum">
+        <number>3</number>
+       </property>
+       <property name="maximum">
+        <number>60</number>
+       </property>
       </widget>
      </item>
      <item row="2" column="2">
