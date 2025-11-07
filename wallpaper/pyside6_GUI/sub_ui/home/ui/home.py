@@ -19,13 +19,13 @@ from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QLabel,
     QScrollArea, QSizePolicy, QSpacerItem, QVBoxLayout,
     QWidget)
 
-from qfluentwidgets.components.widgets import SpinBox
+from qfluentwidgets.components.widgets import (PrimaryPushButton, SpinBox)
 
 class Ui_home(object):
     def setupUi(self, home):
         if not home.objectName():
             home.setObjectName(u"home")
-        home.resize(876, 400)
+        home.resize(705, 400)
         self.verticalLayout_2 = QVBoxLayout(home)
         self.verticalLayout_2.setSpacing(0)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
@@ -35,7 +35,7 @@ class Ui_home(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 862, 498))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 691, 498))
         self.verticalLayout_3 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
         self.verticalLayout = QVBoxLayout()
@@ -96,6 +96,11 @@ class Ui_home(object):
 
         self.gridLayout.addItem(self.horizontalSpacer, 0, 3, 1, 1)
 
+        self.pushButton_start = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_start.setObjectName(u"pushButton_start")
+
+        self.gridLayout.addWidget(self.pushButton_start, 1, 5, 1, 1)
+
 
         self.verticalLayout.addLayout(self.gridLayout)
 
@@ -150,5 +155,6 @@ class Ui_home(object):
         self.label_hdd_temp.setText(QCoreApplication.translate("home", u"HDD\u6e29\u5ea6:xx\u2103", None))
         self.label_gpu_temp.setText(QCoreApplication.translate("home", u"GPU\u6e29\u5ea6:xx\u2103", None))
         self.label_cpu_load.setText(QCoreApplication.translate("home", u"CPU\u4f7f\u7528\u7387:xx%", None))
+        self.pushButton_start.setText(QCoreApplication.translate("home", u"\u5f00\u59cb", None))
     # retranslateUi
 

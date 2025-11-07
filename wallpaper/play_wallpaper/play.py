@@ -143,7 +143,7 @@ class WallPaper:
                                     print(f'函数{self.__func} 错误:{e}')
                             start_time = now
                         else:
-                            start_time = now()
+                            start_time = now
                             time.sleep(0.3)
                     else:
                         time.sleep(0.3)

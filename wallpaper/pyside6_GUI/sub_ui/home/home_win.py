@@ -1,5 +1,5 @@
 """主页"""
-import sys, os, multiprocessing as mp, time, gc
+import sys, os, multiprocessing as mp, time
 
 # 获取当前文件的目录
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -15,7 +15,7 @@ from PySide6.QtCore import QThread, Signal
 # from qfluentwidgets import FluentIcon as FIF
 
 # 本项目公用库
-from Fun.Norm import device_inf
+from Fun.Norm import device_inf, general, get, file
 
 # 导入UI界面
 try:
@@ -31,10 +31,11 @@ class TempPlot(QThread):
         super(TempPlot, self).__init__(parent)
         self.__layout = layout
 
-        # 初始化设备监测
-        self.__ohm = device_inf.HardMonitor()  # HardMonitor实例
+        self.__ohm = None  # 检测类
 
         self.time = 5  # 更新时间
+
+        self.isRun = False  # 是否正在运行
 
     def set_time(self, time: float):
         self.time = time
@@ -42,15 +43,23 @@ class TempPlot(QThread):
     def update_plot(self):
         self.__polt.show()
 
+    def stop(self):
+        """暂停"""
+        self.isRun = False
+
     def run(self):
         start = 0
+        # 初始化设备监测,会提示在子线程中实例化的警告
+        if self.__ohm is None:
+            self.__ohm = device_inf.HardMonitor()  # HardMonitor实例
         # 获取绘图对象
         self.__polt = self.__ohm.ohm_plot()
         self.__polt.set_layout(self.__layout)
         data = {'temp': self.__ohm.get_TEMP(avg=True)} | {'load': self.__ohm.get_LOAD(stat=True)}
         self.update_signal.emit(data)
+        self.isRun = True
         # 进入循环
-        while True:
+        while self.isRun:
             if time.time() - start > self.time:
                 self.__ohm.ohm_plot()
                 data = {'temp': self.__ohm.get_TEMP(avg=True)} | {'load': self.__ohm.get_LOAD(stat=True)}
@@ -62,13 +71,13 @@ class TempPlot(QThread):
 
 class HomeWin(QWidget, Ui_home):
     def __init__(self, parent=None):
+
         super().__init__(parent)
         self.__parent = parent
         self.setupUi(self)
 
         self.__thread = TempPlot(self.verticalLayout_4)
         self.__thread.update_signal.connect(self.__update_ui)
-        self.__thread.start()
 
         self.__bind()
 
@@ -76,6 +85,8 @@ class HomeWin(QWidget, Ui_home):
         """控件绑定"""
         self.spinBox.setValue(5)
         self.spinBox.valueChanged.connect(lambda value: self.__thread.set_time(value))
+
+        self.pushButton_start.clicked.connect(self.__pushButton_start)
 
     def __update_ui(self, data: dict):
         for key, value in data['temp'].items():
@@ -99,6 +110,17 @@ class HomeWin(QWidget, Ui_home):
         self.label_gpu_load.setText(f'GPU使用率:{gpu_load}%')
         self.label_ram_load.setText(f'RAM使用率:{ram_load}%')
         self.__thread.update_plot()
+
+    def __pushButton_start(self):
+        if self.pushButton_start.text() == '开始':
+            if not general.check_is_admin():
+                general.cmd_admin_run(get.run_file())
+                exit()
+            self.pushButton_start.setText('停止')
+            self.__thread.start()
+        elif self.pushButton_start.text() == '停止':
+            self.pushButton_start.setText('开始')
+            self.__thread.stop()
 
 
 if __name__ == '__main__':

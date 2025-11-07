@@ -17,6 +17,9 @@ def run_file() -> str:
     """
     return sys.argv[0]
 
+def python_path() -> str:
+    """获取当前python解释器路径"""
+    return sys.executable
 
 def program_start_time(pid: int) -> float:
     """
@@ -71,3 +74,4 @@ def NTP_time(local_time=True) -> float:
         if local_time:
             return time.time()
         return -1.0
+

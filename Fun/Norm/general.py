@@ -168,21 +168,6 @@ def check_is_run(title: str, count: int = 1, accurate: bool = True) -> bool:
         return False
 
 
-def cmd_admin_run(command: str):
-    # 调用管理员权限执行cmd命令
-    import ctypes
-    if sys.version_info[0] == 3:
-        # sys.executable退出程序,pycharm中好像会失效
-        ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", sys.executable, command, None, 1)
-    else:  # in python2.x
-        ctypes.windll.shell32.ShellExecuteW(
-            None, u"runas",
-            unicode(sys.executable),
-            unicode(__file__),
-            None, 1)
-
-
 def check_is_admin() -> bool:
     """
     获取程序是否以管理员身份运行
@@ -193,6 +178,12 @@ def check_is_admin() -> bool:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except:
         return False
+
+
+def cmd_admin_run(command: str):
+    """调用管理员权限执行cmd命令"""
+    import ctypes
+    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, command, None, 1)
 
 
 def kill_program(pid_program=None, title=None) -> bool:
@@ -209,19 +200,34 @@ def kill_program(pid_program=None, title=None) -> bool:
     import psutil, subprocess
     if pid_program:
         try:
-            command = f'taskkill /PID {pid_program} /F'
-            subprocess.run(command, shell=True)
+            command = f'taskkill /PID {pid_program} /F /T'
+            subprocess.run(command,
+                           shell=True,
+                           check=True,
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE
+                           )
             return True
-        except Exception as e:
-            print(f'kill_program 错误:\n{e}')
+        except subprocess.CalledProcessError as e:
+            print(f"终止进程失败: {e.stderr.decode('gbk')}")  # Windows 通常用 gbk 编码
+            return False
     if title:
-        pids = psutil.process_iter()
-        for pid in pids:
-            # os.getpid()#获取主进程ID
-            if title != None and pid.name() == title:
-                # pid.terminate() # 以正常方式终止程序
-                command = f'taskkill /PID {pid.pid} /F'
-                subprocess.run(command, shell=True)
+        try:
+            pids = psutil.process_iter()
+            for pid in pids:
+                # os.getpid()#获取主进程ID
+                if title != None and pid.name() == title:
+                    # pid.terminate() # 以正常方式终止程序
+                    command = f'taskkill /PID {pid.pid} /F /T'
+                    subprocess.run(command,
+                                   shell=True,
+                                   check=True,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE
+                                   )
+        except subprocess.CalledProcessError as e:
+            print(f"终止进程失败: {e.stderr.decode('gbk')}")  # Windows 通常用 gbk 编码
+            return False
 
 
 def sync_time() -> bool:
@@ -320,3 +326,22 @@ def del_part_str(org_str: str, del_str: str) -> str:
     if index_find != -1:
         org_str = org_str[:index_find] + org_str[index_find + len(del_str):]
     return org_str
+
+
+# 自定义装饰器返回函数的执行耗时
+def timer_decorator(func):
+    from functools import wraps
+    import time
+    # 使用 @wraps 保留被装饰函数的元信息（如函数名、文档字符串）
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # 装饰器逻辑：执行前记录时间
+        start_time = time.time()
+        # 调用被装饰的函数，并获取返回值
+        result = func(*args, **kwargs)
+        # 装饰器逻辑：执行后计算耗时
+        end_time = time.time()
+        print(f"函数 {func.__name__} 执行耗时：{end_time - start_time:.4f} 秒")
+        return result  # 必须返回被装饰函数的结果
+
+    return wrapper  # 返回包装后的函数

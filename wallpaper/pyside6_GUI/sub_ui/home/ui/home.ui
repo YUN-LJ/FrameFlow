@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>876</width>
+    <width>705</width>
     <height>400</height>
    </rect>
   </property>
@@ -39,7 +39,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>862</width>
+        <width>691</width>
         <height>498</height>
        </rect>
       </property>
@@ -144,6 +144,13 @@
              </property>
             </spacer>
            </item>
+           <item row="1" column="5">
+            <widget class="PrimaryPushButton" name="pushButton_start">
+             <property name="text">
+              <string>开始</string>
+             </property>
+            </widget>
+           </item>
           </layout>
          </item>
          <item>
@@ -201,6 +208,11 @@
   <customwidget>
    <class>SpinBox</class>
    <extends>QSpinBox</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>PrimaryPushButton</class>
+   <extends>QPushButton</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
  </customwidgets>

@@ -14,22 +14,16 @@ from Fun.GUI_Qt.PySide6Mod import TrayIcon
 import ctypes, sys
 
 # 导入资源文件
-try:
-    import res
-except:
-    from . import res
+from . import res
+
+# 导入全局变量
+from pyside6_GUI.globals_values import *
 
 ICO_PATH = {
     '主页': FIF.HOME,
     '壁纸播放': FIF.PHOTO,
     '设置': FIF.SETTING,
 }
-LIGHT = """QWidget {
-            background-color: rgb(250,248,252);
-            color: black;}"""
-DACK = """QWidget {
-            background-color: rgb(45,45,45);
-            color: black;}"""
 
 
 class PySide6GUI(MSFluentWindow):
@@ -43,6 +37,9 @@ class PySide6GUI(MSFluentWindow):
         # 设置任务栏图标
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FrameFlow-画框")
 
+        # 快速启动:只加载必要窗口
+        self.fast_run = False
+
         # 列出全部子窗口
         self.sub_widget()
 
@@ -50,7 +47,7 @@ class PySide6GUI(MSFluentWindow):
         self.initNavigation()
 
         # 切换至主页
-        self.stackedWidget.setCurrentIndex(0)
+        # self.stackedWidget.setCurrentIndex(0)
         self.stackedWidget.currentChanged.connect(lambda index: AddPage(self.stackedWidget.currentWidget(), index))
 
     def sub_widget(self):
@@ -75,6 +72,10 @@ class PySide6GUI(MSFluentWindow):
         self.hide()
         event.ignore()
 
+    def exit_(self):
+        """退出"""
+        AddPage.page_object[2].kill_cmd()
+
     def show(self):
         self.resize(1000, 600)
         # 设置窗口居中
@@ -97,21 +98,19 @@ class Widget(QFrame):
 
 
 # 导入子窗口
-try:
-    from sub_ui.wallpaper.wallpaper_win import WallPaperWin
-    from sub_ui.home.home_win import HomeWin
-except:
-    from .sub_ui.wallpaper.wallpaper_win import WallPaperWin
-    from .sub_ui.home.home_win import HomeWin
+from .sub_ui.wallpaper.wallpaper_win import WallPaperWin
+from .sub_ui.home.home_win import HomeWin
+from .sub_ui.sets.sets_win import SetsWin
 
 
 class AddPage:
     page_dict = {
         0: HomeWin,
         1: WallPaperWin,
+        2: SetsWin,
     }
 
-    # page_object = {}  # 实例化对象
+    page_object = {}  # 实例化对象
 
     def __init__(self, widget: QWidget, index: int):
         self.widget = widget
@@ -125,6 +124,8 @@ class AddPage:
             if not self.widget.hBoxLayout.count():
                 window = function_name(GUI)
                 self.widget.hBoxLayout.addWidget(window)
+                AddPage.page_object[index] = window
+                print(f'已添加子窗口{str(function_name)}')
                 # AddPage.page_object.update({function_name: window})
             return True
         else:
@@ -144,11 +145,19 @@ def start_GUI():
     if sys.platform in ["win32", "darwin"]:
         # save=True时对后续创建的对象也会生效,否则只对当前存在的对象生效
         setThemeColor(getSystemAccentColor(), save=False, lazy=True)
-    tray = TrayIcon(GUI)
+    # 创建系统托盘
+    tray = TrayIcon(GUI,GUI.exit_)
+    # 加载子窗口
+    if not GUI.fast_run:
+        for index in AddPage.page_dict.keys():
+            GUI.stackedWidget.setCurrentIndex(index)
+        else:
+            GUI.stackedWidget.setCurrentIndex(0)  # 设置主页为默认显示
+    else:
+        AddPage(GUI.stackedWidget.currentWidget(), 2)  # 对应设置
+        AddPage(GUI.stackedWidget.currentWidget(), 0)  # 对应主页
+    # GUI.show()
     tray.show()
-    # 加载主页
-    AddPage(GUI.stackedWidget.currentWidget(), 0)
-    GUI.show()
     app.exec()
 
 

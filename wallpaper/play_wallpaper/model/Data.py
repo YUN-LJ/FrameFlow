@@ -18,7 +18,7 @@ file.ensure_exist(TEMP_DIR)
 # pkl由于采用了gzip压缩所以后缀为pkl.gz,加载速度最快的格式(大约13ms)
 DATA_NAME = 'image_data.pkl.gz'
 
-
+@general.timer_decorator
 def load_data(data_path: str = None) -> bool:
     """
     加载本地数据
@@ -56,13 +56,18 @@ def check_valid():
 
     # 2. 批量判断目录是否在ALL_DIRS中（向量化操作）
     dir_valid = ALL_FILES['所在目录'].isin(ALL_DIRS)
+    # 3. 获取ALL_DIRS下的全部文件(检查全部文件是否存在于all_files)
+    all_files = []
+    for path in ALL_DIRS:
+        all_files.extend(file.get_files_path(path, only_file=True, ext=IMAGE_EXTENSION))
+    path_valid = ALL_FILES['image_path'].isin(all_files)
 
     # 3. 批量检查文件是否存在（关键优化：减少IO调用次数）
     # 方法1：如果file.check_exist支持批量路径（推荐，需file模块支持）
     # path_valid = np.array(file.check_exist(ALL_FILES['image_path'].tolist()))
 
     # 方法2：如果file.check_exist仅支持单个路径，用np.vectorize加速（比apply快）
-    path_valid = np.vectorize(file.check_exist)(ALL_FILES['image_path'])
+    # path_valid = np.vectorize(file.check_exist)(ALL_FILES['image_path'])
 
     # 4. 合并条件，过滤有效数据
     ALL_FILES = ALL_FILES[dir_valid & path_valid]

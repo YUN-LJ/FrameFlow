@@ -145,7 +145,7 @@ def AppendListWidgetitems(items: list, listwidget: QListWidget):
     listwidget.addItems(new_items)
 
 
-def embed_qt(title: str, layout: QHBoxLayout, accurate: bool = True) -> int:
+def embed_qt(title: str | int, widget: QWidget, accurate: bool = True) -> int:
     """
     将窗口嵌入到Pyside6窗口中
     需要外部窗口随着pyside6一同关闭需要重写closeEvent
@@ -157,13 +157,13 @@ def embed_qt(title: str, layout: QHBoxLayout, accurate: bool = True) -> int:
             win32gui.SendMessage(self.hwnd, win32con.WM_CLOSE, 0, 0)
         super().closeEvent(event)  # 继续执行 Qt 窗口的关闭逻辑
 
-    :param title:查找的窗口标题str,由于pyside6嵌入窗口时不能使用大写字母
-    :param layout:需要嵌入的窗口对象QWidget
+    :param title:查找的窗口标题str,由于pyside6嵌入窗口时不能使用大写字母,或pid
+    :param widget:需要嵌入的窗口对象QWidget
     :param accurate:是否开启精确查找bool
     :return :窗口句柄hwnd
     """
     from PySide6.QtGui import QWindow
-    import win32gui, win32process
+    import win32gui, win32process, os
     # 获取窗口句柄
     # windowhandle = win32gui.FindWindowEx(0, 0,
     #                                     "ConsoleWindowClass",#类名
@@ -176,33 +176,43 @@ def embed_qt(title: str, layout: QHBoxLayout, accurate: bool = True) -> int:
 
     # 历遍全部窗口,callback是回调函数
     win32gui.EnumWindows(callback, None)
-    # # 获取当前时间,用于模糊匹配时捕获启动时间相近的窗口句柄
-    # start_time = time.time()
-    # print('EmbeddedWindow启动时间:',start_time)
-    # # 主线程PID
-    # pid_main = os.getpid()
+    # 获取当前时间,用于模糊匹配时捕获启动时间相近的窗口句柄
+    # 主线程PID
+    pid_main = os.getpid()
     # print('主线程PID:', pid_main)
     # 根据窗口标题寻找该窗口的句柄
     for hwnd in hwnd_list:
         # 获取程序pid
         # pid = win32process.GetWindowThreadProcessId(hwnd)[1]
         # 根据窗口句柄获取程序的窗口标题,精确匹配模式
-        if accurate == True and win32gui.GetWindowText(hwnd) == title:
-            pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-            print(f'Pyside6Mod精确句柄:{hwnd}')
-            print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
-            break
-        elif accurate == False and \
-                win32gui.GetWindowText(hwnd).find(title) != -1:  # 需要优化
-            pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-            print('找到的PID:', pid)
-            print(f'Pyside6Mod模糊句柄:{hwnd}')
-            print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
-            break
-        else:
-            hwnd = 0
+        if isinstance(title, str):
+            if accurate == True and win32gui.GetWindowText(hwnd) == title:
+                pid = win32process.GetWindowThreadProcessId(hwnd)[1]
+                print('找到的PID:', pid)
+                print(f'Pyside6Mod精确句柄:{hwnd}')
+                print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
+                break
+            elif accurate == False and \
+                    win32gui.GetWindowText(hwnd).find(title) != -1:  # 需要优化
+                pid = win32process.GetWindowThreadProcessId(hwnd)[1]
+                if pid == pid_main:  # 排除主窗口
+                    continue
+                print('找到的PID:', pid)
+                print(f'Pyside6Mod模糊句柄:{hwnd}')
+                print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
+                break
+            else:
+                hwnd = 0
+        elif isinstance(title, int):
+            curr_pid = win32process.GetWindowThreadProcessId(hwnd)[1]
+            if curr_pid == title:
+                break
+            else:
+                hwnd = 0
     if hwnd == 0:  # 没有匹配到窗口
         return False
+    layout = QHBoxLayout(widget)
+    layout.setContentsMargins(0, 0, 0, 0)
     # 根据窗口句柄嵌入到pyqt5界面中
     console_window = QWindow.fromWinId(hwnd)
     # 创建一个Qwiget用于容纳consolewindow
@@ -302,9 +312,10 @@ from PySide6.QtGui import QAction, QIcon
 
 class TrayIcon(QSystemTrayIcon):
 
-    def __init__(self, SetUI, parent=None):
+    def __init__(self, SetUI, exit_func=None, parent=None):
         super(TrayIcon, self).__init__(parent)
         self.ui = SetUI
+        self.exit_func = exit_func
         self.createMenu()
 
     def createMenu(self):
@@ -331,11 +342,12 @@ class TrayIcon(QSystemTrayIcon):
 
     def quit(self):
         # QtWidgets.qApp.quit()
+        self.exit_func()
         os._exit(0)  # 强制退出
 
-    # 鼠标点击icon传递的信号会带有一个整形的值
-    # 1是表示单击右键，2是双击左键，3是单击左键，4是用鼠标中键点击
     def onIconClicked(self, reason):
+        # 鼠标点击icon传递的信号会带有一个整形的值
+        # 1是表示单击右键，2是双击左键，3是单击左键，4是用鼠标中键点击
         # 鼠标左键单击或者双击时触发
         if reason == self.ActivationReason.Trigger or \
                 reason == self.ActivationReason.DoubleClick:

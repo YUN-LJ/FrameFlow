@@ -254,6 +254,9 @@ def get_files_path(dir_path: str = None,
     # 处理后缀参数：统一转为小写，确保不区分大小写
     valid_ext = [e.lower() for e in ext] if (ext and isinstance(ext, list)) else None
 
+    # 处理正反斜杠问题
+    dir_path = dir_path.replace('\\', '/')
+
     result = []
 
     def traverse(current_dir: str, current_depth: int):
@@ -267,17 +270,17 @@ def get_files_path(dir_path: str = None,
                         if not only_dir:
                             # 后缀筛选逻辑
                             if valid_ext is None:
-                                result.append(entry.path)
+                                result.append(entry.path.replace('\\', '/'))
                             else:
                                 # 获取文件后缀并转为小写，匹配筛选列表
                                 file_ext = os.path.splitext(entry.name)[1].lower()
                                 if file_ext in valid_ext:
-                                    result.append(entry.path)
+                                    result.append(entry.path.replace('\\', '/'))
                     # 处理目录
                     elif entry.is_dir(follow_symlinks=False):
                         # 允许包含目录时添加
                         if not only_file:
-                            result.append(entry.path)
+                            result.append(entry.path.replace('\\', '/'))
                         # 递归遍历子目录（根据深度限制判断）
                         if (deep == 0 or current_depth < deep):
                             traverse(entry.path, current_depth + 1)
@@ -361,27 +364,24 @@ def move_file(file_path: str, target_path: str, replace=False) -> bool:
     :param replace:文件存在时是否替换
     """
     try:
-        if not os.path.isdir(target_path):
-            raise ValueError('目标路径不是文件夹！')
         file_path = os.path.realpath(file_path)
         target_path = os.path.realpath(target_path)
         ensure_exist(target_path)
         if os.path.isfile(file_path):
             # 转为目标文件路径
             file_name = os.path.basename(file_path)
-            tartat_path = os.path.join(file_path, file_name)
+            target_path = os.path.join(target_path, file_name)
         # 文件不存在时移动
-        if not os.path.exists(tartat_path):
-            shutil.move(file_path, tartat_path)  # 移动文件
+        if not os.path.exists(target_path):
+            shutil.move(file_path, target_path)  # 移动文件
             return True
         # 开启替换时移动
-        elif replace and os.path.exists(tartat_path):
-            shutil.move(file_path, tartat_path)  # 移动文件
+        elif replace and os.path.exists(target_path):
+            shutil.move(file_path, target_path)  # 移动文件
             return True
     except Exception as e:
-        print(f'Fun包file模块下的move_file函数报错:\n  {file_path}{e}', file=sys.stderr)
+        print(f'Fun包file模块下的move_file函数报错:\n\t{file_path}{e}', file=sys.stderr)
         return False
-
 
 def copy_file(file_path: str, target_path: str, replace=False) -> bool:
     """
