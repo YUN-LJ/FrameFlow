@@ -54,6 +54,7 @@ class TempPlot(QThread):
             self.__ohm = device_inf.HardMonitor()  # HardMonitor实例
         # 获取绘图对象
         self.__polt = self.__ohm.ohm_plot()
+        self.__polt.set_alpha(0)
         self.__polt.set_layout(self.__layout)
         data = {'temp': self.__ohm.get_TEMP(avg=True)} | {'load': self.__ohm.get_LOAD(stat=True)}
         self.update_signal.emit(data)
@@ -86,7 +87,7 @@ class HomeWin(QWidget, Ui_home):
         self.spinBox.setValue(5)
         self.spinBox.valueChanged.connect(lambda value: self.__thread.set_time(value))
 
-        self.pushButton_start.clicked.connect(self.__pushButton_start)
+        self.pushButton_start.clicked.connect(self.start)
 
     def __update_ui(self, data: dict):
         for key, value in data['temp'].items():
@@ -111,16 +112,16 @@ class HomeWin(QWidget, Ui_home):
         self.label_ram_load.setText(f'RAM使用率:{ram_load}%')
         self.__thread.update_plot()
 
-    def __pushButton_start(self):
+    def start(self):
         if self.pushButton_start.text() == '开始':
             if not general.check_is_admin():
-                general.cmd_admin_run(get.run_file())
-                exit()
+                self.__parent.restart('--ohm')
             self.pushButton_start.setText('停止')
             self.__thread.start()
         elif self.pushButton_start.text() == '停止':
             self.pushButton_start.setText('开始')
             self.__thread.stop()
+
 
 
 if __name__ == '__main__':

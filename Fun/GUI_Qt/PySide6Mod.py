@@ -145,7 +145,7 @@ def AppendListWidgetitems(items: list, listwidget: QListWidget):
     listwidget.addItems(new_items)
 
 
-def embed_qt(title: str | int, widget: QWidget, accurate: bool = True) -> int:
+def embed_qt(target_inf: str, widget: QWidget, class_name: str = None, accurate: bool = True) -> int:
     """
     将窗口嵌入到Pyside6窗口中
     需要外部窗口随着pyside6一同关闭需要重写closeEvent
@@ -157,63 +157,51 @@ def embed_qt(title: str | int, widget: QWidget, accurate: bool = True) -> int:
             win32gui.SendMessage(self.hwnd, win32con.WM_CLOSE, 0, 0)
         super().closeEvent(event)  # 继续执行 Qt 窗口的关闭逻辑
 
-    :param title:查找的窗口标题str,由于pyside6嵌入窗口时不能使用大写字母,或pid
+    :param target_inf:查找的窗口标题str
     :param widget:需要嵌入的窗口对象QWidget
+    :param class_name:窗口所属的类,如cmd所属类为:ConsoleWindowClass
     :param accurate:是否开启精确查找bool
     :return :窗口句柄hwnd
     """
     from PySide6.QtGui import QWindow
     import win32gui, win32process, os
-    # 获取窗口句柄
-    # windowhandle = win32gui.FindWindowEx(0, 0,
-    #                                     "ConsoleWindowClass",#类名
-    #                                     r'管理员: 命令提示符 - H:\Python\simple\simpleModular\python3.9\Scripts\python.exe   H:\Python\simple\simpleModular\AutoSetWallpaper.py')#窗口标题
-    # print('windowhandle',windowhandle)
-    hwnd_list = []
 
-    def callback(hwnd, extra):
-        hwnd_list.append(hwnd)
-
-    # 历遍全部窗口,callback是回调函数
-    win32gui.EnumWindows(callback, None)
-    # 获取当前时间,用于模糊匹配时捕获启动时间相近的窗口句柄
     # 主线程PID
     pid_main = os.getpid()
-    # print('主线程PID:', pid_main)
-    # 根据窗口标题寻找该窗口的句柄
-    for hwnd in hwnd_list:
-        # 获取程序pid
-        # pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-        # 根据窗口句柄获取程序的窗口标题,精确匹配模式
-        if isinstance(title, str):
-            if accurate == True and win32gui.GetWindowText(hwnd) == title:
-                pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-                print('找到的PID:', pid)
-                print(f'Pyside6Mod精确句柄:{hwnd}')
-                print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
-                break
-            elif accurate == False and \
-                    win32gui.GetWindowText(hwnd).find(title) != -1:  # 需要优化
-                pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-                if pid == pid_main:  # 排除主窗口
-                    continue
-                print('找到的PID:', pid)
-                print(f'Pyside6Mod模糊句柄:{hwnd}')
-                print(f'窗口名称:{win32gui.GetWindowText(hwnd)}')
-                break
+
+    # 历遍全部窗口,callback是回调函数(即每次查找一个窗口句柄时执行的操作)
+    hwnd_list = []  # 找到的窗口句柄,按理来说只有一个,如果有多个则取最后一个
+
+    def callback(hwnd, extra):
+        # extra是EnumWindows的第二个参数
+        pid = win32process.GetWindowThreadProcessId(hwnd)  # 当前窗口pid
+        if pid == pid_main:
+            return False
+        window_title = win32gui.GetWindowText(hwnd)  # 当前窗口标题
+        if accurate == True and window_title == extra:  # 精确查找
+            window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
+            if class_name is None:
+                hwnd_list.append((hwnd, window_title, window_class_name, pid))
             else:
-                hwnd = 0
-        elif isinstance(title, int):
-            curr_pid = win32process.GetWindowThreadProcessId(hwnd)[1]
-            if curr_pid == title:
-                break
+                if window_class_name == class_name:
+                    hwnd_list.append((hwnd, window_title, window_class_name, pid))
+        elif accurate == False and window_title.find(extra) != -1:  # 模糊查询
+            window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
+            if class_name is None:
+                hwnd_list.append((hwnd, window_title, window_class_name, pid))
             else:
-                hwnd = 0
-    if hwnd == 0:  # 没有匹配到窗口
+                if window_class_name == class_name:
+                    hwnd_list.append((hwnd, window_title, window_class_name, pid))
+
+    win32gui.EnumWindows(callback, target_inf)
+
+    if hwnd_list == []:  # 没有匹配到窗口
         return False
+    else:
+        hwnd = hwnd_list[-1][0]
     layout = QHBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
-    # 根据窗口句柄嵌入到pyqt5界面中
+    # 根据窗口句柄嵌入到pyside6界面中
     console_window = QWindow.fromWinId(hwnd)
     # 创建一个Qwiget用于容纳consolewindow
     widget_window = QWidget.createWindowContainer(console_window)

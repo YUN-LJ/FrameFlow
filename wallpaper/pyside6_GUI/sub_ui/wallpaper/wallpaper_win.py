@@ -1,5 +1,6 @@
 """壁纸播放窗口"""
-import os,sys
+import os, sys, numpy as np
+
 # 获取当前文件的目录
 current_dir = os.path.dirname(os.path.realpath(__file__))
 # 计算父级目录的路径(wallpaper路径)
@@ -8,8 +9,10 @@ parent_dir = os.path.abspath(os.path.join(current_dir, '..', '..', '..'))
 sys.path.append(parent_dir)
 
 # UI界面-PySide6模块及其美化库
-from PySide6.QtWidgets import (QWidget, QHBoxLayout,
-                               QAbstractItemView, QHeaderView)
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout,
+                               QAbstractItemView, QHeaderView,
+                               QSplitter, QLabel)
+from PySide6.QtCore import Signal, Qt
 from qfluentwidgets.components.widgets.button import PrimaryToolButton
 from qfluentwidgets import FluentIcon as FIF
 
@@ -23,6 +26,7 @@ from Fun.Norm import get, file
 # 导入UI界面
 from .ui.wallpaper_ui import Ui_wallpaper
 from .ui.set import Ui_set
+from .ui.table import Ui_widget_table
 
 
 class Dialog(qfdialog.DialogBase):
@@ -42,22 +46,73 @@ class Dialog(qfdialog.DialogBase):
         return {'play_time': play_time}
 
 
-class WallPaperWin(Ui_wallpaper, QWidget):
+class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
+    # 初始化信号
+    update_signal = Signal(tuple)
+
     def __init__(self, parent=None):
         self.__parent = parent
         super().__init__(parent)
-        self.setupUi(self)
+        Ui_wallpaper.setupUi(self, self)
+        # 初始化左右布局
+        self.__init_splitter()
+
+        # 添加左布局中的table
+        Ui_widget_table.setupUi(self, self.left_widget)
+
+        # 连接槽函数
+        self.update_signal.connect(self.updata_ui)
         # 初始化图像显示
-        self.__show_image = PlotCv2Mod.Cv2ShowQt(self.label_image)
+        self.__show_image = PlotCv2Mod.PlotChart(self.right_layout)
+        self.__show_image.set_alpha(0)
+        self.__image_path = str  # 当前播放的图像路径
         # 初始化壁纸播放
         self.__wallpaper = play.WallPaper()
         self.__wallpaper.load_data()
-        self.__wallpaper.set_play_func(self.__show_image.show)
+        self.__wallpaper.set_play_func(lambda image_path, image: self.update_signal.emit((image_path, image)))
 
         # 设置界面元素
         self.__init_ui()
         # 绑定控件
         self.__bind()
+
+    def updata_ui(self, value: tuple):
+        self.__image_path, image = value
+        image = np.array(image)
+        self.__show_image.open_image(image, is_show=True)
+
+    def __init_splitter(self):
+        # 创建左右布局
+        self.left_widget = QWidget()
+        self.left_layout = QHBoxLayout(self.left_widget)
+        self.left_layout.setContentsMargins(0, 0, 0, 0)
+        self.left_layout.setSpacing(0)
+
+        self.right_widget = QWidget()
+        self.right_layout = QVBoxLayout(self.right_widget)
+        self.right_layout.setContentsMargins(0, 0, 0, 0)
+        self.right_layout.setSpacing(0)
+
+        # 创建QSplitter对象，指定为水平方向（左右分栏）
+        self.splitter = QSplitter(Qt.Horizontal)
+        # 关闭实时更新
+        self.splitter.setOpaqueResize(False)
+        # 将左右部件添加到splitter
+        self.splitter.addWidget(self.left_widget)
+        self.splitter.addWidget(self.right_widget)
+
+        # 设置初始比例,数字代表宽度像素
+        self.splitter.setSizes([400, 500])
+
+        # 设置分界线样式
+        self.splitter.setStyleSheet(
+            """QSplitter::handle { 
+                            background-color: rgb(220,220,220); 
+                            border: 1px solid rgb(220,220,220); 
+                            margin: 1px;}""")
+
+        # 将splitter添加到主布局
+        self.verticalLayout_2.addWidget(self.splitter)
 
     def __init_ui(self):
         """界面元素初始化"""
@@ -207,6 +262,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         self.pushButton_add.clicked.connect(lambda: self.__pushButton_add())
         self.pushButton_start.clicked.connect(self.__pushButton_start)
         self.pushButton_set.clicked.connect(self.__pushButton_set)
+        self.pushButton_open_image.clicked.connect(lambda: file.open_file_use_explorer(self.__image_path))
 
 
 if __name__ == '__main__':

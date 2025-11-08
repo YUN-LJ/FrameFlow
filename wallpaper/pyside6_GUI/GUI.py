@@ -10,6 +10,7 @@ from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
 from qframelesswindow.utils import getSystemAccentColor
 
 from Fun.GUI_Qt.PySide6Mod import TrayIcon
+from Fun.Norm import general, get
 
 import ctypes, sys
 
@@ -38,7 +39,7 @@ class PySide6GUI(MSFluentWindow):
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FrameFlow-画框")
 
         # 快速启动:只加载必要窗口
-        self.fast_run = False
+        self.fast_run = True
 
         # 列出全部子窗口
         self.sub_widget()
@@ -75,6 +76,11 @@ class PySide6GUI(MSFluentWindow):
     def exit_(self):
         """退出"""
         AddPage.page_object[2].kill_cmd()
+        general.kill_program(get.main_pid())
+
+    def restart(self, *argv):
+        general.cmd_admin_run(f'{get.run_file()} --show {' '.join(argv)}')
+        self.exit_()
 
     def show(self):
         self.resize(1000, 600)
@@ -146,17 +152,28 @@ def start_GUI():
         # save=True时对后续创建的对象也会生效,否则只对当前存在的对象生效
         setThemeColor(getSystemAccentColor(), save=False, lazy=True)
     # 创建系统托盘
-    tray = TrayIcon(GUI,GUI.exit_)
+    tray = TrayIcon(GUI, GUI.exit_)
     # 加载子窗口
-    if not GUI.fast_run:
-        for index in AddPage.page_dict.keys():
-            GUI.stackedWidget.setCurrentIndex(index)
-        else:
-            GUI.stackedWidget.setCurrentIndex(0)  # 设置主页为默认显示
+    if GUI.fast_run:
+        AddPage(GUI.stackedWidget.widget(2), 2)  # 对应设置
+        AddPage(GUI.stackedWidget.widget(0), 0)  # 对应主页
     else:
-        AddPage(GUI.stackedWidget.currentWidget(), 2)  # 对应设置
-        AddPage(GUI.stackedWidget.currentWidget(), 0)  # 对应主页
-    # GUI.show()
+        for index in AddPage.page_dict.keys():
+            AddPage(GUI.stackedWidget.widget(index), index)
+
+
+    # 参数映射字典
+    argv_dict = {
+        '--show': GUI.show,
+        '--ohm': AddPage.page_object.get(0).start
+    }
+
+    # 启动时的参数
+    for key in sys.argv[1:]:
+        key_func = argv_dict.get(key, False)
+        if key_func:
+            key_func()
+
     tray.show()
     app.exec()
 

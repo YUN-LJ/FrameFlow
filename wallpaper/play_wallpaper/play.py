@@ -118,7 +118,8 @@ class WallPaper:
         """
         设置自动调用函数
 
-        :param func:每播放一张壁纸时自动调用,会传入当然播放的照片路径
+        :param func:每播放一张壁纸时自动调用,传入两个参数,
+        会传入当前播放的照片路径和图像处理后的ImageFile.ImageFile对象
         """
         self.__func = func
 
@@ -135,11 +136,11 @@ class WallPaper:
                         self.IM = image.Image_PIL()
                         self.IM.LOAD_TRUNCATED_IMAGES = True
                         if self.__image_process():
-                            print(f'当前播放:{self.__image_path}\n播放间隔:{diff:.2f}s')
+                            print(f'\r播放间隔:{diff:.2f}s 当前播放:{self.__image_path}', end='')
                             self.__set_image_wallpaper()
                             if self.__func is not None:
                                 try:
-                                    self.__func(self.__image_path)
+                                    self.__func(self.__image_path, self.__image)
                                 except Exception as e:
                                     print(f'函数{self.__func} 错误:{e}')
                             start_time = now

@@ -18,6 +18,7 @@ class SetsWin(QWidget, Ui_sets):
         self.__parent = parent
         super().__init__(parent)
         self.setupUi(self)
+        self.title = os.path.basename(get.run_file())
 
         self.__init_ui()
 
@@ -28,13 +29,13 @@ class SetsWin(QWidget, Ui_sets):
         self.checkBox.setOnText("开启")
         self.checkBox_2.setOffText('浅色')
         self.checkBox_2.setOnText('深色')
-        self.title = os.path.basename(get.run_file())
-        ext = file.get_file_extension(self.title)
-        if ext == 'exe':
-            title = file.get_file_root(self.title)
-        else:
-            title = self.title
-        self.hwnd = PySide6Mod.embed_qt(title, self.widget_cmd, accurate=False)
+
+        # 检查是否开机自启动
+        if general.check_is_start(file.get_file_root(self.title), 'user'):
+            self.checkBox.setChecked(True)
+
+        # 嵌入终端
+        self.hwnd = PySide6Mod.embed_qt(self.title, self.widget_cmd, 'ConsoleWindowClass', accurate=False)
         # 找不到时添加一个弹簧控件
         # if not self.hwnd:
         #     self.verticalLayout_cmd.addItem(
