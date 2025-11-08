@@ -104,7 +104,7 @@ def check_image_verify(image_dir: str, fun=None, num_workers: int = cpu_count())
 
 class Image_PIL:
     # 是否允许加载截断的图片文件,默认为不允许
-    ImageFile.LOAD_TRUNCATED_IMAGES = False
+    LOAD_TRUNCATED_IMAGES = False
 
     def __init__(self, image_path: str = None):
         self.__image_path = image_path  # 照片路径
@@ -125,7 +125,10 @@ class Image_PIL:
         self.__image = Image.open(image_path)
         try:
             if not Image_PIL.LOAD_TRUNCATED_IMAGES:
-                self.__image.verify()
+                ImageFile.LOAD_TRUNCATED_IMAGES = False
+                self.__image.load()
+            else:
+                ImageFile.LOAD_TRUNCATED_IMAGES = True
         except IOError:
             print(f'图像{image_path}不完整')
             return False

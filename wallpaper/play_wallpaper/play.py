@@ -133,6 +133,7 @@ class WallPaper:
                     diff = now - start_time
                     if diff >= self.__paly_time:
                         self.IM = image.Image_PIL()
+                        self.IM.LOAD_TRUNCATED_IMAGES = True
                         if self.__image_process():
                             print(f'当前播放:{self.__image_path}\n播放间隔:{diff:.2f}s')
                             self.__set_image_wallpaper()
