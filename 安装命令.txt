@@ -1,5 +1,5 @@
 安装
-.\pip install -e E:\code\Python\simple\AutoWallpaper\Fun
+.\pip install -e E:\code\Python\simple\AutoWallpaper
 卸载
 .\pip uninstall -y Fun
 Fun\data为数据文件

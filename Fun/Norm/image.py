@@ -1,13 +1,14 @@
 """提供简易的照片处理"""
+import os
+# from multiprocessing.dummy import Pool#多线程
+from multiprocessing import Pool  # 多进程
+from multiprocessing import cpu_count
+
 from PIL import Image, ImageFile
 
 from . import file, get
 
-
-def ignore_truncation():
-    """忽略文件截断"""
-    # 允许加载截断的图片文件
-    ImageFile.LOAD_TRUNCATED_IMAGES = True
+IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
 
 
 def set_wallpaper_reg(image_path: str) -> bool:
@@ -73,23 +74,64 @@ def set_wallpaper_API(image_data) -> bool:
     return True
 
 
+def check_image_verify_map(image_dir, image_path):
+    """多线程检查执行函数"""
+    print('检查中:', image_path)
+    Image_PIL.LOAD_TRUNCATED_IMAGES = False
+    result = Image_PIL().open_image(image_path)
+    if result == False:
+        target_path = os.path.dirname(image_path[:len(image_dir)] + '/output' + image_path[len(image_dir):])
+        file.move_file(image_path, target_path, replace=True)
+        return image_path
+
+
+def check_image_verify(image_dir: str, fun=None, num_workers: int = cpu_count()) -> list[str]:
+    """
+    检查图像是否完整
+
+    :param image_dir:待检查图像所在目录
+    :param fun:检查完后执行的函数(会传入当前处理的图像路径)
+    :param num_workers:多线程数量,默认为CPU内核数量
+    :return :返回处理处理的图像路径
+    """
+    all_image_file = file.get_files_path(image_dir, only_file=True, ext=IMAGE_EXTENSION)
+    all_image_file = [(image_dir, i) for i in all_image_file]
+    # 多进程判断文件是否完整
+    with Pool(num_workers) as pool:
+        results = pool.starmap(check_image_verify_map, all_image_file)
+    return results
+
+
 class Image_PIL:
+    # 是否允许加载截断的图片文件,默认为不允许
+    LOAD_TRUNCATED_IMAGES = False
+
     def __init__(self, image_path: str = None):
         self.__image_path = image_path  # 照片路径
         if image_path is not None:
             self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
 
-    def open_image(self, image_path: str) -> ImageFile.ImageFile:
+    def open_image(self, image_path: str) -> ImageFile.ImageFile | bool:
         """
         将图片加载为ImageFile对象
 
         :param image_path:文件绝对路径
+        :ruturn :图像不完整时会返回Flase,如果开启允许加载截断则会忽略图像完整性检查
         """
         if not file.check_exist(image_path):
             raise FileNotFoundError(f'{image_path}文件不存在')
         if not file.check_image(image_path):
             raise TypeError(f'{image_path}文件不是照片')
         self.__image = Image.open(image_path)
+        try:
+            if not Image_PIL.LOAD_TRUNCATED_IMAGES:
+                ImageFile.LOAD_TRUNCATED_IMAGES = False
+                self.__image.load()
+            else:
+                ImageFile.LOAD_TRUNCATED_IMAGES = True
+        except IOError:
+            print(f'图像{image_path}不完整')
+            return False
         self.__image_path = image_path
         return self.__image
 
@@ -204,6 +246,10 @@ class Image_PIL:
         else:
             pass
 
+    def close_image(self):
+        """关闭图像"""
+        self.__image.close()
+
     def save(self, target_path='', ext='', quality=100) -> bool:
         """
         将照片保存为指定格式,可以用于照片转换格式
@@ -226,3 +272,10 @@ class Image_PIL:
             return True
         else:
             raise TypeError(f'目标路径不是图像格式{target_path}')
+
+
+if __name__ == '__main__':
+    path = os.path.realpath(r'../../data/train_image')
+    # image_path = 'E:/code/Python/simple/AIForImage/data/train_image/正常级/282po6.jpg'
+    # file_del(image_path)
+    print(check_image_verify(path))
