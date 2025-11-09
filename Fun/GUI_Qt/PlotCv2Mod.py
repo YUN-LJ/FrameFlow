@@ -25,7 +25,8 @@ from PySide6.QtWidgets import QHBoxLayout
 class PlotChart:
     """
     需要在Qt中对同一个fig图形对象进行重绘时
-    需要调用clear_plot方法后再调用plot_等方法最后再调用show方法更新图形
+    需要调用clear_plot方法后,否则会出现内存溢出
+    再调用plot_等方法最后再调用show方法更新图形
     """
 
     def __init__(self, layout: QHBoxLayout = None, nrow: int = 1, ncol: int = 1):

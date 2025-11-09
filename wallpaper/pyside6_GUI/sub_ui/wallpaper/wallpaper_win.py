@@ -79,6 +79,7 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
     def updata_ui(self, value: tuple):
         self.__image_path, image = value
         image = np.array(image)
+        self.__show_image.clear_plot()
         self.__show_image.open_image(image, is_show=True)
 
     def __init_splitter(self):

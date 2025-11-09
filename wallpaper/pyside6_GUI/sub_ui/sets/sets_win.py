@@ -35,7 +35,7 @@ class SetsWin(QWidget, Ui_sets):
             self.checkBox.setChecked(True)
 
         # 嵌入终端
-        self.hwnd = PySide6Mod.embed_qt(self.title, self.widget_cmd, 'ConsoleWindowClass', accurate=False)
+        self.hwnd = PySide6Mod.embed_qt(file.get_file_root(self.title), self.widget_cmd, 'ConsoleWindowClass', accurate=False)
         # 找不到时添加一个弹簧控件
         # if not self.hwnd:
         #     self.verticalLayout_cmd.addItem(

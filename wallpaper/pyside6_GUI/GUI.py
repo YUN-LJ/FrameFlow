@@ -39,7 +39,7 @@ class PySide6GUI(MSFluentWindow):
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FrameFlow-画框")
 
         # 快速启动:只加载必要窗口
-        self.fast_run = True
+        self.fast_run = False
 
         # 列出全部子窗口
         self.sub_widget()
@@ -160,7 +160,6 @@ def start_GUI():
     else:
         for index in AddPage.page_dict.keys():
             AddPage(GUI.stackedWidget.widget(index), index)
-
 
     # 参数映射字典
     argv_dict = {
