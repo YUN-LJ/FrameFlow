@@ -442,7 +442,7 @@ from PySide6.QtCore import QTimer, Qt
 
 class Cv2ShowImage:
 
-    def __init__(self, lable: QLabel = None):
+    def __init__(self, lable: QLabel | PlotChart = None):
         """
         :param lable: QLable对象
         :param layout: QHBoxLayout
@@ -455,6 +455,9 @@ class Cv2ShowImage:
         self.__loop = False
         self.__video_path = None
 
+        # 播放视频时的帧率,需要在视频播放前修改
+        self.fps = -1
+
         # 缩放选择
         self.__scale = 0
 
@@ -462,7 +465,7 @@ class Cv2ShowImage:
         self.__video = QTimer()
         self.__video.timeout.connect(self.__update_frame)
 
-    def set_lable(self, lable: QLabel):
+    def set_lable(self, lable: QLabel | PlotChart):
         """设置标签"""
         self.__lable = lable
 
@@ -530,28 +533,31 @@ class Cv2ShowImage:
                 return False
         # 转换颜色空间，OpenCV默认是BGR，PyQt需要RGB
         rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        if isinstance(self.__lable, QLabel):
+            # 获取图像尺寸
+            height, width, channel = rgb_image.shape
+            # 计算字节数
+            bytes_per_line = channel * width
 
-        # 获取图像尺寸
-        height, width, channel = rgb_image.shape
-        # 计算字节数
-        bytes_per_line = channel * width
+            # 创建QImage对象
+            q_image = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
 
-        # 创建QImage对象
-        q_image = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+            # 缩放图像以适应窗口，保持比例
+            if self.__scale == 0:
+                scaled_image = q_image.scaled(
+                    self.__lable.width(), self.__lable.height(),
+                    Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+            elif self.__scale == 1:
+                scaled_image = q_image.scaled(
+                    self.__lable.width(), self.__lable.height())
 
-        # 缩放图像以适应窗口，保持比例
-        if self.__scale == 0:
-            scaled_image = q_image.scaled(
-                self.__lable.width(), self.__lable.height(),
-                Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
-        elif self.__scale == 1:
-            scaled_image = q_image.scaled(
-                self.__lable.width(), self.__lable.height())
-
-        # 在标签上显示图像
-        self.__lable.setPixmap(QPixmap.fromImage(scaled_image))
-        self.__lable.setAlignment(Qt.AlignCenter)  # 设置居中对齐
+            # 在标签上显示图像
+            self.__lable.setPixmap(QPixmap.fromImage(scaled_image))
+            self.__lable.setAlignment(Qt.AlignCenter)  # 设置居中对齐
+        elif isinstance(self.__lable, PlotChart):
+            self.__lable.clear_plot()
+            self.__lable.open_image(rgb_image, is_show=True)
 
     def __play_video(self, video_path: str):
         # 打开视频文件
@@ -563,7 +569,10 @@ class Cv2ShowImage:
             print(f'[Cv2ShowQt] {video_path}')
             return False
         if self.__cap.isOpened():
-            fps = int(self.__cap.get(cv2.CAP_PROP_FPS))  # 获取原视频帧率
+            if self.fps == -1:
+                fps = int(self.__cap.get(cv2.CAP_PROP_FPS))  # 获取原视频帧率
+            else:
+                fps = self.fps
             update_time = 1000 // fps  # 换算每张之间的间隔为多少毫秒
             if update_time >= 1:
                 self.__video.start(update_time)  # 启动视频播放

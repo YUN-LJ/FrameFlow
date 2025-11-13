@@ -79,7 +79,7 @@ class PySide6GUI(MSFluentWindow):
         general.kill_program(get.main_pid())
 
     def restart(self, *argv):
-        general.cmd_admin_run(f'{get.run_file()} --show {' '.join(argv)}')
+        general.cmd_admin_run(f'{get.run_file()} {' '.join(argv)}')
         self.exit_()
 
     def show(self):
@@ -160,10 +160,10 @@ def start_GUI():
     else:
         for index in AddPage.page_dict.keys():
             AddPage(GUI.stackedWidget.widget(index), index)
-
+    is_show = True
     # 参数映射字典
     argv_dict = {
-        '--show': GUI.show,
+        '--hide': 'hide',
         '--ohm': AddPage.page_object.get(0).start
     }
 
@@ -171,8 +171,13 @@ def start_GUI():
     for key in sys.argv[1:]:
         key_func = argv_dict.get(key, False)
         if key_func:
-            key_func()
+            if key_func == 'hide':
+                is_show = False
+            else:
+                key_func()
 
+    if is_show:
+        GUI.show()
     tray.show()
     app.exec()
 

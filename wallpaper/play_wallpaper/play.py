@@ -24,9 +24,11 @@ class WallPaper:
         self.__image_path = str  # 当前播放的照片路径
         self.__func = None  # 每次切换照片时自动调用
         self.__image = None  # 当前播放的照片的PIL图像对象
-        self.__stretch = False  # 处理照片缩放时是否拉伸
+        self.__stretch = 'w'  # 处理照片缩放时按照宽度进行缩放
         self.__paly_time = 10.0  # 播放间隔时间单位秒
         self.get_max_screen()  # 获取屏幕最大尺寸
+        self.whitelist = ['动漫','综合']  # 白名单,主要实现:__get_image_path
+        self.blacklist = []  # 黑名单,主要实现:__get_image_path
         self.__ini = ini.INI(INI_FILE, 'Set')
 
     def __image_process(self) -> bool:
@@ -61,7 +63,7 @@ class WallPaper:
 
     def __get_image_path(self):
         """获取图像路径"""
-        self.__row = Data.get_random_row()
+        self.__row = Data.get_random_row(whitelist=self.whitelist, blacklist=self.blacklist)
         self.__image_path = self.__row['所在目录'] + self.__row['子文件路径']
         self.__image_path = self.__image_path.loc[self.__image_path.index[0]]
 
@@ -79,7 +81,7 @@ class WallPaper:
             if cur_width > max_width:
                 max_width = cur_width
                 max_height = cur_height
-        self.screen = f'{max_width}x{max_height}'
+        self.screen = (max_width, max_height)
         return self.screen
 
     @property
@@ -92,6 +94,11 @@ class WallPaper:
         """获取当前播放时间间隔"""
         return self.__paly_time
 
+    @property
+    def get_filter_list(self):
+        """返回当前的白名单和黑名单"""
+        return self.whitelist, self.blacklist
+
     def load_data(self):
         """从本地加载数据,如果加载失败则播放,会将播放状态切为False"""
         if file.check_exist(INI_FILE):
@@ -100,7 +107,11 @@ class WallPaper:
             for key, value in config_values.items():
                 if key == 'paly_time':
                     self.__paly_time = float(value)
-                elif key.isdigit():
+                elif key == 'whitelist':
+                    self.whitelist = value.split(';')
+                elif key == 'blacklist':
+                    self.blacklist = value.split(';')
+                elif key.isdigit():  # 添加用户选择的路径
                     dir_list.append(value)
             self.add_user_dir(dir_list, False)
         if not Data.load_data():
@@ -123,6 +134,19 @@ class WallPaper:
         """
         self.__func = func
 
+    def set_filre_list(self, whitelist: list = None, blacklist: list = None) -> bool:
+        """
+        设置过滤名单(针对图像路径过滤)
+
+        :param whitelist:白名单,获取image_path中包含特定文字
+        :param blacklist:黑名单,获取除了image_path中包含特定文字
+        """
+        if whitelist is not None and isinstance(whitelist, list):
+            self.whitelist = whitelist
+        if blacklist is not None and isinstance(blacklist, list):
+            self.blacklist = blacklist
+        return True
+
     def play_wallpaper(self):
         """壁纸播放"""
         import time
@@ -136,7 +160,7 @@ class WallPaper:
                         self.IM = image.Image_PIL()
                         self.IM.LOAD_TRUNCATED_IMAGES = True
                         if self.__image_process():
-                            print(f'\r播放间隔:{diff:.2f}s 当前播放:{self.__image_path}', end='')
+                            print(f'\r播放间隔:{diff:0.2f}s 当前播放:{self.__image_path}', end='')
                             self.__set_image_wallpaper()
                             if self.__func is not None:
                                 try:
@@ -208,7 +232,12 @@ class WallPaper:
         保存当前的配置文件
         """
         try:
-            all_dir_path = {'paly_time': self.__paly_time}
+            # 全部配置文件,播放时间、白名单、黑名单、用户路径
+            all_dir_path = {
+                'paly_time': self.__paly_time,
+                'whitelist': ';'.join(self.whitelist),
+                'blacklist': ';'.join(self.blacklist),
+            }
             all_dir_path.update({index: item for index, item in enumerate(Data.ALL_DIRS)})
             self.__ini.del_section()
             self.__ini.append_values(all_dir_path)

@@ -1,12 +1,11 @@
 """提供简易的照片处理"""
 import os
-# from multiprocessing.dummy import Pool#多线程
-from multiprocessing import Pool  # 多进程
-from multiprocessing import cpu_count
 
 from PIL import Image, ImageFile
 
 from . import file, get
+
+# from multiprocessing.dummy import Pool#多线程
 
 IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
 
@@ -74,34 +73,6 @@ def set_wallpaper_API(image_data) -> bool:
     return True
 
 
-def check_image_verify_map(image_dir, image_path):
-    """多线程检查执行函数"""
-    print('检查中:', image_path)
-    Image_PIL.LOAD_TRUNCATED_IMAGES = False
-    result = Image_PIL().open_image(image_path)
-    if result == False:
-        target_path = os.path.dirname(image_path[:len(image_dir)] + '/output' + image_path[len(image_dir):])
-        file.move_file(image_path, target_path, replace=True)
-        return image_path
-
-
-def check_image_verify(image_dir: str, fun=None, num_workers: int = cpu_count()) -> list[str]:
-    """
-    检查图像是否完整
-
-    :param image_dir:待检查图像所在目录
-    :param fun:检查完后执行的函数(会传入当前处理的图像路径)
-    :param num_workers:多线程数量,默认为CPU内核数量
-    :return :返回处理处理的图像路径
-    """
-    all_image_file = file.get_files_path(image_dir, only_file=True, ext=IMAGE_EXTENSION)
-    all_image_file = [(image_dir, i) for i in all_image_file]
-    # 多进程判断文件是否完整
-    with Pool(num_workers) as pool:
-        results = pool.starmap(check_image_verify_map, all_image_file)
-    return results
-
-
 class Image_PIL:
     # 是否允许加载截断的图片文件,默认为不允许
     LOAD_TRUNCATED_IMAGES = False
@@ -123,17 +94,23 @@ class Image_PIL:
         if not file.check_image(image_path):
             raise TypeError(f'{image_path}文件不是照片')
         self.__image = Image.open(image_path)
-        try:
-            if not Image_PIL.LOAD_TRUNCATED_IMAGES:
-                ImageFile.LOAD_TRUNCATED_IMAGES = False
-                self.__image.load()
-            else:
-                ImageFile.LOAD_TRUNCATED_IMAGES = True
-        except IOError:
-            print(f'图像{image_path}不完整')
-            return False
+        if Image_PIL.LOAD_TRUNCATED_IMAGES:
+            # 允许加载截断图像
+            ImageFile.LOAD_TRUNCATED_IMAGES = True
+        else:
+            # 不允许加载截断图像
+            ImageFile.LOAD_TRUNCATED_IMAGES = False
         self.__image_path = image_path
         return self.__image
+
+    @property
+    def check_image(self):
+        """检查图像是否完整"""
+        try:
+            self.__image.load()
+            return True
+        except IOError:
+            return False
 
     @property
     def get_size(self) -> tuple[int, int]:
@@ -150,35 +127,34 @@ class Image_PIL:
         else:
             return False
 
-    def resize(self, resolution='1920x1080', stretch=False) -> tuple[int, int]:
+    def resize(self, size: tuple[int, int], stretch: str = 'w', resample=Image.Resampling.LANCZOS) -> tuple[int, int]:
         """
-        将照片按照指定尺寸输出,但照片是竖屏时输出的分辨率宽度只有对应K数的一半
-        1K:1920x1080;2k:3840x2160;自定义分辨率使用1920x1080格式
+        将照片按照指定尺寸输出
         图像缩放，通过resize()方法来实现
         可用的插值方法包括：
-        Image.Resampling.NEAREST：最近邻插值（速度最快，但质量可能较差）。
-        Image.Resampling.BILINEAR：双线性插值（速度较快，质量较好）。
-        Image.Resampling.BICUBIC：双三次插值（速度较慢，但质量通常最好）。
-        Image.Resampling.LANCZOS：Lanczos 插值（需要 PILLOW 额外支持）。
+        Image.Resampling.NEAREST：最近邻插值（速度最快，低精度场景（无抗锯齿））。
+        Image.Resampling.BILINEAR：双线性插值（速度较快，边缘略模糊）。
+        Image.Resampling.BICUBIC：双三次插值（速度较慢，常规高质量缩放（比 BILINEAR 清晰））。
+        Image.Resampling.LANCZOS：Lanczos 插值（纹理清晰、抗锯齿优秀）。
+        Image.Resampling.BOX：平均池化缩放（适合缩小图像）
 
-        :param resolution:分辨率
-        :param stretch:拉伸
-        :return :width,height 返回实际的宽高
+        :param size:缩放到的目标尺寸(w,h)
+        :param stretch:是否拉伸,默认按照'w',可选值('w':保证w为目标尺寸,'h':保证h为目标尺寸,'wh',保证wh均为目标尺寸)
+        :param resample:缩放插值方法
+        :return :w,h 返回实际的宽高
         """
-        if stretch:  # 拉伸缩放时直接采用指定的分辨率
-            width = int(resolution.split('x')[0])
-            height = int(resolution.split('x')[1])
-        else:  # 非拉伸缩放时竖屏照片修改width,横屏修改height
-            # 获取原图像宽高比
-            w, h = self.get_size
-            AR = w / h
-            if self.check_w_screen:
-                width = int(resolution.split('x')[0])
-                height = int(width / AR)
-            else:
-                height = int(resolution.split('x')[1])
-                width = int(height * AR)
-        self.__image = self.__image.resize((width, height), Image.Resampling.LANCZOS)
+        # 计算原图宽高比
+        scale = self.get_size[0] / self.get_size[1]
+        if stretch == 'w':
+            width = int(size[0])
+            height = int(width // scale)
+        elif stretch == 'h':  # 拉伸缩放时直接采用指定的分辨率
+            height = int(size[1])
+            width = int(scale * height)
+        elif stretch == 'wh':
+            width = int(size[0])
+            height = int(size[1])
+        self.__image = self.__image.resize((width, height), resample)
         return width, height
 
     def zip(self, max_size=15, quality=100) -> ImageFile.ImageFile:
@@ -189,7 +165,6 @@ class Image_PIL:
         :param quality:保存质量
         """
         import io
-        from threading import Thread
         # 获取长宽信息
         width, height = self.get_size
         # 照片的格式
@@ -273,9 +248,3 @@ class Image_PIL:
         else:
             raise TypeError(f'目标路径不是图像格式{target_path}')
 
-
-if __name__ == '__main__':
-    path = os.path.realpath(r'../../data/train_image')
-    # image_path = 'E:/code/Python/simple/AIForImage/data/train_image/正常级/282po6.jpg'
-    # file_del(image_path)
-    print(check_image_verify(path))

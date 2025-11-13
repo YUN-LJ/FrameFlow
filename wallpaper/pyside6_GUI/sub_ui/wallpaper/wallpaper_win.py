@@ -37,16 +37,26 @@ class Dialog(qfdialog.DialogBase):
         self.data_init()
 
     def data_init(self):
-        self.ui.spinBox_paly_time.setValue(self.wallpaper.get_play_time)
+        self.ui.spinBox_paly_time.setValue(self.wallpaper.get_play_time)  # 播放间隔
+        self.ui.lineEdit_white.setText(';'.join(self.wallpaper.get_filter_list[0]))  # 白名单
+        self.ui.lineEdit_black.setText(';'.join(self.wallpaper.get_filter_list[1]))  # 黑名单
 
     def get_all_data(self):
         play_time = self.ui.spinBox_paly_time.value()
+        white_list = self.ui.lineEdit_white.text().split(';')
+        black_list = self.ui.lineEdit_black.text().split(';')
         if play_time == self.wallpaper.get_play_time:
             play_time = -1.0
-        return {'play_time': play_time}
+        if white_list == self.wallpaper.get_filter_list[0]:
+            white_list = None
+        if black_list == self.wallpaper.get_filter_list[1]:
+            black_list = None
+        return {'play_time': play_time,
+                'white_list': white_list,
+                'black_list': black_list}
 
 
-class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
+class WallPaperWin(Ui_wallpaper, QWidget):
     # 初始化信号
     update_signal = Signal(tuple)
 
@@ -58,7 +68,8 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
         self.__init_splitter()
 
         # 添加左布局中的table
-        Ui_widget_table.setupUi(self, self.left_widget)
+        self.table = Ui_widget_table()
+        self.table.setupUi(self.left_widget)
 
         # 连接槽函数
         self.update_signal.connect(self.updata_ui)
@@ -118,17 +129,17 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
     def __init_ui(self):
         """界面元素初始化"""
         # 禁止编辑
-        self.tableWidget_dirs_path.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.tableWidget_dirs_path.setEditTriggers(QAbstractItemView.NoEditTriggers)
         # 隐藏垂直表头即右侧表头
-        self.tableWidget_dirs_path.verticalHeader().setVisible(False)
+        self.table.tableWidget_dirs_path.verticalHeader().setVisible(False)
         # 交替行变色
-        self.tableWidget_dirs_path.setAlternatingRowColors(True)
+        self.table.tableWidget_dirs_path.setAlternatingRowColors(True)
         # 设置列宽模式
         # 设置填充剩余空间,第一个参数不填时默认全部生效
-        self.tableWidget_dirs_path.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table.tableWidget_dirs_path.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         # 设置列自适应列宽,第一个参数不填时默认全部生效
-        self.tableWidget_dirs_path.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.tableWidget_dirs_path.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.table.tableWidget_dirs_path.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.tableWidget_dirs_path.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
         # 添加数据
         self.__pushButton_add(self.__wallpaper.get_dirs_path, init=True)
@@ -181,14 +192,14 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
                                 padding: 5px;
                             }"""
         if change == 'light':
-            self.tableWidget_dirs_path.setStyleSheet(LIGHT_table)
+            self.table.tableWidget_dirs_path.setStyleSheet(LIGHT_table)
         elif change == 'dark':
-            self.tableWidget_dirs_path.setStyleSheet(DACK_table)
+            self.table.tableWidget_dirs_path.setStyleSheet(DACK_table)
 
     def __pushButton_add(self, dirs_path: list | set = None, init=False):
         if dirs_path is None:
-            max_row = self.tableWidget_dirs_path.rowCount()
-            item = self.tableWidget_dirs_path.item(max_row - 1, 0)
+            max_row = self.table.tableWidget_dirs_path.rowCount()
+            item = self.table.tableWidget_dirs_path.item(max_row - 1, 0)
             if item is not None:
                 item = f'{item.text()}/..'
                 path = PySide6Mod.get_exist_dir(dir_path=item)
@@ -213,7 +224,7 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
                     btn.clicked.connect(lambda: file.open_file_use_explorer(dir_path))
                     # 获取当前时间
                     now_time = get.now_time('%Y-%m-%d')
-                    PySide6Mod.add_table_widget_row(self.tableWidget_dirs_path, [dir_path, now_time, widget])
+                    PySide6Mod.add_table_widget_row(self.table.tableWidget_dirs_path, [dir_path, now_time, widget])
             # 保存当前配置
             self.__wallpaper.add_user_dir(dirs_path, update=not init)
             self.__wallpaper.save_set()
@@ -228,7 +239,7 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
 
     def __pushButton_del(self):
         # 获取所有选中的项目
-        selected_items = self.tableWidget_dirs_path.selectedItems()
+        selected_items = self.table.tableWidget_dirs_path.selectedItems()
         all_selectcell = []
         del_row = []
         if selected_items:
@@ -243,7 +254,7 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
         if all_selectcell != []:
             del_row = sorted(del_row, reverse=True)
             for index in del_row:
-                self.tableWidget_dirs_path.removeRow(index)
+                self.table.tableWidget_dirs_path.removeRow(index)
             self.__wallpaper.del_user_dir(all_selectcell)
             self.__wallpaper.save_set()
 
@@ -254,8 +265,9 @@ class WallPaperWin(Ui_wallpaper, Ui_widget_table, QWidget):
             data = dialog.get_all_data()
             if data['play_time'] != -1:
                 self.__wallpaper.set_play_time(data['play_time'])
-                # 保存当前设置
-                self.__wallpaper.save_set()
+            self.__wallpaper.set_filre_list(data['white_list'], data['black_list'])
+            # 保存当前设置
+            self.__wallpaper.save_set()
 
     def __bind(self):
         """控件绑定"""

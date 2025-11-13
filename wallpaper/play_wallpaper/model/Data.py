@@ -5,7 +5,7 @@ from Fun.Norm import file, general
 from . import GlobalValues
 
 RUN_PATH = GlobalValues.run_path  # 程序运行路径
-COLUMNS = ['所在目录', '子文件路径', '是否播放', '扫描时间']  # 列索引
+COLUMNS = ['所在目录', '子文件路径', '是否播放', '扫描时间', 'image_path']  # 列索引
 IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
 ALL_DIRS = GlobalValues.user_dir_path  # 照片文件夹路径
 ALL_FILES = pd.DataFrame(columns=COLUMNS)  # 所有照片的信息
@@ -17,6 +17,7 @@ file.ensure_exist(TEMP_DIR)
 # csv加载快占用空间大,xlsx占用空间小加载慢
 # pkl由于采用了gzip压缩所以后缀为pkl.gz,加载速度最快的格式(大约13ms)
 DATA_NAME = 'image_data.pkl.gz'
+
 
 @general.timer_decorator
 def load_data(data_path: str = None) -> bool:
@@ -52,7 +53,7 @@ def check_valid():
     global ALL_FILES
 
     # 1. 向量化拼接路径（替代逐行拼接）
-    ALL_FILES['image_path'] = ALL_FILES['所在目录'] + ALL_FILES['子文件路径']
+    # ALL_FILES['image_path'] = ALL_FILES['所在目录'] + ALL_FILES['子文件路径']
 
     # 2. 批量判断目录是否在ALL_DIRS中（向量化操作）
     dir_valid = ALL_FILES['所在目录'].isin(ALL_DIRS)
@@ -130,13 +131,29 @@ def get_new_data(clear=False) -> pd.DataFrame:
     return ALL_FILES
 
 
-def get_random_row() -> pd.DataFrame:
-    """从未播放的数据中随机获取一行数据"""
+def get_random_row(whitelist: list = [], blacklist: list = []) -> pd.Series:
+    """
+    从未播放的数据中随机获取一行数据
+    :param whitelist:白名单,获取image_path中包含特定文字
+    :param blacklist:黑名单,获取除了image_path中包含特定文字
+    """
     try:
-        return ALL_FILES[ALL_FILES['是否播放'] == False].sample(n=1)
+        filter_files = ALL_FILES[ALL_FILES['是否播放'] == False]
+        # 处理白、黑名单,生成对于掩码
+        white_mask = filter_files['image_path'].str.contains('|'.join(whitelist))
+        black_mask = filter_files['image_path'].str.contains('|'.join(blacklist))
+        # 合并条件筛选
+        filter_files = filter_files[white_mask & ~black_mask]
+        return filter_files.sample(n=1)
     except ValueError as e:
         if reset_state():
-            return ALL_FILES[ALL_FILES['是否播放'] == False].sample(n=1)
+            filter_files = ALL_FILES[ALL_FILES['是否播放'] == False]
+            # 处理白、黑名单,生成对于掩码
+            white_mask = filter_files['image_path'].str.contains('|'.join(whitelist))
+            black_mask = filter_files['image_path'].str.contains('|'.join(blacklist))
+            # 合并条件筛选
+            filter_files = filter_files[white_mask & ~black_mask]
+            return filter_files.sample(n=1)
 
 
 def add_data(dir_path: str, files_path: list) -> pd.DataFrame:
@@ -150,7 +167,7 @@ def add_data(dir_path: str, files_path: list) -> pd.DataFrame:
     # 构造新数据
     import time
     now_time = general.stamp_to_strf(time.time(), format="%Y-%m-%d")
-    data = [[dir_path, general.del_part_str(file, dir_path), False, now_time] for file in files_path]
+    data = [[dir_path, general.del_part_str(file, dir_path), False, now_time, file] for file in files_path]
     # 创建一个要添加的DataFrame
     new_data = pd.DataFrame(data, columns=COLUMNS)
     # 表合并

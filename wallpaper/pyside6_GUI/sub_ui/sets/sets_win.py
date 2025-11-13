@@ -35,7 +35,9 @@ class SetsWin(QWidget, Ui_sets):
             self.checkBox.setChecked(True)
 
         # 嵌入终端
-        self.hwnd = PySide6Mod.embed_qt(file.get_file_root(self.title), self.widget_cmd, 'ConsoleWindowClass', accurate=False)
+        self.hwnd = PySide6Mod.embed_qt(file.get_file_root(self.title), self.widget_cmd,
+                                        ['ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS']
+                                        , accurate=False)
         # 找不到时添加一个弹簧控件
         # if not self.hwnd:
         #     self.verticalLayout_cmd.addItem(
@@ -52,7 +54,7 @@ class SetsWin(QWidget, Ui_sets):
         """开启/关闭开机自启动"""
         program_text = file.get_file_root(self.title)
         if checked:
-            general.add_start_user(program_text, get.run_file())
+            general.add_start_user(program_text, f'{get.run_file()} --hide')
         else:
             if general.check_is_start(program_text, 'user'):
                 general.remove_start_user(program_text)

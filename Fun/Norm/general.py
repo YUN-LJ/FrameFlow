@@ -129,7 +129,7 @@ def check_is_start(name: str, power: str = 'user') -> bool:
     try:
         # 尝试打开键
         value, _ = winreg.QueryValueEx(key, name)
-        if value == main_file:
+        if value.find(main_file) != -1:
             return True
         else:
             return False

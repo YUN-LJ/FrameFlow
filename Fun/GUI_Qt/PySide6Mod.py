@@ -145,7 +145,7 @@ def AppendListWidgetitems(items: list, listwidget: QListWidget):
     listwidget.addItems(new_items)
 
 
-def embed_qt(target_inf: str, widget: QWidget, class_name: str = None, accurate: bool = True) -> int:
+def embed_qt(target_inf: str | int, widget: QWidget, class_name: list[str] = None, accurate: bool = True) -> int:
     """
     将窗口嵌入到Pyside6窗口中
     需要外部窗口随着pyside6一同关闭需要重写closeEvent
@@ -157,9 +157,9 @@ def embed_qt(target_inf: str, widget: QWidget, class_name: str = None, accurate:
             win32gui.SendMessage(self.hwnd, win32con.WM_CLOSE, 0, 0)
         super().closeEvent(event)  # 继续执行 Qt 窗口的关闭逻辑
 
-    :param target_inf:查找的窗口标题str
+    :param target_inf:查找的窗口标题str或进程pid
     :param widget:需要嵌入的窗口对象QWidget
-    :param class_name:窗口所属的类,如cmd所属类为:ConsoleWindowClass
+    :param class_name:窗口所属的类,[cmd:'ConsoleWindowClass',终端:'CASCADIA_HOSTING_WINDOW_CLASS']
     :param accurate:是否开启精确查找bool
     :return :窗口句柄hwnd
     """
@@ -177,21 +177,27 @@ def embed_qt(target_inf: str, widget: QWidget, class_name: str = None, accurate:
         pid = win32process.GetWindowThreadProcessId(hwnd)  # 当前窗口pid
         if pid == pid_main:
             return False
-        window_title = win32gui.GetWindowText(hwnd)  # 当前窗口标题
-        if accurate == True and window_title == extra:  # 精确查找
-            window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
-            if class_name is None:
-                hwnd_list.append((hwnd, window_title, window_class_name, pid))
-            else:
-                if window_class_name == class_name:
+        # 如果输入的target_inf是pid
+        elif pid == extra:
+            hwnd_list.append(hwnd)
+            return True
+        # 如果输入的target_inf是窗口标题
+        elif isinstance(extra, str):
+            window_title = win32gui.GetWindowText(hwnd)  # 当前窗口标题
+            if accurate == True and window_title == extra:  # 精确查找
+                window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
+                if class_name is None:
                     hwnd_list.append((hwnd, window_title, window_class_name, pid))
-        elif accurate == False and window_title.find(extra) != -1:  # 模糊查询
-            window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
-            if class_name is None:
-                hwnd_list.append((hwnd, window_title, window_class_name, pid))
-            else:
-                if window_class_name == class_name:
+                else:
+                    if window_class_name in class_name:
+                        hwnd_list.append((hwnd, window_title, window_class_name, pid))
+            elif accurate == False and window_title.find(extra) != -1:  # 模糊查询
+                window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
+                if class_name is None:
                     hwnd_list.append((hwnd, window_title, window_class_name, pid))
+                else:
+                    if window_class_name in class_name:
+                        hwnd_list.append((hwnd, window_title, window_class_name, pid))
 
     win32gui.EnumWindows(callback, target_inf)
 
@@ -208,6 +214,7 @@ def embed_qt(target_inf: str, widget: QWidget, class_name: str = None, accurate:
     # 将widget_window添加到布局中
     layout.addWidget(widget_window)
     return hwnd
+
 
 
 # 窗口无边框移动
