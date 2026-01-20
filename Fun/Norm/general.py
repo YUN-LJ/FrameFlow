@@ -1,7 +1,8 @@
 """
 通用函数
 """
-import sys
+import sys, time
+import subprocess
 from . import get
 
 
@@ -147,7 +148,7 @@ def check_is_run(title: str, count: int = 1, accurate: bool = True) -> bool:
     :param accurate:是否启用精确匹配,默认启用
     :有重复运行返回True,否则返回Flase
     """
-    import psutil
+    import psutil, os
     main_pid = os.getpid()  # 主线程pid
     pids = psutil.process_iter()  # 获取全部进程pid
     find_list = []
@@ -184,6 +185,171 @@ def cmd_admin_run(command: str):
     """调用管理员权限执行cmd命令"""
     import ctypes
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, command, None, 1)
+
+
+def create_hidden_cmd_old() -> tuple[int, int]:
+    """创建隐藏的 cmd 进程（返回：进程句柄, PID）不能发送信息"""
+    import win32process, win32gui
+    import win32console, win32con, win32api
+    # 1. 配置 STARTUPINFO：强制隐藏窗口
+    startup_info = win32process.STARTUPINFO()
+    startup_info.dwFlags = win32process.STARTF_USESHOWWINDOW  # 启用窗口显示控制
+    startup_info.wShowWindow = win32con.SW_HIDE  # 关键：隐藏窗口（0=隐藏）
+
+    # 2. cmd 命令：UTF-8 编码 + 后台运行（/k 保持进程不退出）
+    cmd_line = 'cmd.exe /k "chcp 65001 >nul && echo 🟢 隐藏 cmd 已启动（UTF-8）"'
+
+    # 3. 进程创建标志：新进程组 + 新控制台（保留资源）+ 挂起（确保窗口先隐藏再启动）
+    creation_flags = (win32process.CREATE_NEW_PROCESS_GROUP
+                      | win32process.CREATE_NEW_CONSOLE
+                      | win32process.CREATE_SUSPENDED)
+
+    # 4. 调用 Windows 原生 API 创建进程
+    try:
+        (process_handle, thread_handle, process_id, thread_id) = win32process.CreateProcess(
+            None,  # 不指定可执行文件路径（cmd.exe 系统自带，PATH 可找到）
+            cmd_line,  # 命令行参数
+            None,  # 进程安全属性（默认）
+            None,  # 线程安全属性（默认）
+            0,  # 不继承句柄
+            creation_flags,  # 进程创建标志
+            None,  # 环境变量（默认）
+            None,  # 工作目录（默认）
+            startup_info  # 启动信息（控制窗口隐藏）
+        )
+        # 恢复挂起的进程（此时窗口已隐藏，不会闪显）
+        win32process.ResumeThread(thread_handle)
+        # 关闭线程句柄（无需保留）
+        win32api.CloseHandle(thread_handle)
+        # print(f"隐藏 cmd 进程创建成功：PID={process_id}")
+        return process_handle, process_id
+    except Exception as e:
+        return False
+        # print(f"创建隐藏 cmd 失败：{e}")
+        # sys.exit(1)
+
+
+def kill_hidden_cmd(process_handle):
+    """
+    关闭隐藏的 cmd 进程
+    :param process_handle:进程句柄
+    """
+    import win32api
+    win32api.TerminateProcess(process_handle, 0)
+    win32api.CloseHandle(process_handle)
+
+
+def create_hidden_cmd(hide=True) -> subprocess.Popen | tuple[subprocess.Popen, int]:
+    """创建隐藏的cmd进程,返回subprocess.Popen,和窗口句柄"""
+    import win32gui, win32con
+    # 关键标志：仅保留这两个（确保生成窗口句柄）
+    if hide:
+        creationflags = (subprocess.CREATE_NEW_PROCESS_GROUP  # 方便后续终止进程
+                         | subprocess.CREATE_NO_WINDOW)  # 创建无窗口的cmd
+    else:
+        creationflags = (subprocess.CREATE_NEW_PROCESS_GROUP  # 方便后续终止进程
+                         | subprocess.CREATE_NEW_CONSOLE)  # 强制创建窗口（获取句柄的前提）
+    # 1. 创建 cmd 进程（保留窗口句柄：仅用 CREATE_NEW_CONSOLE + CREATE_NEW_PROCESS_GROUP）
+    process = subprocess.Popen(
+        ["cmd.exe", "/k", "chcp 65001 >nul"],
+        creationflags=creationflags,
+        shell=False,
+        stdin=subprocess.PIPE,
+        # stdout=subprocess.PIPE,  # 可选：重定向标准输出（如需捕获输出）
+        # stderr=subprocess.PIPE,  # 可选：重定向标准错误（如需捕获错误）
+        text=False,  # 保持字节流模式（write 需传 bytes，避免编码问题）
+        bufsize=0,  # 禁用缓冲（立即发送命令，避免卡顿）
+    )
+    if hide:
+        return process
+    else:
+        target_pid = process.pid
+        hwnd = find_hwnd(target_pid)
+        for i in range(10):
+            hwnd = find_hwnd(target_pid)
+            if not hwnd:
+                time.sleep(0.1)
+            else:
+                break
+        win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+        return process, hwnd
+
+
+def find_hwnd(target_inf: str | int, class_name: list[str] = None, accurate: bool = True) -> int:
+    """
+    查找窗口句柄
+
+    :param target_inf:查找的窗口标题str或进程pid
+    :param widget:需要嵌入的窗口对象QWidget
+    :param class_name:窗口所属的类,[cmd:'ConsoleWindowClass',终端:'CASCADIA_HOSTING_WINDOW_CLASS']
+    :param accurate:是否开启精确查找bool
+    :return :窗口句柄hwnd
+    """
+    import win32gui, win32process, os
+
+    # 主线程PID
+    pid_main = os.getpid()
+
+    # 历遍全部窗口,callback是回调函数(即每次查找一个窗口句柄时执行的操作)
+    hwnd_list = []  # 找到的窗口句柄,按理来说只有一个,如果有多个则取最后一个
+
+    def callback(hwnd, extra):
+        # extra是EnumWindows的第二个参数
+        pid = win32process.GetWindowThreadProcessId(hwnd)[1]  # 当前窗口pid,第一个元素是线程id也就是tid
+        if pid == pid_main:
+            return False
+        # 如果输入的target_inf是pid
+        elif pid == extra:
+            hwnd_list.append(hwnd)
+            return True
+        # 如果输入的target_inf是窗口标题
+        elif isinstance(extra, str):
+            window_title = win32gui.GetWindowText(hwnd)  # 当前窗口标题
+            if accurate == True and window_title == extra:  # 精确查找
+                window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
+                if class_name is None:
+                    hwnd_list.append((hwnd, window_title, window_class_name, pid))
+                else:
+                    if window_class_name in class_name:
+                        hwnd_list.append((hwnd, window_title, window_class_name, pid))
+            elif accurate == False and window_title.find(extra) != -1:  # 模糊查询
+                window_class_name = win32gui.GetClassName(hwnd)  # 当前窗口类别
+                if class_name is None:
+                    hwnd_list.append((hwnd, window_title, window_class_name, pid))
+                else:
+                    if window_class_name in class_name:
+                        hwnd_list.append((hwnd, window_title, window_class_name, pid))
+
+    win32gui.EnumWindows(callback, target_inf)
+
+    if hwnd_list == []:  # 没有匹配到窗口
+        return False
+    else:
+        hwnd = hwnd_list[-1]
+    return hwnd
+
+
+def hide_python_console():
+    """隐藏python控制台"""
+    import ctypes, win32con
+    # 获取python控制台句柄
+    python_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+    if python_hwnd != 0:
+        ctypes.windll.user32.ShowWindow(python_hwnd, win32con.SW_HIDE)
+
+
+def show_python_console():
+    """显示python控制台"""
+    import ctypes, win32con
+    # 获取python控制台句柄
+    python_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+    if python_hwnd != 0:
+        ctypes.windll.user32.ShowWindow(python_hwnd, win32con.SW_SHOW)
+
+    # import win32console
+    # win32console.FreeConsole()  # 释放 cmd 控制台
+    # win32console.AllocConsole()  # 重新创建 Python 控制台
+    # sys.stdout = sys.__stdout__  # 恢复原 stdout
 
 
 def kill_program(pid_program=None, title=None) -> bool:
@@ -237,7 +403,7 @@ def sync_time() -> bool:
     """
     import subprocess, time
     ntp_timestamp = get.NTP_time()
-    if not Get.CheckIsAdmin():
+    if not check_is_admin():
         print('sync_time:无管理员权限')
         return False
     if ntp_timestamp is not False:
@@ -263,54 +429,6 @@ def stamp_to_strf(time_stamp: float, format="%Y-%m-%d-%H-%M-%S") -> str:
     local_time = time.localtime(time_stamp)  # 时间戳对象
     format_time = time.strftime(format, local_time)
     return format_time
-
-
-def Print(content, prompt_start='', prompt_end='', str_long=None, color="reset"):
-    """
-    自定义print输出
-
-    :param content:要打印的内容
-    :param prompt_start:前缀
-    :param prompt_end:后缀
-    :param str_long:字符长度,常用于content是int或float类型
-    :param color:颜色
-    """
-    from colorama import Fore, init
-    init(autoreset=True)  # 每次打印完后自动重置样式
-    # 定义常用颜色的 ANSI 转义码,cmd窗口下失效
-    # RED = "\033[31m"; GREEN = "\033[32m";YELLOW = "\033[33m"
-    # BLUE = "\033[34m";RESET = "\033[0m"  # 重置为默认样式
-    # 背景颜色
-    # BRESET = Back.RESET
-    # BRED = Back.RED
-    # BGREEN = Back.GREEN
-    # BYELLOW = Back.YELLOW
-    # BBLUE = Back.BLUE
-    # BBKCK = Back.BLACK
-    # BCYAN = Back.CYAN
-    # 字体颜色
-    RED = Fore.RED
-    GREEN = Fore.GREEN
-    YELLOW = Fore.YELLOW
-    BLUE = Fore.BLUE
-    BKCK = Fore.BLACK
-    CYAN = Fore.CYAN
-    RESET = Fore.RESET
-    color_dict = {'red': RED, 'green': GREEN, 'yellow': YELLOW, 'blue': BLUE, 'cyan': CYAN, 'reset': Fore.RESET}
-    color = color_dict[color]
-    # 覆盖上一行内容并刷新
-    # \r 回到行首，用新内容覆盖旧内容
-    # 格式化字符串固定长度，避免残留旧字符3d表示整型固定3个字符，6.2f表示浮点型总宽度6，含2位小数
-    if isinstance(content, str):
-        print(f'\r{prompt_start}{color + content}{RESET + prompt_end}', end='')
-        return True
-    elif isinstance(content, float) and str_long == None:
-        str_long = '6.2f'
-    elif isinstance(content, int) and str_long == None:
-        str_long = '3d'
-    print(f'\r{BRED + prompt_start}{color + content:{str_long}}{RESET + prompt_end}', end='')
-    # print(f'\r{prompt_start}{color}{content:{str_long}}{RESET}{prompt_end}', end='')
-    return True
 
 
 def del_part_str(org_str: str, del_str: str) -> str:

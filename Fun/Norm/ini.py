@@ -1,8 +1,9 @@
 """
 用于ini文件处理
 """
-import configparser
-from . import get
+import configparser, os
+
+from Fun.Norm import get, file
 
 
 class INI:
@@ -78,7 +79,7 @@ class INI:
         """
         删除节
 
-        :param section_name:要添加的节的名称
+        :param section_name:要删除的节的名称
         """
         if section_name is None:
             section_name = self.SECTION_NAME
@@ -152,6 +153,7 @@ class INI:
             return ''
 
     def save(self, config):
+        file.ensure_exist(os.path.dirname(self.INI_FILE))
         with open(self.INI_FILE, 'w', encoding='utf-8') as configfile:
             config.write(configfile)
         configfile.close()

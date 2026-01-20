@@ -1,5 +1,5 @@
 """提供简易的照片处理"""
-import os
+import os, math
 
 from PIL import Image, ImageFile
 
@@ -168,31 +168,40 @@ class Image_PIL:
         # 获取长宽信息
         width, height = self.get_size
         # 照片的格式
-        image_ext = file.get_file_extension(self.__image_path).upper()
         img_byte_arr = io.BytesIO()  # 开辟内存空间类似于物理磁盘可以保存数据
         # 保存至内存中
-        self.__image.save(img_byte_arr, 'BMP', quality=quality)
+        self.__image.save(img_byte_arr, 'JPEG', quality=quality)
         # 照片的大小
         img_byte_arr.seek(0, io.SEEK_END)
         image_size = img_byte_arr.tell() / 1024 / 1024  # MB度量单位
-        img_byte_arr.truncate(0)  # 清空数据
-        img_byte_arr.seek(0)  # 将指针重置到开头
-        # 压缩照片大小
-        while image_size > max_size:
-            # 减少照片的分辨率已达到压缩的目的
-            width, height = round(width * 0.9), round(height * 0.9)
-            self.__image = self.__image.resize((width, height), Image.Resampling.LANCZOS)  # 压缩算法
-
-            # 保存至内存中
-            self.__image.save(img_byte_arr, 'BMP', quality=quality)
-
-            # 重新获取内存中self.__image的大小,将指针移动到末尾并获取位置（即数据大小）
-            img_byte_arr.seek(0, io.SEEK_END)
-            image_size = img_byte_arr.tell() / 1024 / 1024  # MB度量单位
-            # 如果照片大小没有满足要求则清空img_byte_arr中的数据
-            if image_size > max_size:
-                img_byte_arr.truncate(0)  # 清空数据
-                img_byte_arr.seek(0)  # 将指针重置到开头
+        if image_size <= max_size:
+            return self.__image
+        # 使用数学公式直接计算需要缩放的比例
+        target_pixels = (width * height) * (max_size / image_size)
+        # 计算新的尺寸（保持宽高比）
+        scale_factor = math.sqrt(target_pixels / (width * height))
+        new_width = max(int(width * scale_factor * 0.95), 1)  # 稍微保守一点
+        new_height = max(int(height * scale_factor * 0.95), 1)
+        # 调整到目标尺寸
+        self.__image = self.__image.resize(
+            (new_width, new_height),
+            Image.Resampling.LANCZOS)
+        # 验证并微调（最多2次迭代）
+        for _ in range(2):
+            img_byte_arr.truncate(0)  # 清空数据
+            img_byte_arr.seek(0)  # 将指针重置到开头
+            self.__image.save(img_byte_arr, 'JPEG', quality=quality)
+            image_size = img_byte_arr.tell() / (1024 * 1024)
+            if image_size <= max_size:
+                break
+            # 需要进一步缩小
+            scale_factor = math.sqrt(max_size / image_size)
+            new_width = max(int(new_width * scale_factor * 0.95), 1)
+            new_height = max(int(new_height * scale_factor * 0.95), 1)
+            self.__image = self.__image.resize(
+                (new_width, new_height),
+                Image.Resampling.LANCZOS
+            )
         return self.__image
 
     def merge(self, other_half: str = 'self', w=True):
@@ -230,7 +239,7 @@ class Image_PIL:
         将照片保存为指定格式,可以用于照片转换格式
 
         :param target_path:保存路径,不指定时默认保存为原照片所在文件夹
-        :param ext:扩展名,不指定时默认为原扩展名
+        :param ext:扩展名,如.png,不指定时默认为原扩展名
         :param quality:保存质量
         """
         if target_path == '':
@@ -240,11 +249,10 @@ class Image_PIL:
             ext = file.get_file_extension(self.__image_path)
         file.ensure_exist(target_path)
         now_time = get.now_time()
-        image_name += f'_{now_time}.{ext}'
+        image_name += f'_{now_time}{ext}'
         target_path += f'\\{image_name}'
         if file.check_image(target_path):
             self.__image.save(target_path, quality=quality)
             return True
         else:
             raise TypeError(f'目标路径不是图像格式{target_path}')
-
