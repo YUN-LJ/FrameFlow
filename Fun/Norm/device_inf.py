@@ -20,7 +20,7 @@ class HardMonitor:
         self.__computer.Open()
         # 绘图时用的上
         # 初始化绘图类
-        self.__plot = PlotCv2Mod.PlotQt()
+        self.__plot = PlotCv2Mod.PlotChart()
         # 存储数值
         self.__xlable = [f'00:00:0{i}' for i in range(0, 10)]
         self.__ycpu_temp = [0 for i in range(0, 10)]  # cpu温度
@@ -29,6 +29,8 @@ class HardMonitor:
         self.__ygpu_load = [0 for i in range(0, 10)]  # gpu负载
         # 更新时间
         self.time = 5.0
+        # 是否打印过错误信息
+        self.__erro = {}
 
     def __import_ohm(self):
         # 导入HardwareMonitor.dll文件,返回computer,hardwareType,sensorType,SensorType实例化对象
@@ -85,7 +87,9 @@ class HardMonitor:
                 cpu_name = f'{cpu_name[:cpu_name.find('cpu')]}cpu'
                 cpu_avg_temp = round(sum(cpu_TEMP.values()) / len(cpu_TEMP), 2)
             except Exception as e:
-                print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
+                if self.__erro.get('get_TEMP', True):
+                    self.__erro['get_TEMP'] = False
+                    print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
                 cpu_name = 'cpu'
                 cpu_avg_temp = 0
             cpu_TEMP = {cpu_name: cpu_avg_temp}
@@ -95,7 +99,9 @@ class HardMonitor:
                 gpu_name = f'{gpu_name[:gpu_name.find('gpu')]}gpu'
                 gpu_avg_temp = round(sum(gpu_TEMP.values()) / len(gpu_TEMP), 2)
             except Exception as e:
-                print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
+                if self.__erro.get('get_TEMP', True):
+                    self.__erro['get_TEMP'] = False
+                    print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
                 gpu_name = 'gpu'
                 gpu_avg_temp = 0
             gpu_TEMP = {gpu_name: gpu_avg_temp}
@@ -103,7 +109,9 @@ class HardMonitor:
             try:
                 hdds_avg_temp = round(sum(hdd_TEMP.values()) / len(hdd_TEMP), 2)
             except Exception as e:
-                print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
+                if self.__erro.get('get_TEMP', True):
+                    self.__erro['get_TEMP'] = False
+                    print(f'HaedMonitor-get_TEMP:数据获取失败\n{e}')
                 hdds_avg_temp = 0
             hdd_TEMP = {'hdd': hdds_avg_temp}
 
@@ -165,7 +173,9 @@ class HardMonitor:
                 cpu_name = f'{cpu_name[:cpu_name.find('cpu')]}cpu'
                 cpu_avg_load = round(sum(cpu_LOAD.values()), 2)
             except Exception as e:
-                print(f'HaedMonitor-get_LOAD:数据获取失败\n{e}')
+                if self.__erro.get('get_LOAD', True):
+                    self.__erro['get_LOAD'] = False
+                    print(f'HaedMonitor-get_LOAD:数据获取失败\n{e}')
                 cpu_name = 'cpu'
                 cpu_avg_load = 0
             cpu_LOAD = {cpu_name: cpu_avg_load}
@@ -179,7 +189,9 @@ class HardMonitor:
                         count += 1
                 gpu_avg_load = round(sum(gpu_LOAD.values()) / count, 2)
             except Exception as e:
-                print(f'HaedMonitor-get_LOAD:数据获取失败\n{e}')
+                if self.__erro.get('get_LOAD', True):
+                    self.__erro['get_LOAD'] = False
+                    print(f'HaedMonitor-get_LOAD:数据获取失败\n{e}')
                 gpu_name = 'gpu'
                 gpu_avg_load = 0
             gpu_LOAD = {gpu_name: gpu_avg_load}
@@ -209,7 +221,7 @@ class HardMonitor:
             # 将两个字典合并后返回
             return cpu_LOAD | gpu_LOAD | ram_LOAD
 
-    def ohm_plot(self) -> PlotCv2Mod.PlotQt:
+    def ohm_plot(self) -> PlotCv2Mod.PlotChart:
         """
         将HMO数据显示到qt窗口中,使用matplotlib绘制图形
         :return PlotCv2Mod.PlotWidget
@@ -231,12 +243,16 @@ class HardMonitor:
         try:
             avg_cpu_temp = round(sum(self.__ycpu_temp) / len([i for i in self.__ycpu_temp if i != 0]), 1)
         except ZeroDivisionError as e:
-            print(f'HardMonitor-ohm_plot:CPU平均温度计算错误\n{e}')
+            if self.__erro.get('ohm_plot', True):
+                self.__erro['ohm_plot'] = False
+                print(f'HardMonitor-ohm_plot:CPU平均温度计算错误\n{e}')
             avg_cpu_temp = 0
         try:
             avg_gpu_temp = round(sum(self.__ygpu_temp) / len([i for i in self.__ygpu_temp if i != 0]), 1)
         except ZeroDivisionError as e:
-            print(f'HardMonitor-ohm_plot:GPU平均温度计算错误\n{e}')
+            if self.__erro.get('ohm_plot', True):
+                self.__erro['ohm_plot'] = False
+                print(f'HardMonitor-ohm_plot:GPU平均温度计算错误\n{e}')
             avg_gpu_temp = 0
 
         # 清除画布内容

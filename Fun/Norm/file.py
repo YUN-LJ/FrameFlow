@@ -6,7 +6,7 @@ import os, sys, shutil
 FILE_PATH = None  # 文件路径
 DIR_PATH = None  # 文件夹路径
 
-IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
+IMAGE_EXTENSION = {'.png', '.jpg', '.jpeg'}  # 照片格式
 
 
 def ensure_exist(dir_path: str = None) -> bool:
@@ -25,14 +25,30 @@ def ensure_exist(dir_path: str = None) -> bool:
         return True
 
 
-def check_exist(path: str | list[str]) -> bool:
+def check_exist(path: str | list[str], num_work=10) -> bool | list[bool]:
     """检查文件是否存在"""
     if isinstance(path, str):
         # 单个路径直接检查
         return os.path.exists(path)
     else:
-        # 列表路径批量检查（利用列表推导式高效循环）
-        return [os.path.exists(p) for p in path]
+        if len(path) < 1000:
+            # 列表路径批量检查（利用列表推导式高效循环）
+            return [os.path.exists(p) for p in path]
+        else:
+            # 使用多线程批量检查
+            def split_list_generator(lst, chunk_size=500):
+                """生成器版本，节省内存"""
+                for i in range(0, len(lst), chunk_size):
+                    yield lst[i:i + chunk_size]
+
+            from multiprocessing.dummy import Pool
+            with Pool(num_work) as pool:
+                chunk_results = pool.map(lambda value: [os.path.exists(p) for p in value],
+                                         split_list_generator(path))
+            results = []
+            for chunk_result in chunk_results:
+                results.extend(chunk_result)
+            return results
 
 
 def check_dir(dir_path: str) -> bool:
@@ -103,14 +119,14 @@ def get_file_extension(file_path: str = None) -> str:
     """
     获取文件扩展名
     :param file_path:文件绝对路径
-    :return :'exe'
+    :return :'.exe'
     """
     if file_path is None:
         if FILE_PATH is not None:
             file_path = FILE_PATH
         else:
             raise ValueError('没有指定文件->请指定FILE_PATH或传入file_path')
-    extension = os.path.splitext(file_path)[1].replace('.', '')
+    extension = os.path.splitext(file_path)[1]
     return extension
 
 
@@ -162,81 +178,8 @@ def get_files_path_one(dir_path: str = None, only_file=False, only_dir=False, de
     return path
 
 
-def get_files_path_old(dir_path: str = None, only_file=False, only_dir=False, deep=0) -> list[str]:
-    """
-    多线程获取指定目录下全部的文件路径,默认情况下包含文件夹和文件,多线程
-
-    :param dir_path: 文件夹绝对路径
-    :param only_file: 只包含文件
-    :param only_dir: 只包含文件夹
-    :param deep: 搜索深度,默认为0表示全部搜索,为1时表示只搜索该路径下不会搜索子目录,以此类推
-    """
-    if only_file and only_dir:
-        raise ValueError(f'Fun包file模块下的get_files_path函数报错:\n  选项不可同时为True')
-
-    if not dir_path or not os.path.isdir(dir_path):
-        return []
-    result_queue = Queue()
-    threads = []
-    max_threads = 10  # 最大线程数
-    thread_semaphore = threading.Semaphore(max_threads)
-
-    def process_directory(current_dir: str, current_depth: int):
-        """处理单个目录并将结果放入队列"""
-        with thread_semaphore:
-            # 收集当前目录的文件（如果允许）
-            if not only_dir:
-                for filename in os.listdir(current_dir):
-                    file_path = os.path.join(current_dir, filename)
-                    if os.path.isfile(file_path):
-                        result_queue.put(file_path)
-
-            # 收集当前目录的子目录（如果允许）
-            if not only_file:
-                for dirname in os.listdir(current_dir):
-                    subdir_path = os.path.join(current_dir, dirname)
-                    if os.path.isdir(subdir_path) and subdir_path != current_dir:
-                        result_queue.put(subdir_path)
-
-            # 修复：递归条件不再受only_file影响，只要深度允许就继续搜索子目录
-            # 即使only_file=True，也能深入子目录查找文件
-            if deep == 0 or current_depth < deep:
-                for dirname in os.listdir(current_dir):
-                    subdir_path = os.path.join(current_dir, dirname)
-                    if os.path.isdir(subdir_path) and subdir_path != current_dir:
-                        thread = threading.Thread(
-                            target=process_directory,
-                            args=(subdir_path, current_depth + 1)
-                        )
-                        threads.append(thread)
-                        thread.start()
-
-    # 启动根目录处理
-    root_thread = threading.Thread(
-        target=process_directory,
-        args=(dir_path, 1)  # 根目录为深度1
-    )
-    threads.append(root_thread)
-    root_thread.start()
-
-    # 等待所有线程完成
-    for thread in threads:
-        thread.join()
-
-    # 收集结果
-    result = []
-    while not result_queue.empty():
-        result.append(result_queue.get())
-
-    return result
-
-
-def get_files_path(dir_path: str = None,
-                   only_file: bool = False,
-                   only_dir: bool = False,
-                   deep: int = 0,
-                   ext: list[str] = None
-                   ) -> list[str]:
+def get_files_path(dir_path: str = None, only_file: bool = False, only_dir: bool = False, deep: int = 0,
+                   ext: list[str] = None) -> list[str]:
     """
     获取指定目录下全部的文件路径,默认情况下包含文件夹和文件,单线程
 
@@ -382,6 +325,7 @@ def move_file(file_path: str, target_path: str, replace=False) -> bool:
     except Exception as e:
         print(f'Fun包file模块下的move_file函数报错:\n\t{file_path}{e}', file=sys.stderr)
         return False
+
 
 def copy_file(file_path: str, target_path: str, replace=False) -> bool:
     """

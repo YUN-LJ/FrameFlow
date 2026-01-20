@@ -1,9 +1,8 @@
 """带美化封装的弹窗类"""
-from PySide6.QtWidgets import (QWidget, QLineEdit,
-                               QCheckBox, QRadioButton)
+from PySide6.QtWidgets import QWidget
 from qfluentwidgets.components.dialog_box import MessageBoxBase
 from qfluentwidgets.components.widgets import (
-    InfoBarIcon, TeachingTip, TeachingTipTailPosition, ComboBox)
+    InfoBarIcon, TeachingTip, TeachingTipTailPosition)
 
 
 class DialogBase(MessageBoxBase):
@@ -35,8 +34,7 @@ class DialogBase(MessageBoxBase):
         """数据校验的方法"""
 
     def get_all_data(self):
-        """获取全部数据的方法
-        """
+        """获取全部数据的方法"""
 
     def accept(self):
         """点击OK时的方法"""

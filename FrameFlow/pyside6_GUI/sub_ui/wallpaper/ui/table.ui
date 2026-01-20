@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>widget_table</class>
+ <widget class="QWidget" name="widget_table">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>492</width>
+    <height>283</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="TableWidget" name="tableWidget_dirs_path">
+     <property name="minimumSize">
+      <size>
+       <width>400</width>
+       <height>80</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">QTableWidget {
+    gridline-color: #eee;
+    selection-background-color: #e3f2fd;
+    selection-color: #333; /* 选中单元格的字体颜色 */
+    color: #555; /* 默认字体颜色（未选中状态） */
+    font-family: &quot;Microsoft YaHei&quot;, sans-serif; /* 可选：设置字体 */
+    font-size: 12px; /* 可选：设置字体大小 */
+}
+QHeaderView::section {
+	background-color: rgb(250,248,252);
+	color: black;
+	font-weight:bold;
+	border: none;
+	padding: 5px;
+}</string>
+     </property>
+     <column>
+      <property name="text">
+       <string>文件夹路径</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>添加时间</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>操作</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>TableWidget</class>
+   <extends>QTableWidget</extends>
+   <header>qfluentwidgets.components.widgets.table_view</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

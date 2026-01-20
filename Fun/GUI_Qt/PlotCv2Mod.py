@@ -1,183 +1,4 @@
-"""将cv2中获取的照片或视频显示到qt中"""
-import cv2, os
-from numpy import ndarray
-from PySide6.QtWidgets import QLabel, QFileDialog
-from PySide6.QtGui import QImage, QPixmap
-from PySide6.QtCore import QTimer, Qt
-
-
-class Cv2ShowQt:
-
-    def __init__(self, lable: QLabel = None):
-        """
-        :param lable: QLable对象
-        :param layout: QHBoxLayout
-        """
-        self.__lable = lable
-        # 视频捕获对象
-        self.__cap = None
-
-        # 是否循环播放
-        self.__loop = False
-        self.__video_path = None
-
-        # 缩放选择
-        self.__scale = 0
-
-        # 定时器用于视频刷新
-        self.__video = QTimer()
-        self.__video.timeout.connect(self.__update_frame)
-
-    def set_lable(self, lable: QLabel):
-        """设置标签"""
-        self.__lable = lable
-
-    def open_image(self, show: bool = True) -> str:
-        """
-        打开照片
-
-        :param show:是否显示
-        """
-        # 停止可能正在播放的视频
-        self.__close_video()
-
-        # 打开文件对话框选择图片
-        file_path, _ = QFileDialog.getOpenFileName(None, "选择图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp)")
-
-        if show and file_path:
-            self.__display_image(file_path)
-        if file_path:
-            return file_path
-        else:
-            return ''
-
-    def open_video(self, show: bool = True, loop: bool = False, scale=0) -> str:
-        """
-        打开视频
-
-        :param show:是否自动显示
-        :param loop:是否循环播放
-        :param scale:缩放,0保持比例缩放,1强制拉伸,-1不缩放
-        """
-        # 停止可能正在播放的视频
-        self.__close_video()
-
-        # 打开文件对话框选择视频
-        file_path, _ = QFileDialog.getOpenFileName(None, "选择视频", "", "视频文件 (*.mp4 *.avi *.mov *.mkv)")
-
-        if show and file_path:
-            self.__loop = loop
-            self.__scale = scale
-            self.__play_video(file_path)
-        if file_path:
-            return file_path
-        else:
-            return ''
-
-    def __display_image(self, image):
-        """
-        显示图片
-
-        :param image:图片地址或ndarray类型
-        """
-        # 判断类型,如果是numpy.ndarray就可以不处理了
-        if isinstance(image, ndarray):
-            cv_image = image
-        elif isinstance(image, str):
-            # 使用OpenCV读取图片
-            try:
-                # cv_image = cv2.imread(image)
-                # 以下这种方式读取图片可以避免中文路径的问题
-                cv_image = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_COLOR)
-                if cv_image is None:
-                    raise ValueError(image)
-            except Exception as e:
-                print(f'[Cv2ShowQt] 错误{image}')
-                return False
-        # 转换颜色空间，OpenCV默认是BGR，PyQt需要RGB
-        rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-
-        # 获取图像尺寸
-        height, width, channel = rgb_image.shape
-        # 计算字节数
-        bytes_per_line = channel * width
-
-        # 创建QImage对象
-        q_image = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
-
-        # 缩放图像以适应窗口，保持比例
-        if self.__scale == 0:
-            scaled_image = q_image.scaled(
-                self.__lable.width(), self.__lable.height(),
-                Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
-        elif self.__scale == 1:
-            scaled_image = q_image.scaled(
-                self.__lable.width(), self.__lable.height())
-
-        # 在标签上显示图像
-        self.__lable.setPixmap(QPixmap.fromImage(scaled_image))
-        self.__lable.setAlignment(Qt.AlignCenter)  # 设置居中对齐
-
-    def __play_video(self, video_path: str):
-        # 打开视频文件
-        self.__close_video()
-        try:
-            self.__cap = cv2.VideoCapture(video_path)
-            self.__video_path = video_path
-        except Exception as e:
-            print(f'[Cv2ShowQt] {video_path}')
-            return False
-        if self.__cap.isOpened():
-            fps = int(self.__cap.get(cv2.CAP_PROP_FPS))  # 获取原视频帧率
-            update_time = 1000 // fps  # 换算每张之间的间隔为多少毫秒
-            if update_time >= 1:
-                self.__video.start(update_time)  # 启动视频播放
-            return True
-        return False
-
-    def __update_frame(self):
-        """视频播放"""
-        # 读取视频帧
-        ret, frame = self.__cap.read()
-        if ret:
-            # 显示视频帧
-            self.__display_image(frame)
-        else:
-            if self.__loop:
-                self.__cap = cv2.VideoCapture(self.__video_path)
-            else:
-                # 视频播放完毕
-                self.__close_video()
-                self.__lable.setText("视频播放完毕")
-
-    def __close_video(self):
-        """尝试关闭正在播放的视频"""
-        if self.__cap is not None:
-            self.__cap.release()
-            self.__cap = None
-        self.__video.stop()
-
-    def show(self, file_path: str, loop: bool = False, scale=0):
-        """
-        显示
-        :param file_path:文件路径
-        :param loop:是否循环
-        :param scale:缩放,0保持比例缩放,1强制拉伸,-1不缩放
-        """
-        if not os.path.exists(file_path):
-            return False
-        self.__scale = scale
-        ext = os.path.splitext(file_path)[1]
-        if ext in ['.png', '.jpg', '.jpeg', '.bmp']:
-            self.__close_video()
-            self.__display_image(file_path)
-        elif ext in ['.mp4', '.avi']:
-            self.__loop = loop
-            self.__play_video(file_path)
-
-
-"""matplotlib库针对Qt库的封装"""
+"""使用matplotlib在Qt中显示图表"""
 import matplotlib
 
 matplotlib.use('QtAgg')
@@ -187,7 +8,7 @@ from matplotlib.backends.qt_compat import QtCore
 # print("当前matplotlib后端GUI绑定:", QtCore.__name__)
 
 import matplotlib.pyplot as plt
-
+import matplotlib.image as mpimg
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Circle, Wedge
@@ -201,10 +22,11 @@ plt.rcParams['axes.unicode_minus'] = False
 from PySide6.QtWidgets import QHBoxLayout
 
 
-class PlotQt:
+class PlotChart:
     """
     需要在Qt中对同一个fig图形对象进行重绘时
-    需要调用clear_plot方法后再调用plot_等方法最后再调用show方法更新图形
+    需要调用clear_plot方法后,否则会出现内存溢出
+    再调用plot_等方法最后再调用show方法更新图形
     """
 
     def __init__(self, layout: QHBoxLayout = None, nrow: int = 1, ncol: int = 1):
@@ -262,6 +84,13 @@ class PlotQt:
 
         # 对整个图形调用 tight_layout()，自动调整所有子图布局
         self.__fig.tight_layout()  # 或 plt.tight_layout()
+
+    def set_alpha(self, alpha: float):
+        """设置透明度"""
+        self.__fig.set_alpha(alpha)  # 透明度
+        self.__fig.set_facecolor('none')
+        for ax in self.__fig.get_axes():
+            ax.set_facecolor('none')  # 子图背景透明
 
     def set_ylimit(self, min: float | int, max: float | int):
         """设置y轴的最小值和最大值"""
@@ -539,6 +368,30 @@ class PlotQt:
         # 调整布局
         plt.tight_layout()
 
+    def open_image(self, image_file: str | np.ndarray = None, title: str = None, is_show: bool = False):
+        """
+        打开照片
+
+        :param image_file:照片路径/np.ndarray类型
+        :param title:照片标题
+        :param is_show:是否显示
+        """
+        # 打开文件对话框选择图片
+        if image_file is None:
+            image_file, _ = QFileDialog.getOpenFileName(None, "选择图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp)")
+        if isinstance(image_file, str):
+            image = mpimg.imread(image_file)
+        else:
+            image = image_file
+        self.__ax.imshow(image)  # 渲染图片
+        self.__ax.axis('off')  # 隐藏坐标轴（默认显示像素坐标）
+        # 满足 left < right、bottom < top消除边距
+        self.__fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+        if title is not None:
+            self.__ax.set_title(title)
+        if is_show:
+            self.show()
+
     def __bind_qt(self):
         """嵌入qt图形界面中"""
         if not self.__bind:
@@ -572,16 +425,204 @@ class PlotQt:
         except Exception as e:
             print(f'PlotWidget-remove_plot 错误\n{e}')
 
-    def show(self, layout: QHBoxLayout = None):
+    def show(self):
         if self.__layout is None:
             plt.show()
         else:
             self.__bind_qt()
 
 
+"""将cv2中获取的照片或视频显示到qt中"""
+import cv2, os
+from numpy import ndarray
+from PySide6.QtWidgets import QLabel, QFileDialog
+from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import QTimer, Qt
+
+
+class Cv2ShowImage:
+
+    def __init__(self, lable: QLabel | PlotChart = None):
+        """
+        :param lable: QLable对象
+        :param layout: QHBoxLayout
+        """
+        self.__lable = lable
+        # 视频捕获对象
+        self.__cap = None
+
+        # 是否循环播放
+        self.__loop = False
+        self.__video_path = None
+
+        # 播放视频时的帧率,需要在视频播放前修改
+        self.fps = -1
+
+        # 缩放选择
+        self.__scale = 0
+
+        # 定时器用于视频刷新
+        self.__video = QTimer()
+        self.__video.timeout.connect(self.__update_frame)
+
+    def set_lable(self, lable: QLabel | PlotChart):
+        """设置标签"""
+        self.__lable = lable
+
+    def open_image(self, show: bool = True) -> str:
+        """
+        打开照片
+
+        :param show:是否显示
+        """
+        # 停止可能正在播放的视频
+        self.__close_video()
+
+        # 打开文件对话框选择图片
+        file_path, _ = QFileDialog.getOpenFileName(None, "选择图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp)")
+
+        if show and file_path:
+            self.__display_image(file_path)
+        if file_path:
+            return file_path
+        else:
+            return ''
+
+    def open_video(self, show: bool = True, loop: bool = False, scale=0) -> str:
+        """
+        打开视频
+
+        :param show:是否自动显示
+        :param loop:是否循环播放
+        :param scale:缩放,0保持比例缩放,1强制拉伸,-1不缩放
+        """
+        # 停止可能正在播放的视频
+        self.__close_video()
+
+        # 打开文件对话框选择视频
+        file_path, _ = QFileDialog.getOpenFileName(None, "选择视频", "", "视频文件 (*.mp4 *.avi *.mov *.mkv)")
+
+        if show and file_path:
+            self.__loop = loop
+            self.__scale = scale
+            self.__play_video(file_path)
+        if file_path:
+            return file_path
+        else:
+            return ''
+
+    def __display_image(self, image):
+        """
+        显示图片
+
+        :param image:图片地址或ndarray类型
+        """
+        # 判断类型,如果是numpy.ndarray就可以不处理了
+        if isinstance(image, ndarray):
+            cv_image = image
+        elif isinstance(image, str):
+            # 使用OpenCV读取图片
+            try:
+                # cv_image = cv2.imread(image)
+                # 以下这种方式读取图片可以避免中文路径的问题
+                cv_image = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if cv_image is None:
+                    raise ValueError(image)
+            except Exception as e:
+                print(f'[Cv2ShowQt] 错误{image}')
+                return False
+        # 转换颜色空间，OpenCV默认是BGR，PyQt需要RGB
+        rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        if isinstance(self.__lable, QLabel):
+            # 获取图像尺寸
+            height, width, channel = rgb_image.shape
+            # 计算字节数
+            bytes_per_line = channel * width
+
+            # 创建QImage对象
+            q_image = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+
+            # 缩放图像以适应窗口，保持比例
+            if self.__scale == 0:
+                scaled_image = q_image.scaled(
+                    self.__lable.width(), self.__lable.height(),
+                    Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+            elif self.__scale == 1:
+                scaled_image = q_image.scaled(
+                    self.__lable.width(), self.__lable.height())
+
+            # 在标签上显示图像
+            self.__lable.setPixmap(QPixmap.fromImage(scaled_image))
+            self.__lable.setAlignment(Qt.AlignCenter)  # 设置居中对齐
+        elif isinstance(self.__lable, PlotChart):
+            self.__lable.clear_plot()
+            self.__lable.open_image(rgb_image, is_show=True)
+
+    def __play_video(self, video_path: str):
+        # 打开视频文件
+        self.__close_video()
+        try:
+            self.__cap = cv2.VideoCapture(video_path)
+            self.__video_path = video_path
+        except Exception as e:
+            print(f'[Cv2ShowQt] {video_path}')
+            return False
+        if self.__cap.isOpened():
+            if self.fps == -1:
+                fps = int(self.__cap.get(cv2.CAP_PROP_FPS))  # 获取原视频帧率
+            else:
+                fps = self.fps
+            update_time = 1000 // fps  # 换算每张之间的间隔为多少毫秒
+            if update_time >= 1:
+                self.__video.start(update_time)  # 启动视频播放
+            return True
+        return False
+
+    def __update_frame(self):
+        """视频播放"""
+        # 读取视频帧
+        ret, frame = self.__cap.read()
+        if ret:
+            # 显示视频帧
+            self.__display_image(frame)
+        else:
+            if self.__loop:
+                self.__cap = cv2.VideoCapture(self.__video_path)
+            else:
+                # 视频播放完毕
+                self.__close_video()
+                self.__lable.setText("视频播放完毕")
+
+    def __close_video(self):
+        """尝试关闭正在播放的视频"""
+        if self.__cap is not None:
+            self.__cap.release()
+            self.__cap = None
+        self.__video.stop()
+
+    def show(self, file_path: str, loop: bool = False, scale=0):
+        """
+        显示
+        :param file_path:文件路径
+        :param loop:是否循环
+        :param scale:缩放,0保持比例缩放,1强制拉伸,-1不缩放
+        """
+        if not os.path.exists(file_path):
+            return False
+        self.__scale = scale
+        ext = os.path.splitext(file_path)[1]
+        if ext in ['.png', '.jpg', '.jpeg', '.bmp']:
+            self.__close_video()
+            self.__display_image(file_path)
+        elif ext in ['.mp4', '.avi']:
+            self.__loop = loop
+            self.__play_video(file_path)
+
+
 if __name__ == '__main__':
     data1 = {'测试1': 200, '测试2': 300, '测试3': 456, '测试4': 888, '测试5': 253}
-    plot = PlotQt()
+    plot = PlotChart()
     plot.plot_(data1, label='测试折线', linestyle='-')
     plot.set_fig(title='测试', xlabel='x轴标签', ylabel='y轴标签')
     plot.set_ylimit(100, 1000)
