@@ -286,25 +286,23 @@ class ThreadTask(QThread):
     def task_load_ui(self):
         """后台加载UI资源"""
 
-        def get_data():
-            with self.wallhaven_api.data_manager.KEY_WORD_LOCK:
-                data = self.wallhaven_api.data_manager.KEY_WORD.copy(deep=True)
-            return data
+        def callback(result):
+            if result and self.isRunning:
+                with self.wallhaven_api.data_manager.KEY_WORD_LOCK:
+                    data = self.wallhaven_api.data_manager.KEY_WORD.copy(deep=True)
+                if not data.empty:
+                    for index, row in data.iterrows():
+                        self.done.emit(
+                            (self.LOADUI, self.LOADUI,
+                             (row['关键词'], row['总页数'],
+                              row['总数'], row['最新日期'],
+                              row['上次更新'])
+                             )
+                        )
+                    self.finished_task(self.LOADUI, self.LOADUI, True)
 
         if file.check_exist(self.wallhaven_api.key_word_path):
-            data = get_data()
-            while data.empty:
-                time.sleep(1)
-                data = get_data()
-            for index, row in data.iterrows():
-                self.done.emit(
-                    (self.LOADUI, self.LOADUI,
-                     (row['关键词'], row['总页数'],
-                      row['总数'], row['最新日期'],
-                      row['上次更新'])
-                     )
-                )
-            self.finished_task(self.LOADUI, self.LOADUI, True, )
+            self.wallhaven_api.data_manager.load_data(callback)
 
     def cancel_task(self, task_name: str | list):
         """

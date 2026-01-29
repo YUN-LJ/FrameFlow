@@ -22,9 +22,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
 # 美化库
 from qfluentwidgets import FluentIcon as FIF
-from qfluentwidgets.components.dialog_box import MessageBoxBase
+from qfluentwidgets.components.dialog_box import MessageBoxBase, MessageBox
 from qfluentwidgets.components.widgets import (
-    TitleLabel, TransparentPushButton, SpinBox, LineEdit,  # 标签
+    TitleLabel, TransparentPushButton, SpinBox, LineEdit, ComboBox,  # 标签
     ProgressRing, IndeterminateProgressRing, ProgressBar,  # 进度条
     InfoBarIcon, TeachingTip, TeachingTipTailPosition  # 气泡消息
 )

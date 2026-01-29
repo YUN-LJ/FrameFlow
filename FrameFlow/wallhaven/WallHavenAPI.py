@@ -55,6 +55,24 @@ class WallHavenAPI:
         else:
             return pd.DataFrame([])
 
+    def del_key_like(self, key_word):
+        """删除关键词"""
+        # 删除关键词信息
+        with self.data_manager.KEY_WORD_LOCK:
+            self.data_manager.KEY_WORD = self.data_manager.KEY_WORD[
+                self.data_manager.KEY_WORD['关键词'] != key_word].reset_index(drop=True)
+        # 删除该关键词的图像信息
+        with self.data_manager.IMAGE_INFO_LOCK:
+            mask = self.data_manager.IMAGE_INFO['关键词'].str.contains(
+                key_word, case=True, na=False, regex=False)
+            load_paths = self.data_manager.IMAGE_INFO.loc[mask, '本地路径'].copy(deep=True)  # 待删除本地路径
+            self.data_manager.IMAGE_INFO = self.data_manager.IMAGE_INFO[~mask].reset_index(drop=True)
+        if not load_paths.empty:
+            del_work = ThreadPoolExecutor(self.num_work)
+            # for index, load_path in load_paths.iterrows():
+            for load_path in load_paths:
+                del_work.submit(file.del_file, load_path)
+
     def set_download_dir(self, dir_path: str):
         if dir_path != '':
             self.download_dir = os.path.realpath(dir_path)

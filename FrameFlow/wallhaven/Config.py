@@ -1,5 +1,5 @@
 # 导入基本库
-from Fun.Norm import get, ThreadSafe, file, ini
+from Fun.Norm import get, ThreadSafe, file, ini, general
 import requests, time, os, sys, random, pandas as pd
 from io import BytesIO
 # 导入线程

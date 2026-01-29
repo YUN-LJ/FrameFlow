@@ -176,8 +176,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>172</width>
-            <height>98</height>
+            <width>515</width>
+            <height>298</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -269,6 +269,11 @@
              <column>
               <property name="text">
                <string>上次更新</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>操作</string>
               </property>
              </column>
             </widget>
