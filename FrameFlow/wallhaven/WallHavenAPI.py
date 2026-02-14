@@ -232,7 +232,7 @@ class WallHavenAPI:
                        task)
             return True
         else:
-            print(f'{self.__class__.__name__}.submit error:未启动')
+            print(f'{PACK_NAME}.{self.__class__.__name__}.submit error:未启动')
             return False
 
     def cancel_task(self, names: str | list):
@@ -259,12 +259,12 @@ class WallHavenAPI:
         self.__executor_json.shutdown(wait=True)
         self.data_manager.stop()
         # 保存数据文件
-        print('保存数据...')
+        print(f'{PACK_NAME}.保存数据...')
         self.data_manager.save(self.image_info_path, self.data_manager.IMAGE_INFO)
         self.data_manager.save(self.key_word_path, self.data_manager.KEY_WORD)
-        print('数据保存成功')
+        print(f'{PACK_NAME}.数据保存成功')
         # 保存配置文件
-        print('保存配置文件')
+        print(f'{PACK_NAME}.保存配置文件')
         save_config(self.download_dir,
                     self.get_categories(),
                     self.get_purity(),

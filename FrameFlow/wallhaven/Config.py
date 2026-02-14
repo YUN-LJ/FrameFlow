@@ -7,6 +7,7 @@ from queue import Empty, Queue
 from concurrent.futures import ThreadPoolExecutor, Future  # 线程池
 from threading import Thread, Timer, Lock  # 线程
 
+PACK_NAME = 'wallhaven'
 # 路径配置
 RUN_PATH = get.run_dir()  # 获取当前程序运行路径
 CONFIG_DIR = os.path.join(RUN_PATH, 'config')

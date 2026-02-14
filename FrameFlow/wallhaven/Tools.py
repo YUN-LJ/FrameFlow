@@ -32,7 +32,7 @@ class Signal:
 
 
 class DataManager:
-    """数据管理:获取锁后再操作表数据"""
+    """数据管理:获取锁后再操作表数据,调用auto_save_timer属性的start方法可以开启自动保存"""
     # DatatFrame数据
     IMAGE_INFO = pd.DataFrame(columns=IMAGE_COLUMNS).astype(IMAGE_DTYPE)  # 图像信息
     SEARCH_INFO = pd.DataFrame(columns=SEARCH_COLUMNS).astype(SEARCH_DTYPE)  # 搜索信息
@@ -111,7 +111,8 @@ class DataManager:
     def auto_save(self):
         """自动保存"""
         if self.isRunning:
-            print(f'\n{self.__class__.__name__}.auto_save :正在保存,当前时间:{get.now_time('%Y-%m-%d %H:%M:%S')}')
+            print(f'\n{PACK_NAME}.{self.__class__.__name__}.auto_save :'
+                  f'正在保存,当前时间:{get.now_time('%Y-%m-%d %H:%M:%S')}')
             self.isAutoSave = True
             with self.IMAGE_INFO_LOCK:
                 self.save(IMAGE_INFO_PATH, self.IMAGE_INFO)
@@ -148,7 +149,7 @@ class DataManager:
             self.isSave = False
             return True
         except Exception as e:
-            print(f'{self.__class__.__name__}.save error:\n\t{e}')
+            print(f'{PACK_NAME}.{self.__class__.__name__}.save error:\n\t{e}')
             return False
 
 
@@ -243,7 +244,7 @@ class TaskEnum:
                     self.state = TaskEnum.State.success
                     return True
                 except Exception as e:
-                    print(f'下载任务{self.name} error:\n\t{e}')
+                    print(f'{PACK_NAME}.下载任务{self.name} error:\n\t{e}')
                     self.state = TaskEnum.State.error
                     return False
 
@@ -489,4 +490,4 @@ class TaskWorker:
             self.task.start()
             self.task_dict.pop(self.task.name)
         except Exception as e:
-            print(f'子线程任务{self.task.name} -> 出错了\n\t{e}')
+            print(f'{PACK_NAME}.子线程任务{self.task.name} -> 出错了\n\t{e}')
