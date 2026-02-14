@@ -33,13 +33,16 @@ class Signal:
 class ImageProcess:
     """图像处理类,采用子进程处理图像,将其结果返回到队列中"""
 
-    def __init__(self, result_queue: Queue):
+    def __init__(self, result_queue: Queue, scaling_factor=1.0):
         """
         :param result_queue:结果队列
         """
         self.isRunning = False  # 是否正在运行
         self.image_list = None  # 待处理列表
+        self.scaling_factor = scaling_factor  # 缩放因子,图像的最终尺寸以屏幕尺寸乘以缩放因子
+        self.screen_size = self.get_screen_size()  # 获取屏幕尺寸
         self.result_queue = result_queue
+        self.process = Process(target=self.execute, name='ImageProcess')
 
     def set_image_list(self, image_list):
         """设置待处理列表,如果正在运行中则会关闭处理进程"""
@@ -47,16 +50,44 @@ class ImageProcess:
             self.stop()
         self.image_list = image_list
 
+    def get_screen_size(self):
+        """获取屏幕尺寸,返回最大屏幕尺寸"""
+        # 获取所有屏幕信息
+        monitors = get_monitors()
+        max_width = 0  # 最大宽度
+        max_height = 0  # 最大高度
+        max_diagonal = 0  # 最大对角线尺寸
+        for monitor in monitors:
+            cur_width = monitor.width
+            cur_height = monitor.height
+            cur_diagonal = cur_width ** 2 + cur_height ** 2
+            if cur_diagonal > max_diagonal:
+                max_width = cur_width
+                max_height = cur_height
+                max_diagonal = cur_diagonal
+        return (int(max_width * self.scaling_factor),
+                int(max_height * self.scaling_factor))
+
     def execute(self):
         """执行器,执行单张图像的处理"""
         for image_path in self.image_list:
             image = Image_PIL(image_path)
+            if not image.check_w_screen:
+                image.merge()  # 如果是竖屏照片则横向复制一份
+            image.resize(size=self.screen_size)
+            image.zip(max_size=15)  # 限制图像最大尺寸
+            self.result_queue.put(image)
 
     def start(self):
         """开始图像处理"""
+        self.isRunning = True
+        if self.image_list is not None:
+            self.process.start()
 
     def stop(self):
         """停止图像处理"""
+        self.process.kill()
+        self.isRunning = False
 
 
 class DataManager:

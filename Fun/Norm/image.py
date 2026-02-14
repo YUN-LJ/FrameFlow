@@ -1,6 +1,8 @@
 """提供简易的照片处理"""
 import os, math
-
+from io import BytesIO
+import cv2
+import numpy as np
 from PIL import Image, ImageFile
 
 from . import file, get
@@ -104,6 +106,15 @@ class Image_PIL:
         return self.__image
 
     @property
+    def check_w_screen(self) -> bool:
+        """判断照片是否是横屏,横屏返回True,竖屏返回False"""
+        width, height = self.get_size  # 获取长宽信息
+        if round(width / height, 2) >= 1.0:
+            return True
+        else:
+            return False
+
+    @property
     def check_image(self):
         """检查图像是否完整"""
         try:
@@ -119,13 +130,18 @@ class Image_PIL:
         return width, height
 
     @property
-    def check_w_screen(self) -> bool:
-        """判断照片是否是横屏"""
-        width, height = self.get_size  # 获取长宽信息
-        if round(width / height, 2) >= 1.0:
-            return True
-        else:
-            return False
+    def get_array(self) -> np.ndarray:
+        """转为数组类型,RGB颜色通道"""
+        return np.array(self.__image)
+
+    @property
+    def get_cv2(self) -> np.ndarray:
+        """转为cv2形式的图像"""
+        return cv2.cvtColor(self.get_array, cv2.COLOR_RGB2BGR)
+
+    @property
+    def get_BytesIO(self) -> BytesIO:
+        """转为BytesIO类型的图像"""
 
     def resize(self, size: tuple[int, int], stretch: str = 'w', resample=Image.Resampling.LANCZOS) -> tuple[int, int]:
         """
@@ -233,6 +249,11 @@ class Image_PIL:
     def close_image(self):
         """关闭图像"""
         self.__image.close()
+
+    def show_image(self, time_out=0):
+        """显示图像,指定显示时间,默认为无限等待,单位为ms"""
+        cv2.imshow(os.path.basename(self.__image_path), self.get_cv2)
+        cv2.waitKey(time_out)
 
     def save(self, target_path='', ext='', quality=100) -> bool:
         """

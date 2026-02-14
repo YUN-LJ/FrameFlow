@@ -4,8 +4,8 @@ from Fun.Norm.image import Image_PIL
 from threading import Timer, Lock  # 定时器
 from queue import Empty
 from multiprocessing import Process, Queue  # 进程
-from io import BytesIO
 import os, pandas as pd
+from screeninfo import get_monitors
 
 PACK_NAME = 'wallpaper'
 # 路径配置
@@ -15,7 +15,7 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, 'config.ini')
 IMAGE_HISTORY_PATH = os.path.join(CONFIG_DIR, 'image_history.feather')
 # 壁纸播放
 IMAGE_DIR = [r'E:\user_file\Pictures\壁纸\wallhaven']  # 用户选择的图片文件夹
-IMAGE_TIME = 10.0  # 播放间隔,默认10秒
+IMAGE_TIME = 3.0  # 播放间隔,默认10秒
 IMAGE_TEMP_NUM = 3  # 图片缓冲数量,默认3张
 # 播放模式
 IMAGE_CUSTOM_MODE = 0  # 自定义模式,从用户选择的本地文件夹中读取照片

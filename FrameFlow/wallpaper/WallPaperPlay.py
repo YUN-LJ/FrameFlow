@@ -12,10 +12,10 @@ class WallPaperPlay:
         self.image_time = IMAGE_TIME  # 播放时间间隔
         self.image_dir = IMAGE_DIR  # 用户壁纸文件夹路径
         self.image_queue = Queue(IMAGE_TEMP_NUM)  # 缓冲队列,默认三张
-        self.image_process = ImageProcess(self.image_queue)  # 图像处理类
+        self.image_process = ImageProcess(self.image_queue, scaling_factor=0.5)  # 图像处理类
         self.data_manager = DataManager()  # 已播放的历史数据管理
         self.image_list = None  # 播放列表
-        self.image_play = Timer(self.image_time, self.execute)  # 壁纸播放定时器
+        self.image_play = Timer(0, self.execute)  # 壁纸播放定时器
         self.image_play.daemon = True
 
     def set_mode(self):
@@ -49,7 +49,12 @@ class WallPaperPlay:
         """执行器,从队列中获取图像数据并设置为壁纸"""
         if self.isRunning:
             try:
-                image: BytesIO = self.image_queue.get()
+                image: Image_PIL = self.image_queue.get(timeout=3)
+                image.show_image(3000)  # 显示图像
+                # 重置定时器
+                self.image_play = Timer(self.image_time, self.execute)  # 壁纸播放定时器
+                self.image_play.daemon = True
+                self.image_play.start()
             except Empty:
                 print(f'{PACK_NAME}.{self.__class__.__name__} 播放队列为空,已停止播放')
                 self.isRunning = False
@@ -74,5 +79,6 @@ class WallPaperPlay:
 
 if __name__ == '__main__':
     wallpaper_play = WallPaperPlay()
-    iamge_list = wallpaper_play.get_image_list()
-    print(f'总长度{len(iamge_list)}')
+    image_list = wallpaper_play.get_image_list()
+    print(f'总长度{len(image_list)}')
+    wallpaper_play.start()
