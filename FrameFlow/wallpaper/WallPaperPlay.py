@@ -3,19 +3,27 @@ from wallpaper.Tools import *
 
 
 class WallPaperPlay:
-    """壁纸播放类"""
+    """
+    壁纸播放类
+    该类只能在主线程中创建
+    """
 
     def __init__(self):
         self.isRunning = False  # 是否正在运行
         self.image_mode = IMAGE_CUSTOM_MODE  # 默认为自定义模式
-        self.image_api = IMAGE_WINDOWS_API  # 默认为windows系统API
+        self.image_api = IMAGE_WINDOWS_QT  # 默认为使用QT作为底层窗口
         self.image_time = IMAGE_TIME  # 播放时间间隔
         self.image_dir = IMAGE_DIR  # 用户壁纸文件夹路径
         self.image_queue = Queue(IMAGE_TEMP_NUM)  # 缓冲队列,默认三张
-        self.image_process = ImageProcess(self.image_queue, scaling_factor=0.5)  # 图像处理类
-        self.data_manager = DataManager()  # 已播放的历史数据管理
+        self.image_process = ImageProcess(self.image_queue, scaling_factor=1.0)  # 图像处理类
+        # 已播放的历史数据管理
+        self.data_manager = DataManager()
+        Thread(target=self.data_manager.load_history, daemon=True).start()  # 后台加载历史文件
         self.image_list = None  # 播放列表
-        self.image_play = Timer(0, self.execute)  # 壁纸播放定时器
+        # Qt桌面背景设置,必须由主线程创建,否则内部的定时器将会失效
+        self.image_qt = ImageQt()
+        # 壁纸播放定时器
+        self.image_play = Timer(0, self.execute)
         self.image_play.daemon = True
 
     def set_mode(self):
@@ -49,8 +57,17 @@ class WallPaperPlay:
         """执行器,从队列中获取图像数据并设置为壁纸"""
         if self.isRunning:
             try:
-                image: Image_PIL = self.image_queue.get(timeout=3)
-                image.show_image(3000)  # 显示图像
+                name, image = self.image_queue.get(timeout=3)
+                # image.show_image(3000)  # 显示图像
+                print(f'壁纸播放:{PACK_NAME}.{self.__class__.__name__}.execute'
+                      f'\n名称:{name} 时间{get.now_time()}')
+                if self.image_api == IMAGE_WINDOWS_QT:
+                    QTimer.singleShot(0, self.image_qt.create)  # 创建桌面窗口
+                    self.image_qt.set_wallpaper(image)
+                elif self.image_api == IMAGE_WINDOWS_API:
+                    set_wallpaper_API(image.get_PIL)
+                # 添加到历史数据中
+                self.data_manager.add_history(name)
                 # 重置定时器
                 self.image_play = Timer(self.image_time, self.execute)  # 壁纸播放定时器
                 self.image_play.daemon = True
@@ -62,8 +79,16 @@ class WallPaperPlay:
     def start(self):
         """开始播放"""
         if self.image_list is None:
-            return False
+            self.get_image_list()
         self.isRunning = True
+
+        # 开启历史数据定时保存
+        self.data_manager.auto_save_timer.start()
+
+        # 创建桌面窗口,实时检测
+        if self.image_api == IMAGE_WINDOWS_QT:
+            self.image_qt.start()
+
         # 开启子进程处理图像数据
         self.image_process.set_image_list(self.image_list)
         self.image_process.start()
@@ -75,10 +100,15 @@ class WallPaperPlay:
         # 定时器只有在start()方法后到等待执行的这段时间is_alive的返回值是True
         if self.image_play.is_alive():
             self.image_play.cancel()
+        self.image_qt.stop()
+        # 保存历史数据
+        self.data_manager.save(IMAGE_HISTORY_PATH, self.data_manager.IMAGE_HISTORY)
+        self.data_manager.stop()
 
 
 if __name__ == '__main__':
+    app = QApplication([])
     wallpaper_play = WallPaperPlay()
-    image_list = wallpaper_play.get_image_list()
-    print(f'总长度{len(image_list)}')
     wallpaper_play.start()
+    print(f'总长度{len(wallpaper_play.image_list)}')
+    app.exec()

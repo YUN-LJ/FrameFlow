@@ -142,6 +142,10 @@ class Image_PIL:
     @property
     def get_BytesIO(self) -> BytesIO:
         """转为BytesIO类型的图像"""
+    @property
+    def get_PIL(self)->ImageFile.ImageFile:
+        return self.__image
+
 
     def resize(self, size: tuple[int, int], stretch: str = 'w', resample=Image.Resampling.LANCZOS) -> tuple[int, int]:
         """

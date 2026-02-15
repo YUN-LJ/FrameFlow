@@ -1,13 +1,18 @@
 """壁纸播放全局变量"""
 from Fun.Norm import file, get, ini, general
-from Fun.Norm.image import Image_PIL
-from threading import Timer, Lock  # 定时器
+from Fun.Norm.image import Image_PIL, set_wallpaper_API
+from Fun.GUI_Qt.PySide6Mod import WindowDesktop, ImageWidget
+from threading import Thread, Timer, Lock  # 定时器
 from queue import Empty
 from multiprocessing import Process, Queue  # 进程
-import os, pandas as pd
+import os, pandas as pd, numpy as np, time
 from screeninfo import get_monitors
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer, QThread
 
 PACK_NAME = 'wallpaper'
+# 默认灰色图像
+DEFAULT_IMAGE = np.full((224, 224, 3), fill_value=70, dtype=np.uint8)
 # 路径配置
 RUN_PATH = get.run_dir()  # 获取当前程序运行路径
 CONFIG_DIR = os.path.join(RUN_PATH, 'config')
@@ -15,7 +20,7 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, 'config.ini')
 IMAGE_HISTORY_PATH = os.path.join(CONFIG_DIR, 'image_history.feather')
 # 壁纸播放
 IMAGE_DIR = [r'E:\user_file\Pictures\壁纸\wallhaven']  # 用户选择的图片文件夹
-IMAGE_TIME = 3.0  # 播放间隔,默认10秒
+IMAGE_TIME = 10.0  # 播放间隔,默认10秒
 IMAGE_TEMP_NUM = 3  # 图片缓冲数量,默认3张
 # 播放模式
 IMAGE_CUSTOM_MODE = 0  # 自定义模式,从用户选择的本地文件夹中读取照片

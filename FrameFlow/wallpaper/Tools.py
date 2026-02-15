@@ -1,6 +1,4 @@
 """壁纸播放工具类"""
-import pandas as pd
-
 from wallpaper.Config import *
 
 
@@ -30,6 +28,51 @@ class Signal:
             self.func.remove(func)
 
 
+class ImageQt:
+    """用于使用Qt作为桌面窗口进行壁纸播放"""
+
+    def __init__(self):
+        self.isRunning = False
+        self.all_widget = {}
+        self.timer = QTimer()  # 定时器,用于实时检测新增显示器
+        self.timer.timeout.connect(self.create)
+
+    def create(self):
+        """创建桌面背景"""
+        for screen in QApplication.screens():
+            if screen.name() not in self.all_widget:
+                widget = WindowDesktop(screen)
+                image_widegt = ImageWidget()  # 用于显示图像的类
+                widget.addWidget(image_widegt)
+                self.all_widget[widget.name] = (widget, image_widegt)
+
+    def start(self):
+        if not self.isRunning:
+            self.isRunning = True
+            self.timer.start(1000)
+
+    def stop(self):
+        """删除桌面背景,并停止"""
+        if self.isRunning:
+            for widget, image_widegt in self.all_widget.values():
+                image_widegt.deleteLater()
+                widget.deleteLater()
+            self.timer.stop()
+
+    def set_wallpaper(self, image: Image_PIL):
+        """
+        设置壁纸
+        :param image:图像
+        """
+        if self.isRunning:
+            for widget, image_widegt in self.all_widget.values():
+                size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
+                image.resize(size, stretch='wh')
+                image_widegt.set_image(image.get_PIL)
+        else:
+            print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper 请调用start方法后再使用')
+
+
 class ImageProcess:
     """图像处理类,采用子进程处理图像,将其结果返回到队列中"""
 
@@ -39,6 +82,7 @@ class ImageProcess:
         """
         self.isRunning = False  # 是否正在运行
         self.image_list = None  # 待处理列表
+        self.stretch = 'w'  # 按w方向缩放,具体参考Image_PIL()的resize方法说明
         self.scaling_factor = scaling_factor  # 缩放因子,图像的最终尺寸以屏幕尺寸乘以缩放因子
         self.screen_size = self.get_screen_size()  # 获取屏幕尺寸
         self.result_queue = result_queue
@@ -70,13 +114,19 @@ class ImageProcess:
 
     def execute(self):
         """执行器,执行单张图像的处理"""
+        image = Image_PIL()
+        image.LOAD_TRUNCATED_IMAGES = True
         for image_path in self.image_list:
-            image = Image_PIL(image_path)
-            if not image.check_w_screen:
-                image.merge()  # 如果是竖屏照片则横向复制一份
-            image.resize(size=self.screen_size)
-            image.zip(max_size=15)  # 限制图像最大尺寸
-            self.result_queue.put(image)
+            try:
+                image.open_image(image_path)
+                if not image.check_w_screen:
+                    image.merge()  # 如果是竖屏照片则横向复制一份
+                image.resize(size=self.screen_size, stretch=self.stretch)
+                image.zip(max_size=15)  # 限制图像最大尺寸
+                self.result_queue.put((image_path, image))
+            except Exception as e:
+                print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
+                      f'错误文件名称:{image_path}')
 
     def start(self):
         """开始图像处理"""
@@ -110,18 +160,19 @@ class DataManager:
         :param callback:回调函数
         """
         state = False
-        extension = file.get_file_extension(IMAGE_HISTORY_PATH)
-        # 读取文件
-        if extension == '.csv':
-            load_pd = pd.read_csv(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
-        elif extension == '.xlsx':
-            load_pd = pd.read_excel(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
-        elif extension == '.feather':
-            load_pd = pd.read_feather(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
-        # 添加数据
-        if file.check_exist(IMAGE_INFO_PATH):
-            self.add_history(load_pd)
-            state = True
+        if file.check_exist(IMAGE_HISTORY_PATH):
+            extension = file.get_file_extension(IMAGE_HISTORY_PATH)
+            # 读取文件
+            if extension == '.csv':
+                load_pd = pd.read_csv(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
+            elif extension == '.xlsx':
+                load_pd = pd.read_excel(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
+            elif extension == '.feather':
+                load_pd = pd.read_feather(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
+            # 添加数据
+            if not load_pd.empty:
+                self.add_history(load_pd)
+                state = True
         if callback is not None:
             Signal(callback).emit(state)
         else:
@@ -130,7 +181,7 @@ class DataManager:
     def add_history(self, image_id: str | pd.DataFrame):
         """新增已播放数据"""
         if isinstance(image_id, str):
-            image_id = pd.DataFrame(image_id, columns=IMAGE_HISTORY_COLUMNS).astype(IMAGE_HISTORY_DTYPE)
+            image_id = pd.DataFrame([image_id], columns=IMAGE_HISTORY_COLUMNS).astype(IMAGE_HISTORY_DTYPE)
         with self.IMAGE_HISTORY_LOCK:
             # 表合并+数据去重(链式操作pandas内部有优化且避免线程安全问题)
             self.IMAGE_HISTORY = pd.concat([self.IMAGE_HISTORY, image_id]).drop_duplicates(
