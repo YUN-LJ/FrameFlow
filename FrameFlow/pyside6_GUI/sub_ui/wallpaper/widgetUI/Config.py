@@ -1,0 +1,21 @@
+"""全局变量"""
+import os, sys, time
+
+# PySide6库
+from PySide6.QtWidgets import (
+    QWidget, QAbstractItemView, QHeaderView, QCheckBox,
+    QVBoxLayout, QHBoxLayout, QLabel, QSpacerItem, QSizePolicy,
+    QSplitter, QProgressBar, QTableWidgetItem
+)
+from PySide6.QtCore import QThread, Signal, QTimer, Qt
+# 美化库
+from qfluentwidgets import FluentIcon as FIF
+from qfluentwidgets.components.dialog_box import MessageBoxBase, MessageBox
+from qfluentwidgets.components.widgets import (
+    TitleLabel, TransparentPushButton, SpinBox, LineEdit, ComboBox,  # 标签
+    ProgressRing, IndeterminateProgressRing, ProgressBar,  # 进度条
+    InfoBarIcon, TeachingTip, TeachingTipTailPosition  # 气泡消息
+)
+from qfluentwidgets.components.widgets.button import PrimaryToolButton
+# UI
+from pyside6_GUI.sub_ui.wallpaper.ui.wallpaper_ui import Ui_wallpaper

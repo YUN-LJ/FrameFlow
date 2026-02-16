@@ -65,10 +65,15 @@ class ImageQt:
         :param image:图像
         """
         if self.isRunning:
-            for widget, image_widegt in self.all_widget.values():
-                size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
-                image.resize(size, stretch='wh')
-                image_widegt.set_image(image.get_PIL)
+            image_w, image_h = image.get_size
+            image_scale = image_w / image_h
+            for widget, image_widget in self.all_widget.values():
+                # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
+                screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
+                screen_scale = screen_size[0] / screen_size[1]
+                mode = Image_Enum.resize_stretch if abs(screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
+                image.resize(screen_size, stretch=mode)
+                image_widget.set_image(image.get_PIL)
         else:
             print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper 请调用start方法后再使用')
 
@@ -82,7 +87,6 @@ class ImageProcess:
         """
         self.isRunning = False  # 是否正在运行
         self.image_list = None  # 待处理列表
-        self.stretch = 'w'  # 按w方向缩放,具体参考Image_PIL()的resize方法说明
         self.scaling_factor = scaling_factor  # 缩放因子,图像的最终尺寸以屏幕尺寸乘以缩放因子
         self.screen_size = self.get_screen_size()  # 获取屏幕尺寸
         self.result_queue = result_queue
@@ -114,15 +118,20 @@ class ImageProcess:
 
     def execute(self):
         """执行器,执行单张图像的处理"""
-        image = Image_PIL()
-        image.LOAD_TRUNCATED_IMAGES = True
+        scale = self.screen_size[0] / self.screen_size[1]
+        image = Image_PIL(load_trunc_images=True)
         for image_path in self.image_list:
             try:
                 image.open_image(image_path)
                 if not image.check_w_screen:
-                    image.merge()  # 如果是竖屏照片则横向复制一份
-                image.resize(size=self.screen_size, stretch=self.stretch)
-                image.zip(max_size=15)  # 限制图像最大尺寸
+                    # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
+                    w, h = image.get_size
+                    num_2 = abs((w * 2 / h) - scale)
+                    num_3 = abs((w * 3 / h) - scale)
+                    num = 1 if num_2 > num_3 else 2
+                    image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
+                image.resize(size=self.screen_size)
+                image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
                 self.result_queue.put((image_path, image))
             except Exception as e:
                 print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'

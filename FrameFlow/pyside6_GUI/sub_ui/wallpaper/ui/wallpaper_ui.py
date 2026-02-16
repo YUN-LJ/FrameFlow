@@ -8,13 +8,17 @@
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QMetaObject, QRect,
-                            QSize, Qt)
-from PySide6.QtWidgets import (QHBoxLayout, QScrollArea, QSizePolicy,
-                               QSpacerItem, QVBoxLayout, QWidget)
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QScrollArea, QSizePolicy,
+    QSpacerItem, QVBoxLayout, QWidget)
 
-from qfluentwidgets.components.widgets import PrimaryPushButton
-
+from qfluentwidgets.components.widgets import (ComboBox, PrimaryPushButton)
 
 class Ui_wallpaper(object):
     def setupUi(self, wallpaper):
@@ -24,69 +28,50 @@ class Ui_wallpaper(object):
         self.verticalLayout = QVBoxLayout(wallpaper)
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
-        self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.verticalLayout_2 = QVBoxLayout()
-        self.verticalLayout_2.setSpacing(0)
-        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
-        self.verticalLayout_2.setContentsMargins(-1, -1, -1, 0)
+        self.verticalLayout.setContentsMargins(0, 0, 0, 10)
         self.scrollArea_options = QScrollArea(wallpaper)
         self.scrollArea_options.setObjectName(u"scrollArea_options")
-        self.scrollArea_options.setMinimumSize(QSize(0, 0))
-        self.scrollArea_options.setMaximumSize(QSize(16777215, 60))
-        self.scrollArea_options.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scrollArea_options.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 796, 58))
-        self.horizontalLayout_3 = QHBoxLayout(self.scrollAreaWidgetContents)
-        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
-        self.pushButton_start = PrimaryPushButton(self.scrollAreaWidgetContents)
-        self.pushButton_start.setObjectName(u"pushButton_start")
-        self.pushButton_start.setMinimumSize(QSize(0, 40))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 786, 58))
+        self.horizontalLayout_2 = QHBoxLayout(self.scrollAreaWidgetContents)
+        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.pushButton_play = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_play.setObjectName(u"pushButton_play")
+        self.pushButton_play.setMinimumSize(QSize(0, 40))
 
-        self.horizontalLayout_3.addWidget(self.pushButton_start)
-
-        self.pushButton_add = PrimaryPushButton(self.scrollAreaWidgetContents)
-        self.pushButton_add.setObjectName(u"pushButton_add")
-        self.pushButton_add.setMinimumSize(QSize(0, 40))
-
-        self.horizontalLayout_3.addWidget(self.pushButton_add)
-
-        self.pushButton_del = PrimaryPushButton(self.scrollAreaWidgetContents)
-        self.pushButton_del.setObjectName(u"pushButton_del")
-        self.pushButton_del.setMinimumSize(QSize(0, 40))
-
-        self.horizontalLayout_3.addWidget(self.pushButton_del)
+        self.horizontalLayout_2.addWidget(self.pushButton_play)
 
         self.pushButton_set = PrimaryPushButton(self.scrollAreaWidgetContents)
         self.pushButton_set.setObjectName(u"pushButton_set")
         self.pushButton_set.setMinimumSize(QSize(0, 40))
 
-        self.horizontalLayout_3.addWidget(self.pushButton_set)
-
-        self.pushButton_open_image = PrimaryPushButton(self.scrollAreaWidgetContents)
-        self.pushButton_open_image.setObjectName(u"pushButton_open_image")
-        self.pushButton_open_image.setMinimumSize(QSize(0, 40))
-
-        self.horizontalLayout_3.addWidget(self.pushButton_open_image)
+        self.horizontalLayout_2.addWidget(self.pushButton_set)
 
         self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        self.horizontalLayout_3.addItem(self.horizontalSpacer)
+        self.horizontalLayout_2.addItem(self.horizontalSpacer)
+
+        self.comboBox_mode = ComboBox(self.scrollAreaWidgetContents)
+        self.comboBox_mode.addItem("")
+        self.comboBox_mode.addItem("")
+        self.comboBox_mode.addItem("")
+        self.comboBox_mode.setObjectName(u"comboBox_mode")
+        self.comboBox_mode.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout_2.addWidget(self.comboBox_mode)
 
         self.scrollArea_options.setWidget(self.scrollAreaWidgetContents)
 
-        self.verticalLayout_2.addWidget(self.scrollArea_options)
+        self.verticalLayout.addWidget(self.scrollArea_options)
 
-        self.horizontalLayout_2 = QHBoxLayout()
-        self.horizontalLayout_2.setSpacing(0)
-        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.horizontalLayout = QHBoxLayout()
+        self.horizontalLayout.setObjectName(u"horizontalLayout")
 
-        self.verticalLayout_2.addLayout(self.horizontalLayout_2)
+        self.verticalLayout.addLayout(self.horizontalLayout)
 
-
-        self.verticalLayout.addLayout(self.verticalLayout_2)
-
+        self.verticalLayout.setStretch(1, 1)
 
         self.retranslateUi(wallpaper)
 
@@ -95,10 +80,11 @@ class Ui_wallpaper(object):
 
     def retranslateUi(self, wallpaper):
         wallpaper.setWindowTitle(QCoreApplication.translate("wallpaper", u"wallpaper", None))
-        self.pushButton_start.setText(QCoreApplication.translate("wallpaper", u"\u5f00\u59cb", None))
-        self.pushButton_add.setText(QCoreApplication.translate("wallpaper", u"\u65b0\u589e\u76ee\u5f55", None))
-        self.pushButton_del.setText(QCoreApplication.translate("wallpaper", u"\u5220\u9664\u76ee\u5f55", None))
+        self.pushButton_play.setText(QCoreApplication.translate("wallpaper", u"\u64ad\u653e", None))
         self.pushButton_set.setText(QCoreApplication.translate("wallpaper", u"\u8bbe\u7f6e", None))
-        self.pushButton_open_image.setText(QCoreApplication.translate("wallpaper", u"\u6253\u5f00\u5f53\u524d\u56fe\u50cf", None))
+        self.comboBox_mode.setItemText(0, QCoreApplication.translate("wallpaper", u"\u7528\u6237\u6a21\u5f0f", None))
+        self.comboBox_mode.setItemText(1, QCoreApplication.translate("wallpaper", u"\u6536\u85cf\u5939\u6a21\u5f0f", None))
+        self.comboBox_mode.setItemText(2, QCoreApplication.translate("wallpaper", u"\u89c6\u9891\u6a21\u5f0f", None))
+
     # retranslateUi
 
