@@ -156,13 +156,31 @@ class WallHavenWin(Ui_wallhaven, QWidget):
             """添加收藏"""
             if self.search_key_word is not None:
                 key_data = self.wallhaven_api.add_key_like(self.search_key_word).iloc[0]
-                self.right_widget.addLike(
-                    key_data['关键词'],
-                    key_data['总页数'],
-                    key_data['总数'],
-                    key_data['最新日期'],
-                    key_data['上次更新'],
-                )
+                if self.right_widget.addLike(
+                        key_data['关键词'],
+                        key_data['总页数'],
+                        key_data['总数'],
+                        key_data['最新日期'],
+                        key_data['上次更新']):
+                    TeachingTip.create(
+                        target=self.pushButton_add_like,
+                        icon=InfoBarIcon.SUCCESS,
+                        title='温馨提示',
+                        content=f'已成功添加{self.search_key_word}',
+                        isClosable=True,
+                        tailPosition=TeachingTipTailPosition.BOTTOM,
+                        duration=1000,
+                        parent=self.__parent)
+                else:
+                    TeachingTip.create(
+                        target=self.pushButton_add_like,
+                        icon=InfoBarIcon.ERROR,
+                        title='温馨提示',
+                        content=f'关键词{self.search_key_word}已存在',
+                        isClosable=True,
+                        tailPosition=TeachingTipTailPosition.BOTTOM,
+                        duration=1000,
+                        parent=self.__parent)
             else:
                 TeachingTip.create(
                     target=self.pushButton_add_like,
@@ -186,6 +204,12 @@ class WallHavenWin(Ui_wallhaven, QWidget):
                     self.thread_task.add_task(
                         os.path.basename(url),
                         ThreadTask.THUMB, (url, item[2]))
+
+        def del_like(key_word):
+            ask = MessageBox("删除确认", f"是否删除{key_word}", self.__parent)
+            if ask.exec():
+                self.wallhaven_api.del_key_like(key_word)
+                self.right_widget.delLike(key_word)
 
         self.lineEdit.searchSignal.connect(self.search)
         self.left_widget.spinBox.valueChanged.connect(pageChanged)
@@ -219,6 +243,7 @@ class WallHavenWin(Ui_wallhaven, QWidget):
         self.right_widget.update_clicked.connect(
             lambda key_list: [self.thread_task.add_task(key, ThreadTask.UPDATEKEY, key) for key in key_list]
         )
+        self.right_widget.like_button_clicked.connect(del_like)
 
     def taskStart(self, args):
         """任务开始时"""
@@ -298,9 +323,9 @@ class WallHavenWin(Ui_wallhaven, QWidget):
             self.left_widget.defaultCell()
         purity = self.wallhaven_api.get_purity
         categories = self.wallhaven_api.get_categories
+        name = f'{key_word}.{page}.{purity}.{categories}'
         self.thread_task.add_task(
-            f'{key_word}.{page}.{purity}.{categories}',
-            ThreadTask.SEARCH,
+            name, ThreadTask.SEARCH,
             (key_word, page))
         # 显示加载对话框
         if self.load_dialog is None:
@@ -310,6 +335,9 @@ class WallHavenWin(Ui_wallhaven, QWidget):
                 self.search_key_word = key_word
                 self.load_dialog = None
                 self.splitter.setSizes([500, 0])
+            else:
+                self.thread_task.cancel_task(name)
+                self.load_dialog = None
 
     def searchFinished(self, task_name: str, data: pd.DataFrame | tuple):
         """搜索完成后"""

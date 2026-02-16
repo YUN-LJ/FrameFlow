@@ -96,7 +96,7 @@ class Ui_RightWidget(object):
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollAreaWidgetContents_2 = QWidget()
         self.scrollAreaWidgetContents_2.setObjectName(u"scrollAreaWidgetContents_2")
-        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 172, 98))
+        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 515, 298))
         self.verticalLayout_2 = QVBoxLayout(self.scrollAreaWidgetContents_2)
         self.verticalLayout_2.setSpacing(0)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
@@ -123,8 +123,8 @@ class Ui_RightWidget(object):
         self.verticalLayout_2.addLayout(self.horizontalLayout_4)
 
         self.tableWidget_like = QTableWidget(self.scrollAreaWidgetContents_2)
-        if (self.tableWidget_like.columnCount() < 6):
-            self.tableWidget_like.setColumnCount(6)
+        if (self.tableWidget_like.columnCount() < 7):
+            self.tableWidget_like.setColumnCount(7)
         __qtablewidgetitem3 = QTableWidgetItem()
         self.tableWidget_like.setHorizontalHeaderItem(0, __qtablewidgetitem3)
         __qtablewidgetitem4 = QTableWidgetItem()
@@ -137,6 +137,8 @@ class Ui_RightWidget(object):
         self.tableWidget_like.setHorizontalHeaderItem(4, __qtablewidgetitem7)
         __qtablewidgetitem8 = QTableWidgetItem()
         self.tableWidget_like.setHorizontalHeaderItem(5, __qtablewidgetitem8)
+        __qtablewidgetitem9 = QTableWidgetItem()
+        self.tableWidget_like.setHorizontalHeaderItem(6, __qtablewidgetitem9)
         self.tableWidget_like.setObjectName(u"tableWidget_like")
 
         self.verticalLayout_2.addWidget(self.tableWidget_like)
@@ -182,5 +184,7 @@ class Ui_RightWidget(object):
         ___qtablewidgetitem7.setText(QCoreApplication.translate("RightWidget", u"\u6700\u65b0\u65e5\u671f", None));
         ___qtablewidgetitem8 = self.tableWidget_like.horizontalHeaderItem(5)
         ___qtablewidgetitem8.setText(QCoreApplication.translate("RightWidget", u"\u4e0a\u6b21\u66f4\u65b0", None));
+        ___qtablewidgetitem9 = self.tableWidget_like.horizontalHeaderItem(6)
+        ___qtablewidgetitem9.setText(QCoreApplication.translate("RightWidget", u"\u64cd\u4f5c", None));
     # retranslateUi
 

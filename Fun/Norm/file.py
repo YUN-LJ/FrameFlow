@@ -25,19 +25,20 @@ def ensure_exist(dir_path: str = None) -> bool:
         return True
 
 
-def check_exist(path: str | list[str], num_work=10) -> bool | list[bool]:
+def check_exist(path: str | list[str], num_work=os.cpu_count(), chunk_size=1000) -> bool | list[bool]:
     """检查文件是否存在"""
     if isinstance(path, str):
         # 单个路径直接检查
         return os.path.exists(path)
     else:
-        if len(path) < 1000:
+        if len(path) < chunk_size:
             # 列表路径批量检查（利用列表推导式高效循环）
             return [os.path.exists(p) for p in path]
         else:
             # 使用多线程批量检查
-            def split_list_generator(lst, chunk_size=500):
+            def split_list_generator(lst):
                 """生成器版本，节省内存"""
+                nonlocal chunk_size
                 for i in range(0, len(lst), chunk_size):
                     yield lst[i:i + chunk_size]
 

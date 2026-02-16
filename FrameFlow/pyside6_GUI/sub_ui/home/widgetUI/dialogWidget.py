@@ -114,10 +114,14 @@ class SetDialog(MessageBoxBase):
         """添加基本控件"""
         # 添加路径设置
         layout_dir = QHBoxLayout()
-        self.label_dir = TitleLabel(text=self.wallhaven_api.download_dir)
-        self.label_dir.setMaximumWidth(self.__parent.width() * 0.8)
+        self.label_dir = TitleLabel(text='壁纸保存路径:')
+        self.lineedit_dir = LineEdit()
+        self.lineedit_dir.setText(self.wallhaven_api.download_dir)
+        self.lineedit_dir.setMaximumWidth(300)
+        self.lineedit_dir.setMinimumWidth(300)
         self.pushButton_dir = PrimaryToolButton(FIF.FOLDER_ADD)
         layout_dir.addWidget(self.label_dir)
+        layout_dir.addWidget(self.lineedit_dir)
         layout_dir.addWidget(self.pushButton_dir)
         self.viewLayout.addLayout(layout_dir)
         # 添加线程设置
@@ -125,6 +129,7 @@ class SetDialog(MessageBoxBase):
         self.label_num_work = TitleLabel(text=f'当前线程数量:{self.wallhaven_api.num_work}')
         self.spin_box = SpinBox()
         self.spin_box.setRange(1, 20)
+        self.spin_box.setMaximumWidth(150)
         self.spin_box.setValue(self.wallhaven_api.num_work)
         layout_num_work.addWidget(self.label_num_work)
         layout_num_work.addWidget(self.spin_box)
@@ -134,11 +139,23 @@ class SetDialog(MessageBoxBase):
         self.label_api = TitleLabel(text='填写API:')
         self.lineEdit_api = LineEdit()
         self.lineEdit_api.setText(self.wallhaven_api.api_key)
+        self.lineEdit_api.setMaximumWidth(300)
+        self.lineEdit_api.setMinimumWidth(300)
         self.pushButton_api = PrimaryToolButton(FIF.UPDATE)
         layout_api.addWidget(self.label_api)
         layout_api.addWidget(self.lineEdit_api)
         layout_api.addWidget(self.pushButton_api)
         self.viewLayout.addLayout(layout_api)
+        # 数据导出功能
+        layout_data = QHBoxLayout()
+        self.label_data = TitleLabel(text='选择文件:')
+        self.combo_box_data = ComboBox()
+        self.combo_box_data.addItems(['图像信息数据', '收藏夹数据'])
+        self.pushButton_data = PrimaryToolButton(FIF.PRINT)
+        layout_data.addWidget(self.label_data)
+        layout_data.addWidget(self.combo_box_data)
+        layout_data.addWidget(self.pushButton_data)
+        self.viewLayout.addLayout(layout_data)
         # 隐藏取消按钮
         self.hideCancelButton()
 
@@ -149,7 +166,7 @@ class SetDialog(MessageBoxBase):
             save_dir = get_exist_dir('选择保存路径', self.wallhaven_api.download_dir)
             if save_dir:
                 self.wallhaven_api.set_download_dir(save_dir)
-                self.label_dir.setText(save_dir)
+                self.lineedit_dir.setText(save_dir)
 
         def pushButton_api():
             api = self.lineEdit_api.text()
@@ -174,6 +191,21 @@ class SetDialog(MessageBoxBase):
                     duration=1000,
                     parent=self.__parent)
 
+        def pushButton_data():
+            """数据导出"""
+            data_name = self.combo_box_data.currentText()
+            if data_name == '图像信息数据':
+                save_path = self.wallhaven_api.image_info_path.rsplit('.', 1)[0] + '.xlsx'
+                self.wallhaven_api.data_manager.save(
+                    save_path, self.wallhaven_api.data_manager.IMAGE_INFO,
+                )
+            elif data_name == '收藏夹数据':
+                save_path = self.wallhaven_api.key_word_path.rsplit('.', 1)[0] + '.xlsx'
+                self.wallhaven_api.data_manager.save(
+                    save_path, self.wallhaven_api.data_manager.KEY_WORD,
+                )
+            file.open_file_use_explorer(save_path)
+
         def spin_box_value_changed(num_work):
             self.wallhaven_api.set_num_work(num_work)
             self.label_num_work.setText(f'当前线程数量:{self.wallhaven_api.num_work}')
@@ -190,4 +222,5 @@ class SetDialog(MessageBoxBase):
         self.pushButton_dir.clicked.connect(pushButton_dir)
         self.pushButton_api.clicked.connect(pushButton_api)
         self.spin_box.valueChanged.connect(spin_box_value_changed)
+        self.pushButton_data.clicked.connect(pushButton_data)
         self.yesButton.clicked.connect(self.accept)

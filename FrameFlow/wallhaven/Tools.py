@@ -32,7 +32,7 @@ class Signal:
 
 
 class DataManager:
-    """数据管理:获取锁后再操作表数据"""
+    """数据管理:获取锁后再操作表数据,调用auto_save_timer属性的start方法可以开启自动保存"""
     # DatatFrame数据
     IMAGE_INFO = pd.DataFrame(columns=IMAGE_COLUMNS).astype(IMAGE_DTYPE)  # 图像信息
     SEARCH_INFO = pd.DataFrame(columns=SEARCH_COLUMNS).astype(SEARCH_DTYPE)  # 搜索信息
@@ -50,14 +50,6 @@ class DataManager:
         self.auto_save_time = 60  # 自动保存间隔
         self.auto_save_timer = Timer(self.auto_save_time, self.auto_save)  # 自动保存定时器
         self.auto_save_timer.daemon = True  # 设置为守护线程,确保主线程退出时,改子线程立即退出
-        if file.check_exist(IMAGE_INFO_PATH):
-            self.add_image_info(self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True))
-            # Thread(target=lambda: self.add_image_info(
-            #     self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True)), daemon=True).start()
-        if file.check_exist(KEY_WORD_PATH):
-            self.add_key_word(self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE))
-            # Thread(target=lambda: self.add_key_word(
-            #     self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE)), daemon=True).start()
 
     def load_pd(self, file_path, dtpye, check=False) -> pd.DataFrame:
         extension = file.get_file_extension(file_path)
@@ -69,11 +61,28 @@ class DataManager:
         elif extension == '.feather':
             load_pd = pd.read_feather(file_path).astype(dtpye)
         if check:
-            load_pd.dropna(how='any', inplace=True)  # 删除有缺失值的行
+            # load_pd.dropna(how='any', inplace=True)  # 删除有缺失值的行
+            # reset_index->删除索引
+            load_pd = load_pd[~(load_pd == '').any(axis=1)].reset_index(drop=True)  # 删除有''的行
             # 检查本地路径的文件是否存在,将不存在的路径改为''
             mask = pd.Series(file.check_exist(load_pd['本地路径']))
             load_pd.loc[~mask, '本地路径'] = ''
         return load_pd
+
+    @general.timer_decorator
+    def load_data(self, callback):
+        state = False
+        if file.check_exist(IMAGE_INFO_PATH):
+            self.add_image_info(self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True))
+            state = True
+            # Thread(target=lambda: self.add_image_info(
+            #     self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True)), daemon=True).start()
+        if file.check_exist(KEY_WORD_PATH):
+            self.add_key_word(self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE))
+            state = True
+            # Thread(target=lambda: self.add_key_word(
+            #     self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE)), daemon=True).start()
+        Signal(callback).emit(state)
 
     def add_image_info(self, data):
         """添加图像数据"""
@@ -102,7 +111,8 @@ class DataManager:
     def auto_save(self):
         """自动保存"""
         if self.isRunning:
-            print(f'\n{self.__class__.__name__}.auto_save :正在保存,当前时间:{get.now_time('%Y-%m-%d %H:%M:%S')}')
+            print(f'\n{PACK_NAME}.{self.__class__.__name__}.auto_save :'
+                  f'正在保存,当前时间:{get.now_time('%Y-%m-%d %H:%M:%S')}')
             self.isAutoSave = True
             with self.IMAGE_INFO_LOCK:
                 self.save(IMAGE_INFO_PATH, self.IMAGE_INFO)
@@ -139,7 +149,7 @@ class DataManager:
             self.isSave = False
             return True
         except Exception as e:
-            print(f'{self.__class__.__name__}.save error:\n\t{e}')
+            print(f'{PACK_NAME}.{self.__class__.__name__}.save error:\n\t{e}')
             return False
 
 
@@ -234,7 +244,7 @@ class TaskEnum:
                     self.state = TaskEnum.State.success
                     return True
                 except Exception as e:
-                    print(f'下载任务{self.name} error:\n\t{e}')
+                    print(f'{PACK_NAME}.下载任务{self.name} error:\n\t{e}')
                     self.state = TaskEnum.State.error
                     return False
 
@@ -480,4 +490,4 @@ class TaskWorker:
             self.task.start()
             self.task_dict.pop(self.task.name)
         except Exception as e:
-            print(f'子线程任务{self.task.name} -> 出错了\n\t{e}')
+            print(f'{PACK_NAME}.子线程任务{self.task.name} -> 出错了\n\t{e}')

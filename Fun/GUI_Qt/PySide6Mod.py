@@ -4,13 +4,15 @@
 import os, numpy as np, cv2
 from io import BytesIO
 from Fun.Norm import get
+import win32gui, win32con
+from screeninfo import get_monitors
 
 from PySide6.QtCore import Qt, QRect, QPoint, QEvent
-from PySide6.QtGui import (QWindow, QAction, QIcon, QShortcut,
+from PySide6.QtGui import (QWindow, QAction, QIcon, QShortcut, QScreen,
                            QPixmap, QPainter, QPaintEvent,
                            QImage, QWheelEvent, QMouseEvent)
 from PySide6.QtWidgets import (
-    QFileDialog, QWidget, QHBoxLayout,
+    QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QSystemTrayIcon, QMenu, QApplication
 )
 
@@ -281,306 +283,6 @@ class TrayIcon(QSystemTrayIcon):
                 self.ui.close()
 
 
-class ImageWidget_old(QWidget):
-    def __init__(self, image_input):
-        super().__init__()
-        self.image_input = image_input
-        self.original_pixmap = self._load_image(image_input)
-        self.setMinimumSize(50, 50)
-
-        # 缩放和拖动功能的状态
-        self.enable_zoom_drag = False
-
-        # 缩放相关参数
-        self.scale_factor = 1.0
-        self.offset = QPoint(0, 0)
-
-        # 拖动相关参数
-        self.dragging = False
-        self.last_mouse_pos = QPoint()
-
-    def _load_image(self, image_input):
-        if isinstance(image_input, QPixmap):
-            return image_input.copy()
-        elif isinstance(image_input, QImage):
-            return QPixmap.fromImage(image_input)
-        elif isinstance(image_input, np.ndarray):
-            return self._load_from_numpy(image_input)
-        elif hasattr(image_input, 'mode') and hasattr(image_input, 'size'):
-            return self._load_from_pil(image_input)
-        elif isinstance(image_input, BytesIO):
-            return self._load_from_bytesio(image_input)
-        elif isinstance(image_input, bytes):
-            return self._load_from_bytes(image_input)
-        elif isinstance(image_input, str):
-            pixmap = QPixmap(image_input)
-            if pixmap.isNull():  # 可能是图像过大采用cv加载
-                nparr = np.fromfile(image_input, dtype=np.uint8)  # 读取数据
-                image = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)  # 解码图像
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转化通道
-                return self._load_from_numpy(image)
-            return pixmap
-        else:
-            print(f"警告: 不支持的图片类型: {type(image_input)}")
-            return QPixmap()
-
-    def _load_from_numpy(self, np_array):
-        try:
-            h, w, c = np_array.shape
-            bytes_per_line = w * c
-            qimage = QImage(np_array.data, w, h, bytes_per_line,
-                            QImage.Format_RGB888 if c == 3 else QImage.Format_RGBA8888)
-            return QPixmap.fromImage(qimage.copy())
-        except Exception as e:
-            print(f"从numpy加载图片失败: {e}")
-            return QPixmap()
-
-    def _load_from_pil(self, pil_image):
-        try:
-            if pil_image.mode != 'RGB':
-                if pil_image.mode == 'RGBA':
-                    pil_image = pil_image.convert('RGBA')
-                else:
-                    pil_image = pil_image.convert('RGB')
-
-            buffer = BytesIO()
-            if pil_image.mode == 'RGBA':
-                pil_image.save(buffer, format='PNG')
-            else:
-                pil_image.save(buffer, format='JPEG')
-
-            buffer.seek(0)
-            pixmap = QPixmap()
-            pixmap.loadFromData(buffer.getvalue())
-            return pixmap
-        except Exception as e:
-            print(f"从PIL加载图片失败: {e}")
-            return QPixmap()
-
-    def _load_from_bytesio(self, bytesio_obj):
-        try:
-            bytesio_obj.seek(0)
-            pixmap = QPixmap()
-            pixmap.loadFromData(bytesio_obj.getvalue())
-            if pixmap.isNull():  # 可能是图像过大采用cv加载
-                bytesio_obj.seek(0)
-                nparr = np.frombuffer(bytesio_obj.read(), np.uint8)  # 读取数据
-                image = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)  # 解码图像
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转化通道
-                return self._load_from_numpy(image)
-            return pixmap
-        except Exception as e:
-            print(f"从BytesIO加载图片失败: {e}")
-            return QPixmap()
-
-    def _load_from_bytes(self, bytes_data):
-        try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(bytes_data)
-            return pixmap
-        except Exception as e:
-            print(f"从bytes加载图片失败: {e}")
-            return QPixmap()
-
-    def set_image(self, image_input):
-        self.image_input = image_input
-        self.original_pixmap = self._load_image(image_input)
-        self.reset_view()
-
-    def paintEvent(self, event: QPaintEvent):
-        if self.original_pixmap.isNull():
-            painter = QPainter(self)
-            painter.drawText(self.rect(), Qt.AlignCenter, "图片加载失败")
-            return
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-
-        # 计算缩放后的矩形
-        scaled_rect = self.calculateScaledRect()
-
-        # 应用偏移量（如果启用了缩放拖动功能）
-        if self.enable_zoom_drag:
-            scaled_rect.translate(self.offset)
-
-        painter.drawPixmap(scaled_rect, self.original_pixmap)
-
-    def calculateScaledRect(self):
-        if self.original_pixmap.isNull():
-            return QRect(0, 0, 0, 0)
-
-        widget_rect = self.rect()
-        pixmap_size = self.original_pixmap.size()
-
-        # 始终计算自适应窗口的尺寸
-        pixmap_ratio = pixmap_size.width() / pixmap_size.height()
-        widget_ratio = widget_rect.width() / widget_rect.height()
-
-        if pixmap_ratio > widget_ratio:
-            # 图片更宽，按宽度缩放
-            fitted_width = widget_rect.width()
-            fitted_height = fitted_width / pixmap_ratio
-        else:
-            # 图片更高，按高度缩放
-            fitted_height = widget_rect.height()
-            fitted_width = fitted_height * pixmap_ratio
-
-        # 应用当前缩放因子
-        scaled_width = fitted_width * self.scale_factor
-        scaled_height = fitted_height * self.scale_factor
-
-        # 计算居中位置
-        x = (widget_rect.width() - scaled_width) / 2
-        y = (widget_rect.height() - scaled_height) / 2
-
-        return QRect(x, y, scaled_width, scaled_height)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.update()
-
-    def enable_zoom_and_drag(self):
-        if not self.enable_zoom_drag:
-            self.enable_zoom_drag = True
-            self.setMouseTracking(True)
-            self.reset_view()
-
-    def disable_zoom_and_drag(self):
-        if self.enable_zoom_drag:
-            self.enable_zoom_drag = False
-            self.setMouseTracking(False)
-            self.reset_view()
-            self.setCursor(Qt.ArrowCursor)
-
-    def reset_view(self):
-        self.scale_factor = 1.0
-        self.offset = QPoint(0, 0)
-        self.update()
-
-    def wheelEvent(self, event: QWheelEvent):
-        if not self.enable_zoom_drag or self.original_pixmap.isNull():
-            event.ignore()
-            return
-
-        # 保存缩放前的状态
-        old_scale = self.scale_factor
-
-        # 计算缩放前的矩形（考虑当前偏移）
-        old_rect = self.calculateScaledRect()
-        old_rect_with_offset = old_rect.translated(self.offset)
-
-        # 获取鼠标位置
-        mouse_pos = event.position().toPoint()
-
-        # 判断缩放方向
-        if event.angleDelta().y() > 0:
-            # 向上滚，放大 - 这里限制最大缩放为50.0（5000%）
-            self.scale_factor = min(self.scale_factor * 1.1, 50.0)
-        else:
-            # 向下滚，缩小 - 这里限制最小缩放为0.01（1%）
-            self.scale_factor = max(self.scale_factor / 1.1, 0.01)
-
-        if abs(self.scale_factor - old_scale) < 0.001:
-            event.ignore()
-            return
-
-        # 智能缩放：以鼠标位置为中心
-        if old_rect_with_offset.width() > 0 and old_rect_with_offset.height() > 0:
-            # 计算鼠标在图片中的相对位置（考虑当前偏移）
-            rel_x = (mouse_pos.x() - old_rect_with_offset.x()) / old_rect_with_offset.width()
-            rel_y = (mouse_pos.y() - old_rect_with_offset.y()) / old_rect_with_offset.height()
-
-            # 确保比例在0-1范围内
-            rel_x = max(0.0, min(1.0, rel_x))
-            rel_y = max(0.0, min(1.0, rel_y))
-
-            # 计算缩放后的矩形（不考虑偏移）
-            new_rect = self.calculateScaledRect()
-
-            # 计算鼠标在新图片中的目标位置
-            target_x = mouse_pos.x() - rel_x * new_rect.width()
-            target_y = mouse_pos.y() - rel_y * new_rect.height()
-
-            # 更新偏移量：使鼠标位置对应的图片内容保持不变
-            self.offset = QPoint(
-                int(target_x - new_rect.x()),
-                int(target_y - new_rect.y())
-            )
-
-        self.update()
-        event.accept()
-
-    def can_drag(self):
-        """判断当前是否可以拖动图片"""
-        if not self.enable_zoom_drag or self.original_pixmap.isNull():
-            return False
-
-        # 计算缩放后的图片尺寸
-        scaled_width = self.original_pixmap.width() * self.scale_factor
-        scaled_height = self.original_pixmap.height() * self.scale_factor
-
-        # 只有当缩放后的图片尺寸大于窗口尺寸时，才允许拖动
-        widget_rect = self.rect()
-        return scaled_width > widget_rect.width() or scaled_height > widget_rect.height()
-
-    def mousePressEvent(self, event: QMouseEvent):
-        if not self.can_drag():
-            super().mousePressEvent(event)
-            return
-
-        if event.button() == Qt.LeftButton:
-            self.dragging = True
-            self.last_mouse_pos = event.position().toPoint()
-            self.setCursor(Qt.ClosedHandCursor)
-            event.accept()
-
-    def mouseMoveEvent(self, event: QMouseEvent):
-        if not self.enable_zoom_drag:
-            super().mouseMoveEvent(event)
-            return
-
-        current_pos = event.position().toPoint()
-
-        if self.dragging and self.can_drag():
-            delta = current_pos - self.last_mouse_pos
-            self.offset += delta
-            self.last_mouse_pos = current_pos
-            self.update()
-            event.accept()
-        elif not self.dragging and self.can_drag():
-            self.setCursor(Qt.OpenHandCursor)
-            event.accept()
-        else:
-            self.setCursor(Qt.ArrowCursor)
-
-    def mouseReleaseEvent(self, event: QMouseEvent):
-        if self.dragging and event.button() == Qt.LeftButton:
-            self.dragging = False
-            self.setCursor(Qt.ArrowCursor)
-            event.accept()
-        else:
-            super().mouseReleaseEvent(event)
-
-    def mouseDoubleClickEvent(self, event: QMouseEvent):
-        """鼠标双击事件：复原图像"""
-        if event.button() == Qt.LeftButton:
-            self.reset_view()
-            event.accept()
-        else:
-            super().mouseDoubleClickEvent(event)
-
-    def get_image_info(self):
-        if self.original_pixmap.isNull():
-            return "无图片"
-
-        return {
-            'width': self.original_pixmap.width(),
-            'height': self.original_pixmap.height(),
-            'input_type': type(self.image_input).__name__,
-            'has_alpha': self.original_pixmap.hasAlphaChannel()
-        }
-
-
 class ImageWidget(QWidget):
     """
     用于显示图片
@@ -589,8 +291,10 @@ class ImageWidget(QWidget):
     showFullScreen全屏显示
     """
 
-    def __init__(self, image_input):
+    def __init__(self, image_input=None):
         super().__init__()
+        if image_input is None:
+            image_input = np.full((224, 224, 3), fill_value=70, dtype=np.uint8)
         self.image_input = image_input
         self.original_pixmap = self._load_image(image_input)
         self.setMinimumSize(50, 50)
@@ -1005,7 +709,6 @@ class ImageWidget(QWidget):
             return
 
         # 创建全屏窗口
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
         self.fullscreen_window = QWidget()
         self.fullscreen_window.setWindowTitle("全屏查看 - 按ESC退出")
         self.fullscreen_window.setWindowFlags(
@@ -1246,6 +949,75 @@ class ImageWidget(QWidget):
                     self.exitFullScreen()
                     return True
         return super().eventFilter(obj, event)
+
+
+class WindowDesktop(QWidget):
+    """
+    用于创建Window系统下的桌面层级窗口
+    addWidget方法可以添加自定义的QWidget子类
+    """
+
+    def __init__(self, screen: QScreen):
+        super().__init__()
+        # 初始化widget
+        self.name = screen.name()
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)  # 移除所有边距（上、右、下、左）
+        self.creatWidget(screen)
+        for monitor in get_monitors():
+            if monitor.name == self.name:
+                # 计算缩放
+                self.dpi = min(monitor.width / self.width(),
+                               monitor.height / self.height())
+        self.show()
+
+    def creatWidget(self, screen: QScreen) -> tuple[str, QWidget]:
+        """创建一个桌面层级窗口"""
+        # 获取屏幕分辨率
+        # 排除任务栏时用 availableGeometry,不排除时用geometry
+        rect = screen.availableGeometry()
+        # 获取桌面 WorkerW 窗口（替代 Progman，避免层级遮挡）
+        # WorkerW 是 Windows 真正的桌面背景窗口，比 Progman 更稳定
+        self.progman_hwnd = win32gui.FindWindow("Progman", None)
+        win32gui.SendMessageTimeout(self.progman_hwnd, 0x052C, 0, 0, win32con.SMTO_NORMAL, 1000)
+        self.workerw_hwnd = None
+
+        # 枚举所有 WorkerW 窗口，找到带 SHELLDLL_DefView 子窗口的父窗口（背景窗口）
+        def enum_windows(hwnd, param):
+            if win32gui.IsWindowVisible(hwnd) and win32gui.FindWindowEx(hwnd, None, "SHELLDLL_DefView", None):
+                self.workerw_hwnd = win32gui.FindWindowEx(None, hwnd, "WorkerW", None)
+            return True
+
+        win32gui.EnumWindows(enum_windows, None)
+
+        # 绑定到 WorkerW（真正的背景窗口，无遮挡）
+        if self.workerw_hwnd:
+            win32gui.SetParent(int(self.winId()), self.workerw_hwnd)
+        else:
+            # 降级绑定到 Progman（兼容部分系统）
+            win32gui.SetParent(int(self.winId()), self.progman_hwnd)
+
+        # 窗口属性:极简配置,强制显示在背景
+        self.setWindowFlags(
+            Qt.FramelessWindowHint |
+            Qt.Tool |  # 工具窗口，不占任务栏
+            Qt.WindowStaysOnBottomHint  # 强制最底层
+        )
+        # 设置窗口尺寸和窗口位置
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setFixedSize(rect.width(), rect.height())
+        self.move(rect.x(), rect.y())
+
+        # 强制窗口显示在最底层(图标在上方)
+        win32gui.SetWindowPos(
+            int(self.winId()),
+            win32con.HWND_BOTTOM,
+            0, 0, rect.width(), rect.height(),
+            win32con.SWP_SHOWWINDOW | win32con.SWP_NOACTIVATE
+        )
+
+    def addWidget(self, widget: QWidget):
+        self.layout.addWidget(widget)
 
 
 if __name__ == '__main__':

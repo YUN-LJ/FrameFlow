@@ -5,6 +5,7 @@ from .Config import *
 class RigetWidget(Ui_RightWidget, QWidget):
     download_clicked = Signal(tuple)  # 发送(image_id,状态信息0:删除,1:重试,2:已完成)
     update_clicked = Signal(list)  # 发送待更新的key_wrod
+    like_button_clicked = Signal(str)  # 收藏夹列表删除按钮触发
 
     def __init__(self, parent=None):
         self.__parent = parent
@@ -13,7 +14,8 @@ class RigetWidget(Ui_RightWidget, QWidget):
         self.cell_items = {}
         # 存储了全部单元格元素
         # key_word:(checkBox,probar,lable,
-        # QTableWidgetItem,QTableWidgetItem,QTableWidgetItem,QTableWidgetItem)
+        # QTableWidgetItem,QTableWidgetItem,
+        # QTableWidgetItem,QTableWidgetItem,button)
         self.cell_items_like = {}
         super().__init__()
         self.setupUi(self)
@@ -72,35 +74,43 @@ class RigetWidget(Ui_RightWidget, QWidget):
         self.pushButton_choice_all_2.clicked.connect(choiceAll2)
 
     def addLike(self, key_word, last_page, total, date, updata_date):
-        row = self.tableWidget_like.rowCount()
-        self.tableWidget_like.insertRow(row)
-        self.tableWidget_like.setRowHeight(row, 50)
-        # 添加选择按钮
-        choice = QCheckBox(text=key_word)
-        self.tableWidget_like.setCellWidget(row, 0, choice)
-        # 添加进度条
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout_H = QHBoxLayout()
-        layout.setContentsMargins(0, 5, 0, 0)
-        layout_H.setContentsMargins(0, 0, 5, 5)
-        progress = QProgressBar(minimum=0, maximum=100, value=0)
-        label = QLabel(text='')
-        layout_H.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        layout_H.addWidget(label)
-        layout.addWidget(progress)
-        layout.addLayout(layout_H)
-        self.tableWidget_like.setCellWidget(row, 1, widget)
-        items = [choice, progress, label]
-        # 添加页数、总数、日期、上次更新日期
-        for count, text in enumerate([last_page, total, date, updata_date]):
-            # 转为QWitem对象
-            item = QTableWidgetItem(str(text))
-            item.setTextAlignment(Qt.AlignCenter)
-            # 添加子元素
-            self.tableWidget_like.setItem(row, count + 2, item)
-            items.append(item)
-        self.cell_items_like[key_word] = items
+        if key_word not in self.cell_items_like:
+            row = self.tableWidget_like.rowCount()
+            self.tableWidget_like.insertRow(row)
+            self.tableWidget_like.setRowHeight(row, 50)
+            # 添加选择按钮
+            choice = QCheckBox(text=key_word)
+            self.tableWidget_like.setCellWidget(row, 0, choice)
+            # 添加进度条
+            widget = QWidget()
+            layout = QVBoxLayout(widget)
+            layout_H = QHBoxLayout()
+            layout.setContentsMargins(0, 5, 0, 0)
+            layout_H.setContentsMargins(0, 0, 5, 5)
+            progress = QProgressBar(minimum=0, maximum=100, value=0)
+            label = QLabel(text='')
+            layout_H.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+            layout_H.addWidget(label)
+            layout.addWidget(progress)
+            layout.addLayout(layout_H)
+            self.tableWidget_like.setCellWidget(row, 1, widget)
+            items = [choice, progress, label]
+            # 添加页数、总数、日期、上次更新日期
+            for count, text in enumerate([last_page, total, date, updata_date]):
+                # 转为QWitem对象
+                item = QTableWidgetItem(str(text))
+                item.setTextAlignment(Qt.AlignCenter)
+                # 添加子元素
+                self.tableWidget_like.setItem(row, count + 2, item)
+                items.append(item)
+            # 添加操作按钮
+            button = PrimaryToolButton(FIF.DELETE)
+            button.clicked.connect(lambda _, value=key_word: self.like_button_clicked.emit(key_word))
+            self.tableWidget_like.setCellWidget(row, 6, button)
+            self.cell_items_like[key_word] = items
+            return True
+        else:
+            return False
 
     def addDownload(self, image_id):
         """下载表格添加数据"""
@@ -157,6 +167,26 @@ class RigetWidget(Ui_RightWidget, QWidget):
                 del self.cell_items[image_id]
                 # 删除行
                 self.tableWidget_download.removeRow(row)
+
+    def delLike(self, key_word):
+        """删除关键词"""
+        item: dict = self.cell_items_like.get(key_word, None)
+        if item is not None:
+            # 找到widget所在的行
+            row = -1
+            for r in range(self.tableWidget_like.rowCount()):
+                if self.tableWidget_like.cellWidget(r, 0).text() == key_word:
+                    row = r
+                    break
+            if row >= 0:
+                # 清理资源
+                for widget in item:
+                    if isinstance(widget, QWidget):
+                        widget.deleteLater()
+                # 从字典中移除
+                del self.cell_items_like[key_word]
+                # 删除行
+                self.tableWidget_like.removeRow(row)
 
     def displayStart(self, image_id):
         item = self.cell_items.get(image_id, None)
