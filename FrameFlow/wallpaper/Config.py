@@ -1,5 +1,5 @@
 """壁纸播放全局变量"""
-from Fun.Norm import file, get, ini, general
+from Fun.Norm import file, get, ini, general, ThreadSafe
 from Fun.Norm.image import Image_PIL, Image_Enum, set_wallpaper_API
 from Fun.GUI_Qt.PySide6Mod import WindowDesktop, ImageWidget
 from threading import Thread, Timer, Lock  # 定时器
@@ -23,13 +23,13 @@ IMAGE_DIR = [r'E:\user_file\Pictures\壁纸\wallhaven']  # 用户选择的图片
 IMAGE_TIME = 10.0  # 播放间隔,默认10秒
 IMAGE_TEMP_NUM = 3  # 图片缓冲数量,默认3张
 # 播放模式
-IMAGE_CUSTOM_MODE = 0  # 自定义模式,从用户选择的本地文件夹中读取照片
-IMAGE_KEY_MODE = 1  # 关键词模式,按照wallhaven模块中的收藏的关键词获取图像数据
-IMAGE_VIDEO_MODE = 2  # 视频模式,仅在IMAGE_WINDOWS_QT模式下支持
+IMAGE_CUSTOM_MODE = '用户模式'  # 自定义模式,从用户选择的本地文件夹中读取照片
+IMAGE_KEY_MODE = '收藏夹模式'  # 关键词模式,按照wallhaven模块中的收藏的关键词获取图像数据
+IMAGE_VIDEO_MODE = '视频模式'  # 视频模式,仅在IMAGE_WINDOWS_QT模式下支持
 # 播放接口
-IMAGE_WINDOWS_API = 0  # windows系统API播放壁纸
-IMAGE_WINDOWS_QT = 1  # windows系统使用qt创建桌面窗口播放壁纸
-IMAGE_LINUX_API = 0  # liunx系统API播放壁纸
+IMAGE_WINDOWS_API = 'windowx系统接口'  # windows系统API播放壁纸
+IMAGE_WINDOWS_QT = 'windowx系统QT接口'  # windows系统使用qt创建桌面窗口播放壁纸
+IMAGE_LINUX_API = 'Linux系统接口'  # liunx系统API播放壁纸
 # 播放历史
 IMAGE_HISTORY_COLUMNS = ['id']  # 如果是图像ID则去图像信息文件中查找图像的地址,如果是图像地址则直接排除
 IMAGE_HISTORY_DTYPE = {'id': 'str'}

@@ -2,8 +2,9 @@
 from wallpaper.Config import *
 
 # 加载配置文件
-if not file.check_exist(CONFIG_PATH):
+if not file.check_exist(CONFIG_PATH) or PACK_NAME not in ini.INI(CONFIG_PATH).get_sections():
     default_config()  # 生成默认配置文件
+
 load_config()  # 加载配置文件
 print(f'{__name__}配置文件加载成功')
 

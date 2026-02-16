@@ -57,7 +57,9 @@ class ImageQt:
             for widget, image_widegt in self.all_widget.values():
                 image_widegt.deleteLater()
                 widget.deleteLater()
+            self.all_widget = {}
             self.timer.stop()
+            self.isRunning = False
 
     def set_wallpaper(self, image: Image_PIL):
         """
@@ -81,7 +83,7 @@ class ImageQt:
 class ImageProcess:
     """图像处理类,采用子进程处理图像,将其结果返回到队列中"""
 
-    def __init__(self, result_queue: Queue, scaling_factor=1.0):
+    def __init__(self, scaling_factor=1.0):
         """
         :param result_queue:结果队列
         """
@@ -89,7 +91,7 @@ class ImageProcess:
         self.image_list = None  # 待处理列表
         self.scaling_factor = scaling_factor  # 缩放因子,图像的最终尺寸以屏幕尺寸乘以缩放因子
         self.screen_size = self.get_screen_size()  # 获取屏幕尺寸
-        self.result_queue = result_queue
+        self.result_queue = Queue(IMAGE_TEMP_NUM)  # 缓冲队列,默认三张
         self.process = Process(target=self.execute, name='ImageProcess')
 
     def set_image_list(self, image_list):
@@ -116,6 +118,14 @@ class ImageProcess:
         return (int(max_width * self.scaling_factor),
                 int(max_height * self.scaling_factor))
 
+    def get_image(self, timeout=3) -> tuple:
+        """获取图片"""
+        try:
+            result = self.result_queue.get(timeout=timeout)
+            return result
+        except Empty:
+            return None
+
     def execute(self):
         """执行器,执行单张图像的处理"""
         scale = self.screen_size[0] / self.screen_size[1]
@@ -123,6 +133,7 @@ class ImageProcess:
         for image_path in self.image_list:
             try:
                 image.open_image(image_path)
+                image_org = image.get_BytesIO
                 if not image.check_w_screen:
                     # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
                     w, h = image.get_size
@@ -132,7 +143,7 @@ class ImageProcess:
                     image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
                 image.resize(size=self.screen_size)
                 image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
-                self.result_queue.put((image_path, image))
+                self.result_queue.put((image_path, image, image_org))
             except Exception as e:
                 print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
                       f'错误文件名称:{image_path}')
@@ -145,8 +156,11 @@ class ImageProcess:
 
     def stop(self):
         """停止图像处理"""
-        self.process.kill()
-        self.isRunning = False
+        if self.isRunning:
+            self.process.kill()
+            self.process = Process(target=self.execute, name='ImageProcess')
+            self.result_queue = Queue(IMAGE_TEMP_NUM)  # 清空队列
+            self.isRunning = False
 
 
 class DataManager:

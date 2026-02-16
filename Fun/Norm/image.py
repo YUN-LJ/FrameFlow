@@ -144,6 +144,9 @@ class Image_PIL:
     @property
     def get_BytesIO(self) -> BytesIO:
         """转为BytesIO类型的图像"""
+        image = BytesIO()
+        self.__image.save(image, format='JPEG')
+        return image
 
     @property
     def get_PIL(self) -> ImageFile.ImageFile:

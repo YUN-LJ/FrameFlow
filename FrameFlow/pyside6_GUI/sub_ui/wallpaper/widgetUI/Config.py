@@ -18,4 +18,9 @@ from qfluentwidgets.components.widgets import (
 )
 from qfluentwidgets.components.widgets.button import PrimaryToolButton
 # UI
-from pyside6_GUI.sub_ui.wallpaper.ui.wallpaper_ui import Ui_wallpaper
+from pyside6_GUI.sub_ui.wallpaper.ui.wallpaper import Ui_wallpaper
+from pyside6_GUI.sub_ui.wallpaper.ui.RightWidget import Ui_rightwidget
+# 自定义库
+from Fun.GUI_Qt.PySide6Mod import ImageWidget
+# 壁纸播放库
+from wallpaper.WallPaperPlay import WallPaperPlay
