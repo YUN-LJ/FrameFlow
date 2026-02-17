@@ -61,21 +61,24 @@ class ImageQt:
             self.timer.stop()
             self.isRunning = False
 
-    def set_wallpaper(self, image: Image_PIL):
+    def set_wallpaper(self, image: np.ndarray):
         """
         设置壁纸
         :param image:图像
         """
         if self.isRunning:
-            image_w, image_h = image.get_size
+            image_w, image_h = image.shape[:2]
             image_scale = image_w / image_h
             for widget, image_widget in self.all_widget.values():
                 # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
                 screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
                 screen_scale = screen_size[0] / screen_size[1]
                 mode = Image_Enum.resize_stretch if abs(screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
-                image.resize(screen_size, stretch=mode)
-                image_widget.set_image(image.get_PIL)
+                # 重新缩放图像
+                image_progress = Image_PIL()
+                image_progress.open_image(image)
+                image_progress.resize(screen_size, stretch=mode)
+                image_widget.set_image(image_progress.get_array)
         else:
             print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper 请调用start方法后再使用')
 
@@ -118,7 +121,7 @@ class ImageProcess:
         return (int(max_width * self.scaling_factor),
                 int(max_height * self.scaling_factor))
 
-    def get_image(self, timeout=3) -> tuple:
+    def get_image(self, timeout=3) -> tuple[str, np.ndarray, np.ndarray] | None:
         """获取图片"""
         try:
             result = self.result_queue.get(timeout=timeout)
@@ -133,7 +136,7 @@ class ImageProcess:
         for image_path in self.image_list:
             try:
                 image.open_image(image_path)
-                image_org = image.get_BytesIO
+                image_org = image.get_array
                 if not image.check_w_screen:
                     # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
                     w, h = image.get_size
@@ -143,7 +146,7 @@ class ImageProcess:
                     image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
                 image.resize(size=self.screen_size)
                 image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
-                self.result_queue.put((image_path, image, image_org))
+                self.result_queue.put((image_path, image.get_array, image_org))
             except Exception as e:
                 print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
                       f'错误文件名称:{image_path}')

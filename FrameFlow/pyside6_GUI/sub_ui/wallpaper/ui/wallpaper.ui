@@ -39,11 +39,24 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>786</width>
+        <width>798</width>
         <height>58</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="PrimaryPushButton" name="pushButton_play">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>播放</string>
+         </property>
+        </widget>
+       </item>
        <item>
         <widget class="QLabel" name="label_mode">
          <property name="styleSheet">
@@ -80,15 +93,22 @@
         </widget>
        </item>
        <item>
-        <widget class="PrimaryPushButton" name="pushButton_play">
+        <widget class="QLabel" name="label">
+         <property name="styleSheet">
+          <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
+         </property>
+         <property name="text">
+          <string>播放间隔:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="SpinBox" name="spinBox_time">
          <property name="minimumSize">
           <size>
            <width>0</width>
            <height>40</height>
           </size>
-         </property>
-         <property name="text">
-          <string>播放</string>
          </property>
         </widget>
        </item>
@@ -136,6 +156,11 @@
   <customwidget>
    <class>ComboBox</class>
    <extends>QComboBox</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>SpinBox</class>
+   <extends>QSpinBox</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
  </customwidgets>

@@ -12,11 +12,11 @@ class WallPaperWin(Ui_wallpaper, QWidget):
             parent = self
         self.__parent = parent
         self.setupUi(self)
-        self.uiInit()  # 界面初始化
         self.image_play_signal.connect(self.dispalyImage)  # 壁纸播放信号,用于更新UI
         self.wallpaper = WallPaperPlay()  # 壁纸播放后端类
         self.wallpaper.image_play_signal.connect(
             lambda value: self.image_play_signal.emit(value))
+        self.uiInit()  # 界面初始化
         self.threadInit()  # 后台线程
         self.bind()  # 槽函数绑定
 
@@ -25,6 +25,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         # 设置按钮图标
         self.pushButton_set.setIcon(FIF.SETTING)
         self.pushButton_play.setIcon(FIF.PLAY)
+        self.spinBox_time.setValue(self.wallpaper.image_time)
         # 实例化左右布局
         self.left_widget = QWidget()
         self.right_widget = RightWidget(self.__parent)
@@ -65,6 +66,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
                 self.wallpaper.stop()
 
         self.pushButton_play.clicked.connect(pushButton_play)
+        self.spinBox_time.valueChanged.connect(self.wallpaper.set_time)
 
     def dispalyImage(self, value: tuple):
         """显示当前正在播放的图片"""

@@ -90,21 +90,24 @@ class Image_PIL:
         if image_path is not None:
             self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
 
-    def open_image(self, image_path: str) -> ImageFile.ImageFile | bool:
+    def open_image(self, image_input: str | np.ndarray) -> ImageFile.ImageFile | bool:
         """
         将图片加载为ImageFile对象
 
-        :param image_path:文件绝对路径
+        :param image_input:输入的图像
         :ruturn :图像不完整时会返回Flase,如果开启允许加载截断则会忽略图像完整性检查
         """
-        if not file.check_exist(image_path):
-            raise FileNotFoundError(f'{image_path}文件不存在')
-        if not file.check_image(image_path):
-            raise TypeError(f'{image_path}文件不是照片')
         # 允许加载截断图像
         ImageFile.LOAD_TRUNCATED_IMAGES = self.LOAD_TRUNCATED_IMAGES
-        self.__image = Image.open(image_path)
-        self.__image_path = image_path
+        if isinstance(image_input, str):
+            if not file.check_exist(image_input):
+                raise FileNotFoundError(f'{image_input}文件不存在')
+            if not file.check_image(image_input):
+                raise TypeError(f'{image_input}文件不是照片')
+            self.__image = Image.open(image_input)
+            self.__image_path = image_input
+        elif isinstance(image_input, np.ndarray):
+            self.__image = Image.fromarray(image_input)
         return self.__image
 
     @property
@@ -151,6 +154,9 @@ class Image_PIL:
     @property
     def get_PIL(self) -> ImageFile.ImageFile:
         return self.__image
+
+    def copy(self) -> ImageFile.ImageFile:
+        return self.__image.copy()
 
     def resize(self, size: tuple[int, int], stretch: str = Image_Enum.resize_auto,
                resample=Image.Resampling.LANCZOS) -> tuple[int, int]:

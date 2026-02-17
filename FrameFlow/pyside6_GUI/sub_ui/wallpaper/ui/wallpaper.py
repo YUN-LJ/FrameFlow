@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'wallpaper_ui.ui'
+## Form generated from reading UI file 'wallpaper.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.9.2
 ##
@@ -18,7 +18,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QScrollArea,
     QSizePolicy, QSpacerItem, QVBoxLayout, QWidget)
 
-from qfluentwidgets.components.widgets import (ComboBox, PrimaryPushButton)
+from qfluentwidgets.components.widgets import (ComboBox, PrimaryPushButton, SpinBox)
 
 class Ui_wallpaper(object):
     def setupUi(self, wallpaper):
@@ -34,9 +34,15 @@ class Ui_wallpaper(object):
         self.scrollArea_options.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 786, 58))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 798, 58))
         self.horizontalLayout_2 = QHBoxLayout(self.scrollAreaWidgetContents)
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.pushButton_play = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_play.setObjectName(u"pushButton_play")
+        self.pushButton_play.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout_2.addWidget(self.pushButton_play)
+
         self.label_mode = QLabel(self.scrollAreaWidgetContents)
         self.label_mode.setObjectName(u"label_mode")
         self.label_mode.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
@@ -52,11 +58,17 @@ class Ui_wallpaper(object):
 
         self.horizontalLayout_2.addWidget(self.comboBox_mode)
 
-        self.pushButton_play = PrimaryPushButton(self.scrollAreaWidgetContents)
-        self.pushButton_play.setObjectName(u"pushButton_play")
-        self.pushButton_play.setMinimumSize(QSize(0, 40))
+        self.label = QLabel(self.scrollAreaWidgetContents)
+        self.label.setObjectName(u"label")
+        self.label.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
-        self.horizontalLayout_2.addWidget(self.pushButton_play)
+        self.horizontalLayout_2.addWidget(self.label)
+
+        self.spinBox_time = SpinBox(self.scrollAreaWidgetContents)
+        self.spinBox_time.setObjectName(u"spinBox_time")
+        self.spinBox_time.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout_2.addWidget(self.spinBox_time)
 
         self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -86,12 +98,13 @@ class Ui_wallpaper(object):
 
     def retranslateUi(self, wallpaper):
         wallpaper.setWindowTitle(QCoreApplication.translate("wallpaper", u"wallpaper", None))
+        self.pushButton_play.setText(QCoreApplication.translate("wallpaper", u"\u64ad\u653e", None))
         self.label_mode.setText(QCoreApplication.translate("wallpaper", u"\u64ad\u653e\u6a21\u5f0f\u9009\u62e9:", None))
         self.comboBox_mode.setItemText(0, QCoreApplication.translate("wallpaper", u"\u7528\u6237\u6a21\u5f0f", None))
         self.comboBox_mode.setItemText(1, QCoreApplication.translate("wallpaper", u"\u6536\u85cf\u5939\u6a21\u5f0f", None))
         self.comboBox_mode.setItemText(2, QCoreApplication.translate("wallpaper", u"\u89c6\u9891\u6a21\u5f0f", None))
 
-        self.pushButton_play.setText(QCoreApplication.translate("wallpaper", u"\u64ad\u653e", None))
+        self.label.setText(QCoreApplication.translate("wallpaper", u"\u64ad\u653e\u95f4\u9694:", None))
         self.pushButton_set.setText(QCoreApplication.translate("wallpaper", u"\u8bbe\u7f6e", None))
     # retranslateUi
 

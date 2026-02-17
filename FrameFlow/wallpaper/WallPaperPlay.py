@@ -32,6 +32,19 @@ class WallPaperPlay:
     def set_api(self):
         """设置壁纸API"""
 
+    def set_time(self, timeout: float | int):
+        """设置播放间隔"""
+        if isinstance(timeout, (float, int)):
+            if self.image_play.is_alive():
+                self.image_play.cancel()
+            self.image_time = timeout
+            if self.isRunning:
+                self.image_play = Timer(self.image_time, self.execute)
+                self.image_play.daemon = True
+                self.image_play.start()
+        else:
+            raise TypeError(f'{PACK_NAME}.{self.__class__.__name__}.set_time 错误:输入不是浮点类型 {timeout}')
+
     def add_dir(self):
         """添加用户自定义文件夹"""
 
@@ -70,7 +83,7 @@ class WallPaperPlay:
                 QTimer.singleShot(0, self.image_qt.create)  # 创建桌面窗口
                 self.image_qt.set_wallpaper(image_progress)
             elif self.image_api == IMAGE_WINDOWS_API:
-                set_wallpaper_API(image_progress.get_PIL)
+                set_wallpaper_API(Image_PIL().open_image(image_progress))
             # 添加到历史数据中
             self.data_manager.add_history(name)
             # 重置定时器

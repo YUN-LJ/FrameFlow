@@ -11,6 +11,7 @@ class RightWidget(Ui_rightwidget, QWidget):
 
     def uiInit(self):
         """界面初始化"""
+        self.pushButton_open.setIcon(FIF.FOLDER)
         self.image_widget = ImageWidget()
         self.image_widget.enable_zoom_and_drag()
         self.horizontalLayout_2.addWidget(self.image_widget)
