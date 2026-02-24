@@ -20,7 +20,9 @@ from qfluentwidgets.components.widgets.button import PrimaryToolButton
 # UI
 from pyside6_GUI.sub_ui.wallpaper.ui.wallpaper import Ui_wallpaper
 from pyside6_GUI.sub_ui.wallpaper.ui.RightWidget import Ui_rightwidget
+from pyside6_GUI.sub_ui.wallpaper.ui.LeftWidget import Ui_leftwidget
 # 自定义库
 from Fun.GUI_Qt.PySide6Mod import ImageWidget
+from Fun.Norm import file
 # 壁纸播放库
 from wallpaper.WallPaperPlay import WallPaperPlay

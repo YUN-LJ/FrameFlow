@@ -86,16 +86,23 @@ class ImageQt:
 class ImageProcess:
     """图像处理类,采用子进程处理图像,将其结果返回到队列中"""
 
-    def __init__(self, scaling_factor=1.0):
+    def __init__(self, image_temp_num: int, scaling_factor=1.0):
         """
-        :param result_queue:结果队列
+        :param image_temp_num:图片缓冲数量
         """
         self.isRunning = False  # 是否正在运行
         self.image_list = None  # 待处理列表
+        self.image_temp_num = image_temp_num
         self.scaling_factor = scaling_factor  # 缩放因子,图像的最终尺寸以屏幕尺寸乘以缩放因子
         self.screen_size = self.get_screen_size()  # 获取屏幕尺寸
-        self.result_queue = Queue(IMAGE_TEMP_NUM)  # 缓冲队列,默认三张
+        self.result_queue = Queue(self.image_temp_num)  # 缓冲队列,默认三张
         self.process = Process(target=self.execute, name='ImageProcess')
+
+    def set_temp_num(self, image_temp_num: int):
+        """设置图像缓冲数量,如果正在运行中则会关闭处理进程"""
+        if self.isRunning:
+            self.stop()
+        self.image_temp_num = image_temp_num
 
     def set_image_list(self, image_list):
         """设置待处理列表,如果正在运行中则会关闭处理进程"""
@@ -153,8 +160,8 @@ class ImageProcess:
 
     def start(self):
         """开始图像处理"""
-        self.isRunning = True
-        if self.image_list is not None:
+        if self.image_list != []:
+            self.isRunning = True
             self.process.start()
 
     def stop(self):
@@ -162,7 +169,7 @@ class ImageProcess:
         if self.isRunning:
             self.process.kill()
             self.process = Process(target=self.execute, name='ImageProcess')
-            self.result_queue = Queue(IMAGE_TEMP_NUM)  # 清空队列
+            self.result_queue = Queue(self.image_temp_num)  # 清空队列
             self.isRunning = False
 
 

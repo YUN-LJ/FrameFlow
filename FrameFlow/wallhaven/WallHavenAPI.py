@@ -250,6 +250,7 @@ class WallHavenAPI:
         self.data_manager.auto_save_timer.start()  # 启动定时保存
 
     def stop(self):
+        print(f'{PACK_NAME}.{self.__class__.__name__} 正在停止...')
         self.isRunning = False
         # 停止全部任务
         with self.__task_dict.get_lock:
@@ -259,18 +260,16 @@ class WallHavenAPI:
         self.__executor_json.shutdown(wait=True)
         self.data_manager.stop()
         # 保存数据文件
-        print(f'{PACK_NAME}.保存数据...')
         self.data_manager.save(self.image_info_path, self.data_manager.IMAGE_INFO)
         self.data_manager.save(self.key_word_path, self.data_manager.KEY_WORD)
-        print(f'{PACK_NAME}.数据保存成功')
         # 保存配置文件
-        print(f'{PACK_NAME}.保存配置文件')
         save_config(self.download_dir,
                     self.get_categories(),
                     self.get_purity(),
                     self.num_work,
                     self.api_key
                     )
+        print(f'{PACK_NAME}.{self.__class__.__name__} 已停止。')
 
     def save_image(self, image_id: str, cover=False) -> bool:
         """

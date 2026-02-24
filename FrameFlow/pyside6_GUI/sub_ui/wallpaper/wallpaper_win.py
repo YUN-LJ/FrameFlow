@@ -1,10 +1,13 @@
 """壁纸播放UI"""
+import wallpaper
 from pyside6_GUI.sub_ui.wallpaper.ThreadTask import *
 from pyside6_GUI.sub_ui.wallpaper.widgetUI.rightWidget import RightWidget
+from pyside6_GUI.sub_ui.wallpaper.widgetUI.leftWidget import LeftWidget
 
 
 class WallPaperWin(Ui_wallpaper, QWidget):
-    image_play_signal = Signal(tuple)
+    image_play_signal = Signal(tuple)  # 用于子线程的壁纸切换时的信号(图像名称,图像数据)
+    image_erro_stop_signal = Signal(bool)  # 用于子线程的壁纸发生错误时的信号
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -13,12 +16,20 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         self.__parent = parent
         self.setupUi(self)
         self.image_play_signal.connect(self.dispalyImage)  # 壁纸播放信号,用于更新UI
+        self.image_erro_stop_signal.connect(self.pushButton_play.click)
         self.wallpaper = WallPaperPlay()  # 壁纸播放后端类
         self.wallpaper.image_play_signal.connect(
-            lambda value: self.image_play_signal.emit(value))
+            lambda value: self.image_play_signal.emit(value)
+        )  # 壁纸播放时发送当前播放的图片和名称
+        self.wallpaper.image_erro_stop_signal.connect(
+            lambda value: self.image_erro_stop_signal.emit(value)
+        )  # 壁纸播放时发生错误的信号
         self.uiInit()  # 界面初始化
         self.threadInit()  # 后台线程
         self.bind()  # 槽函数绑定
+
+        # 设置为上次关闭时的模式
+        self.comboBox_mode.setCurrentIndex(wallpaper.CONFIG['image_mode'])
 
     def uiInit(self):
         """界面初始化"""
@@ -27,7 +38,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         self.pushButton_play.setIcon(FIF.PLAY)
         self.spinBox_time.setValue(self.wallpaper.image_time)
         # 实例化左右布局
-        self.left_widget = QWidget()
+        self.left_widget = LeftWidget(self.wallpaper, self.__parent)
         self.right_widget = RightWidget(self.__parent)
         # 实例化进度对话框
         # self.load_dialog: LoadDialog = None
@@ -65,8 +76,14 @@ class WallPaperWin(Ui_wallpaper, QWidget):
                 self.pushButton_play.setIcon(FIF.PLAY)
                 self.wallpaper.stop()
 
+        def comboBox_mode(index: int):
+            """设置播放模式"""
+            self.wallpaper.set_mode(index)
+            self.left_widget.set_mode(index)
+
         self.pushButton_play.clicked.connect(pushButton_play)
         self.spinBox_time.valueChanged.connect(self.wallpaper.set_time)
+        self.comboBox_mode.currentIndexChanged.connect(comboBox_mode)
 
     def dispalyImage(self, value: tuple):
         """显示当前正在播放的图片"""
@@ -75,6 +92,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
 
     def closeEvent(self, event):
         super().closeEvent(event)
+        self.wallpaper.save_config()
         self.wallpaper.stop()
 
 
