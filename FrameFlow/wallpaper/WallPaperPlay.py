@@ -13,12 +13,13 @@ class WallPaperPlay:
     def __init__(self):
         # 类属性
         self.isRunning = False  # 是否正在运行
+        self.isPause = False  # 是否暂停
         self.image_mode = IMAGE_CUSTOM_MODE  # 默认为自定义模式,不同的播放模式将影响播放列表
         self.image_api = IMAGE_WINDOWS_QT  # 默认为使用QT作为底层窗口
         self.image_time = IMAGE_TIME  # 播放时间间隔
         self.image_dir = IMAGE_DIR  # 用户壁纸文件夹路径
         self.image_temp_num = IMAGE_TEMP_NUM  # 壁纸缓存数量
-        self.image_pause_time = None  # 上次暂停的时间,时间戳
+        self.image_pause_time = time.time()  # 上次暂停的时间,时间戳
         # 图像处理类
         self.image_process = ImageProcess(
             image_temp_num=self.image_temp_num, scaling_factor=1.0
@@ -120,7 +121,8 @@ class WallPaperPlay:
             # 重置定时器
             self.image_play = Timer(self.image_time, self.execute)  # 壁纸播放定时器
             self.image_play.daemon = True
-            self.image_play.start()
+            if not self.isPause:
+                self.image_play.start()
 
     def start(self):
         """开始播放"""
@@ -150,15 +152,15 @@ class WallPaperPlay:
     def pause(self, pause: bool = True):
         """暂停"""
         if self.isRunning:
-            if pause and self.image_play.is_alive():
-                self.image_play.cancel()
+            if pause and not self.isPause:
+                self.isPause = True
+                if self.image_play.is_alive():
+                    self.image_play.cancel()
                 self.image_pause_time = time.time()
-            elif not pause:
+            elif not pause and self.isPause:
+                self.isPause = False
                 diff_time = time.time() - self.image_pause_time  # 暂停了多久
-                if abs(diff_time - self.image_time) < 1:
-                    interval = 0
-                else:
-                    interval = self.image_time - diff_time
+                interval = min(abs(self.image_time - diff_time), self.image_time)
                 self.image_play = Timer(interval, self.execute)  # 壁纸播放定时器
                 self.image_play.daemon = True
                 self.image_play.start()

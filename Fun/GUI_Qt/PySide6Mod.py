@@ -293,7 +293,12 @@ class ImageWidget(QWidget):
     disable_zoom_and_drag关闭缩放和拖拽
     showFullScreen全屏显示
     """
-    mouseSignal = Signal(bool)  # 鼠标进入时发送True,离开时发送Flase,只在启用缩放和拖拽时生效
+    mouseEnterSignal = Signal(bool)  # 鼠标进入时发送True
+    mouseLeaveSignal = Signal(bool)  # 离开时发送True
+    mousePressSignal = Signal(bool)  # 鼠标按下时发送True,只在启用缩放和拖拽时生效
+    mouseReleaseSignal = Signal(bool)  # 鼠标松开时发送True,只在启用缩放和拖拽时生效
+    mouseDoubleSignal = Signal(bool)  # 鼠标双击时发送True,只在启用缩放和拖拽时生效
+    mouseWheelSignal = Signal(bool)  # 鼠标滚轮触发时发送True,只在启用缩放和拖拽时生效
     fullScreenSignal = Signal(bool)  # 进入全屏时发送True,退出全屏时发送Flase
 
     def __init__(self, image_input=None):
@@ -306,7 +311,8 @@ class ImageWidget(QWidget):
 
         # 缩放和拖动功能的状态
         self.enable_zoom_drag = False
-
+        # 是否全屏显示
+        self.isFull = False
         # 缩放相关参数
         self.scale_factor = 1.0
         self.offset = QPoint(0, 0)
@@ -507,6 +513,8 @@ class ImageWidget(QWidget):
         self.image_input = image_input
         self.original_pixmap = self._load_image(image_input)
         self.reset_view()
+        if self.isFull:
+            self.fullscreen_widget.update()
         return True  # 返回True表示已更新
 
     def paintEvent(self, event: QPaintEvent):
@@ -628,7 +636,7 @@ class ImageWidget(QWidget):
                 int(target_x - new_rect.x()),
                 int(target_y - new_rect.y())
             )
-
+        self.mouseWheelSignal.emit(True)
         self.update()
         event.accept()
 
@@ -654,6 +662,7 @@ class ImageWidget(QWidget):
             self.dragging = True
             self.last_mouse_pos = event.position().toPoint()
             self.setCursor(Qt.ClosedHandCursor)
+            self.mousePressSignal.emit(True)
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent):
@@ -676,19 +685,18 @@ class ImageWidget(QWidget):
             self.setCursor(Qt.ArrowCursor)
 
     def enterEvent(self, event: QEvent):
-        if self.enable_zoom_drag:
-            self.mouseSignal.emit(True)
+        self.mouseEnterSignal.emit(True)
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent):
-        if self.enable_zoom_drag:
-            self.mouseSignal.emit(False)
+        self.mouseLeaveSignal.emit(False)
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if self.dragging and event.button() == Qt.LeftButton:
             self.dragging = False
             self.setCursor(Qt.ArrowCursor)
+            self.mouseReleaseSignal.emit(False)
             event.accept()
         else:
             super().mouseReleaseEvent(event)
@@ -697,6 +705,7 @@ class ImageWidget(QWidget):
         """鼠标双击事件：复原图像"""
         if event.button() == Qt.LeftButton:
             self.reset_view()
+            self.mouseDoubleSignal.emit(True)
             event.accept()
         else:
             super().mouseDoubleClickEvent(event)
@@ -803,7 +812,7 @@ class ImageWidget(QWidget):
 
         # 强制更新显示
         self.fullscreen_widget.update()
-
+        self.isFull = True
         self.fullScreenSignal.emit(True)
 
     def exitFullScreen(self):
@@ -822,6 +831,7 @@ class ImageWidget(QWidget):
             self.fullscreen_widget = None
             self.info_bar = None
             self.esc_shortcut = None
+            self.isFull = False
             self.fullScreenSignal.emit(False)
 
     def fullscreenPaintEvent(self, event):

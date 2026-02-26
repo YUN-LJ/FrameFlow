@@ -33,7 +33,7 @@ class RightWidget(Ui_rightwidget, QWidget):
 
         def pause_play(value):
             self.isPause = value
-            self.pause_play_timer.start(500)
+            self.pause_play_timer.start(300)
 
         self.pushButton_open.clicked.connect(pushButton_open)
         self.pushButton_full.clicked.connect(self.image_widget.showFullScreen)
@@ -42,8 +42,10 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.pause_play_timer.setSingleShot(True)  # 单次触发
         self.pause_play_timer.timeout.connect(lambda: self.wallpaper.pause(self.isPause))
         # 触发暂停信号
-        self.image_widget.mouseSignal.connect(pause_play)
-        self.image_widget.fullScreenSignal.connect(pause_play)
+        self.image_widget.mousePressSignal.connect(lambda: pause_play(True))  # 鼠标按下时触发暂停
+        self.image_widget.mouseWheelSignal.connect(lambda: pause_play(True))  # 鼠标滚轮触发暂停
+        self.image_widget.mouseLeaveSignal.connect(lambda: pause_play(False))  # 鼠标离开时结束暂停
+        self.image_widget.fullScreenSignal.connect(pause_play)  # 进入全屏时触发暂停,退出全屏时结束暂停
 
     def setImage(self, image_name, image,
                  image_purity=None, image_categories=None,

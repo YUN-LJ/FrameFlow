@@ -67,18 +67,21 @@ class ImageQt:
         :param image:图像
         """
         if self.isRunning:
-            image_w, image_h = image.shape[:2]
-            image_scale = image_w / image_h
-            for widget, image_widget in self.all_widget.values():
-                # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
-                screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
-                screen_scale = screen_size[0] / screen_size[1]
-                mode = Image_Enum.resize_stretch if abs(screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
-                # 重新缩放图像
-                image_progress = Image_PIL()
-                image_progress.open_image(image)
-                image_progress.resize(screen_size, stretch=mode)
-                image_widget.set_image(image_progress.get_array)
+            try:
+                image_w, image_h = image.shape[:2]
+                image_scale = image_w / image_h
+                for widget, image_widget in self.all_widget.values():
+                    # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
+                    screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
+                    screen_scale = screen_size[0] / screen_size[1]
+                    mode = Image_Enum.resize_stretch if abs(screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
+                    # 重新缩放图像
+                    image_progress = Image_PIL()
+                    image_progress.open_image(image)
+                    image_progress.resize(screen_size, stretch=mode)
+                    image_widget.set_image(image_progress.get_array)
+            except Exception as e:
+                print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper {e}')
         else:
             print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper 请调用start方法后再使用')
 
