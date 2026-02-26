@@ -15,21 +15,10 @@ class WallPaperWin(Ui_wallpaper, QWidget):
             parent = self
         self.__parent = parent
         self.setupUi(self)
-        self.image_play_signal.connect(self.dispalyImage)  # 壁纸播放信号,用于更新UI
-        self.image_erro_stop_signal.connect(self.pushButton_play.click)
         self.wallpaper = WallPaperPlay()  # 壁纸播放后端类
-        self.wallpaper.image_play_signal.connect(
-            lambda value: self.image_play_signal.emit(value)
-        )  # 壁纸播放时发送当前播放的图片和名称
-        self.wallpaper.image_erro_stop_signal.connect(
-            lambda value: self.image_erro_stop_signal.emit(value)
-        )  # 壁纸播放时发生错误的信号
         self.uiInit()  # 界面初始化
         self.threadInit()  # 后台线程
         self.bind()  # 槽函数绑定
-
-        # 设置为上次关闭时的模式
-        self.comboBox_mode.setCurrentIndex(wallpaper.CONFIG['image_mode'])
 
     def uiInit(self):
         """界面初始化"""
@@ -39,7 +28,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         self.spinBox_time.setValue(self.wallpaper.image_time)
         # 实例化左右布局
         self.left_widget = LeftWidget(self.wallpaper, self.__parent)
-        self.right_widget = RightWidget(self.__parent)
+        self.right_widget = RightWidget(self.wallpaper, self.__parent)
         # 实例化进度对话框
         # self.load_dialog: LoadDialog = None
         # 创建QSplitter对象，指定为水平方向（左右分栏）
@@ -50,7 +39,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         self.splitter.addWidget(self.left_widget)
         self.splitter.addWidget(self.right_widget)
         # 设置初始比例,数字代表宽度像素
-        self.splitter.setSizes([500, 400])
+        self.splitter.setSizes([500, 300])
         # 设置分界线样式
         self.splitter.setStyleSheet(
             """QSplitter::handle { 
@@ -81,9 +70,32 @@ class WallPaperWin(Ui_wallpaper, QWidget):
             self.wallpaper.set_mode(index)
             self.left_widget.set_mode(index)
 
+        self.image_play_signal.connect(self.dispalyImage)  # 壁纸播放信号,用于更新UI
+        self.image_erro_stop_signal.connect(
+            lambda: (self.pushButton_play.click(),
+                     TeachingTip.create(
+                         target=self.pushButton_play,
+                         icon=InfoBarIcon.ERROR,
+                         title='播放错误',
+                         content=f'当前播放列表数量:{len(self.wallpaper.image_list)}张',
+                         isClosable=True,
+                         tailPosition=TeachingTipTailPosition.BOTTOM,
+                         duration=3000,
+                         parent=self.__parent)
+                     )
+        )
+        self.wallpaper.image_play_signal.connect(
+            lambda value: self.image_play_signal.emit(value)
+        )  # 壁纸播放时发送当前播放的图片和名称
+        self.wallpaper.image_erro_stop_signal.connect(
+            lambda value: self.image_erro_stop_signal.emit(value)
+        )  # 壁纸播放时发生错误的信号
         self.pushButton_play.clicked.connect(pushButton_play)
         self.spinBox_time.valueChanged.connect(self.wallpaper.set_time)
         self.comboBox_mode.currentIndexChanged.connect(comboBox_mode)
+        # 设置为上次关闭时的模式
+        self.comboBox_mode.setCurrentIndex(wallpaper.CONFIG['image_mode'])
+        comboBox_mode(wallpaper.CONFIG['image_mode'])
 
     def dispalyImage(self, value: tuple):
         """显示当前正在播放的图片"""
@@ -92,8 +104,9 @@ class WallPaperWin(Ui_wallpaper, QWidget):
 
     def closeEvent(self, event):
         super().closeEvent(event)
-        self.wallpaper.save_config()
         self.wallpaper.stop()
+        self.left_widget.close()  # 主动触发关闭事件
+        self.wallpaper.save_config()
 
 
 def main():

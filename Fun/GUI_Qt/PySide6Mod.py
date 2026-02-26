@@ -3,17 +3,20 @@
 """
 import os, numpy as np, cv2
 from io import BytesIO
+
+from PySide6 import QtCore
+
 from Fun.Norm import get
 import win32gui, win32con
 from screeninfo import get_monitors
 
-from PySide6.QtCore import Qt, QRect, QPoint, QEvent
+from PySide6.QtCore import Qt, QRect, QPoint, QEvent, Signal
 from PySide6.QtGui import (QWindow, QAction, QIcon, QShortcut, QScreen,
                            QPixmap, QPainter, QPaintEvent,
                            QImage, QWheelEvent, QMouseEvent)
 from PySide6.QtWidgets import (
     QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
-    QSystemTrayIcon, QMenu, QApplication
+    QSystemTrayIcon, QMenu, QApplication, QTableWidget
 )
 
 
@@ -290,6 +293,8 @@ class ImageWidget(QWidget):
     disable_zoom_and_drag关闭缩放和拖拽
     showFullScreen全屏显示
     """
+    mouseSignal = Signal(bool)  # 鼠标进入时发送True,离开时发送Flase,只在启用缩放和拖拽时生效
+    fullScreenSignal = Signal(bool)  # 进入全屏时发送True,退出全屏时发送Flase
 
     def __init__(self, image_input=None):
         super().__init__()
@@ -670,6 +675,16 @@ class ImageWidget(QWidget):
         else:
             self.setCursor(Qt.ArrowCursor)
 
+    def enterEvent(self, event: QEvent):
+        if self.enable_zoom_drag:
+            self.mouseSignal.emit(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent):
+        if self.enable_zoom_drag:
+            self.mouseSignal.emit(False)
+        super().leaveEvent(event)
+
     def mouseReleaseEvent(self, event: QMouseEvent):
         if self.dragging and event.button() == Qt.LeftButton:
             self.dragging = False
@@ -789,6 +804,8 @@ class ImageWidget(QWidget):
         # 强制更新显示
         self.fullscreen_widget.update()
 
+        self.fullScreenSignal.emit(True)
+
     def exitFullScreen(self):
         """退出全屏"""
         if self.fullscreen_window:
@@ -805,6 +822,7 @@ class ImageWidget(QWidget):
             self.fullscreen_widget = None
             self.info_bar = None
             self.esc_shortcut = None
+            self.fullScreenSignal.emit(False)
 
     def fullscreenPaintEvent(self, event):
         """全屏窗口的绘制事件"""
@@ -1081,6 +1099,100 @@ class WindowDesktop(QWidget):
         self.layout.addWidget(widget)
         for index in range(self.layout.count()):
             self.layout.setStretch(index, index)
+
+
+class EasyTableWidget(QTableWidget):
+    """简单的表格类"""
+    delWidgetSignal = Signal(QWidget)  # 有部件被删除时的信号
+    addWidgetSignal = Signal(QWidget)  # 有部件新增时的信号
+    realignSignal = Signal(bool)  # 单元格重新排布时的信号
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.__parent = parent
+        self.__widget_dict = {}  # 存储了每个QWidget类的创建函数
+
+    def getEmptyCoord(self, start_row: int = None, start_col: int = None, create=True) -> tuple[int, int]:
+        """
+        获取首个非空单元格的坐标
+        :param start_row: 从哪一行开始,默认从首行
+        :param start_col: 从那一列开始,默认从首列
+        :param create: 如果当前表格内无非空单元格是否允许创建新的行,默认允许
+        """
+        start_row = 0 if start_row is None else start_row
+        start_col = 0 if start_col is None else start_col
+        max_row = self.rowCount()
+        max_col = self.columnCount()
+        for cur_row in range(start_row, max_row):
+            for cur_col in range(start_col, max_col):
+                if self.cellWidget(cur_row, cur_col) is None:
+                    return cur_row, cur_col
+        self.insertRow(max_row)
+        self.setRowHeight(max_row, 100)
+        return max_row, 0
+
+    def getWidgetCoord(self, widget: QWidget):
+        """获取目标容器坐标"""
+        for target_row in range(self.rowCount()):
+            for target_col in range(self.columnCount()):
+                if self.cellWidget(target_row, target_col) == widget:
+                    return target_row, target_col
+
+    def addWidget(self, widget: QWidget, create_func: callable, emit=True) -> bool:
+        """
+        添加一个QWidget子类
+        :param widget:需要添加的部件
+        :param create_func:创建这个部件的函数,用于表格内位置调整
+        :param emit:是否发射信号
+        """
+        # 获取当前非空单元格位置,如果当前没有非空单元格则创建新的行
+        target_row, target_col = self.getEmptyCoord()
+        self.setCellWidget(target_row, target_col, widget)
+        self.__widget_dict[widget] = create_func
+        if emit:
+            self.addWidgetSignal.emit(widget)
+
+    def delWidget(self, widget: QWidget, deleteLater=True, emit=True):
+        """
+        删除一个QWidget子类
+        :param widget :需要删除的Qwidget类
+        :param deleteLater:彻底清除
+        :param emit:是否发射信号
+        """
+        target_row, target_col = self.getWidgetCoord(widget)  # 获取坐标
+        widget = self.cellWidget(target_row, target_col)
+        self.removeCellWidget(target_row, target_col)
+        if deleteLater:
+            widget.deleteLater()
+        if emit:
+            self.delWidgetSignal.emit(widget)
+
+    def realign(self, start_row: int = None, start_col: int = None):
+        """
+        重新调整当前表格单元格位置
+        :param start_row: 从哪一行开始,默认从首行
+        :param start_col: 从那一列开始,默认从首列
+        """
+        start_row = 0 if start_row is None else start_row
+        start_col = 0 if start_col is None else start_col
+        # 记录全部需要重新调整位置的QWidget
+        widgets = []
+        for cur_row in range(start_row, self.rowCount()):
+            for cur_col in range(start_col, self.columnCount()):
+                widget = self.cellWidget(cur_row, cur_col)
+                if widget is not None:
+                    widgets.append(widget)
+        # 重新创建QWidget类
+        for widget in widgets:
+            create_func = self.__widget_dict.get(widget, None)
+            if create_func is not None:
+                self.delWidget(widget, emit=False)
+                self.addWidget(create_func(), create_func, emit=False)
+        # 清除多余行
+        row, col = self.getEmptyCoord(create=False)
+        if col == 0:
+            self.removeRow(row)
+        self.realignSignal.emit(True)
 
 
 if __name__ == '__main__':

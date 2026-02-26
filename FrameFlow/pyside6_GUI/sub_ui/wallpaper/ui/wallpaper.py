@@ -67,6 +67,8 @@ class Ui_wallpaper(object):
         self.spinBox_time = SpinBox(self.scrollAreaWidgetContents)
         self.spinBox_time.setObjectName(u"spinBox_time")
         self.spinBox_time.setMinimumSize(QSize(0, 40))
+        self.spinBox_time.setMinimum(1)
+        self.spinBox_time.setMaximum(600)
 
         self.horizontalLayout_2.addWidget(self.spinBox_time)
 

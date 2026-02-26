@@ -99,14 +99,14 @@ class AddPage:
     def page_change(self, index: int) -> bool:
         """页面改变时"""
         global GUI
-        function_name = AddPage.page_dict.get(index, False)
+        function_name = self.page_dict.get(index, False)
         if function_name:
             if not self.widget.hBoxLayout.count():
                 window = function_name(GUI)
                 self.widget.hBoxLayout.addWidget(window)
-                AddPage.page_object[index] = window
+                self.page_object[index] = window
                 print(f'已添加子窗口{str(function_name)}')
-                # AddPage.page_object.update({function_name: window})
+                # self.page_object.update({function_name: window})
             return True
         else:
             return False

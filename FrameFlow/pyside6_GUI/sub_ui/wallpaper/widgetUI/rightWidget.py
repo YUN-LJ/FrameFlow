@@ -4,11 +4,13 @@ from pyside6_GUI.sub_ui.wallpaper.widgetUI.Config import *
 
 class RightWidget(Ui_rightwidget, QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, wallpaper: WallPaperPlay, parent=None):
         super().__init__()
         self.__parent = parent
+        self.wallpaper = wallpaper
         self.image_name = None  # 当前图像的名称
         self.image = None  # 当前图像数据
+        self.isPause = False  # 是否暂停
         self.setupUi(self)
         self.uiInit()
         self.bind()
@@ -16,6 +18,7 @@ class RightWidget(Ui_rightwidget, QWidget):
     def uiInit(self):
         """界面初始化"""
         self.pushButton_open.setIcon(FIF.FOLDER)
+        self.pushButton_full.setIcon(FIF.FIT_PAGE)
         self.image_widget = ImageWidget()
         self.image_widget.enable_zoom_and_drag()
         self.horizontalLayout_2.addWidget(self.image_widget)
@@ -28,8 +31,19 @@ class RightWidget(Ui_rightwidget, QWidget):
                 else:
                     pass
 
+        def pause_play(value):
+            self.isPause = value
+            self.pause_play_timer.start(500)
+
         self.pushButton_open.clicked.connect(pushButton_open)
         self.pushButton_full.clicked.connect(self.image_widget.showFullScreen)
+        # 防抖定时器
+        self.pause_play_timer = QTimer()
+        self.pause_play_timer.setSingleShot(True)  # 单次触发
+        self.pause_play_timer.timeout.connect(lambda: self.wallpaper.pause(self.isPause))
+        # 触发暂停信号
+        self.image_widget.mouseSignal.connect(pause_play)
+        self.image_widget.fullScreenSignal.connect(pause_play)
 
     def setImage(self, image_name, image,
                  image_purity=None, image_categories=None,

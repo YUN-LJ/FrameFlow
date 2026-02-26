@@ -20,7 +20,7 @@ CONFIG_DIR = os.path.join(RUN_PATH, 'config')
 CONFIG_PATH = os.path.join(CONFIG_DIR, 'config.ini')
 IMAGE_HISTORY_PATH = os.path.join(CONFIG_DIR, 'image_history.feather')
 # 壁纸播放,运行时会被修改,需要从实例中获取
-IMAGE_DIR = [r'E:\user_file\Pictures\壁纸\wallhaven']  # 用户选择的图片文件夹
+IMAGE_DIR = []  # 用户选择的图片文件夹
 IMAGE_TIME = 10.0  # 播放间隔,默认10秒
 IMAGE_TEMP_NUM = 3  # 图片缓冲数量,默认3张
 # 播放模式
@@ -69,8 +69,8 @@ def load_config():
     global IMAGE_DIR, IMAGE_TIME, IMAGE_TEMP_NUM, IMAGE_HISTORY, CONFIG
     config = ini.INI(CONFIG_PATH, 'wallpaper')
     CONFIG = config.get_values()
-
-    IMAGE_DIR = CONFIG['image_dir'].split(';')
+    if CONFIG['image_dir'] != '':
+        IMAGE_DIR = CONFIG['image_dir'].split(';')
     IMAGE_TIME = float(CONFIG['image_time'])
     IMAGE_TEMP_NUM = int(CONFIG['image_temp_num'])
     CONFIG['image_mode'] = int(CONFIG['image_mode'])
