@@ -107,6 +107,11 @@ class WallPaperPlay:
                 return
             else:
                 name, image_progress, image_org = result
+                if name is None and image_progress is None and image_org is None:
+                    print(f'{PACK_NAME}.{self.__class__.__name__} 播放队列播放完成,准备重启')
+                    self.data_manager.clear_history()
+                    self.restart()
+                    return
             # image.show_image(3000)  # 显示图像
             print(f'壁纸播放:{PACK_NAME}.{self.__class__.__name__}.execute'
                   f'\n名称:{name} 时间{get.now_time()}')

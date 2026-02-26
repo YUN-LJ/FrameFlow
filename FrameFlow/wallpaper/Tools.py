@@ -74,7 +74,8 @@ class ImageQt:
                     # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
                     screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
                     screen_scale = screen_size[0] / screen_size[1]
-                    mode = Image_Enum.resize_stretch if abs(screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
+                    mode = Image_Enum.resize_stretch if abs(
+                        screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
                     # 重新缩放图像
                     image_progress = Image_PIL()
                     image_progress.open_image(image)
@@ -160,6 +161,7 @@ class ImageProcess:
             except Exception as e:
                 print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
                       f'错误文件名称:{image_path}')
+        self.result_queue.put((None, None, None))
 
     def start(self):
         """开始图像处理"""
