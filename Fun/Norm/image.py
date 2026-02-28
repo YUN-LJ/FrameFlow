@@ -1,13 +1,8 @@
 """提供简易的照片处理"""
-import os, math
+import os, math, cv2, numpy as np
 from io import BytesIO
-import cv2
-import numpy as np
 from PIL import Image, ImageFile
-
-from . import file, get
-
-# from multiprocessing.dummy import Pool#多线程
+from Fun.Norm import file, get
 
 IMAGE_EXTENSION = {'png', 'jpg', 'jpeg'}  # 照片格式
 
@@ -75,34 +70,44 @@ def set_wallpaper_API(image_data) -> bool:
     return True
 
 
+class Image_Enum:
+    """图像处理类的枚举值"""
+    resize_auto = '自动'
+    resize_fill = '填充'
+    resize_stretch = '拉伸'
+    resize_cut = '剪裁'
+
+
 class Image_PIL:
+    """图像处理类,基于PIL库封装"""
     # 是否允许加载截断的图片文件,默认为不允许
     LOAD_TRUNCATED_IMAGES = False
 
-    def __init__(self, image_path: str = None):
+    def __init__(self, image_path: str = None, load_trunc_images: bool = False):
         self.__image_path = image_path  # 照片路径
+        if load_trunc_images:
+            self.LOAD_TRUNCATED_IMAGES = True
         if image_path is not None:
             self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
 
-    def open_image(self, image_path: str) -> ImageFile.ImageFile | bool:
+    def open_image(self, image_input: str | np.ndarray) -> ImageFile.ImageFile | bool:
         """
         将图片加载为ImageFile对象
 
-        :param image_path:文件绝对路径
+        :param image_input:输入的图像
         :ruturn :图像不完整时会返回Flase,如果开启允许加载截断则会忽略图像完整性检查
         """
-        if not file.check_exist(image_path):
-            raise FileNotFoundError(f'{image_path}文件不存在')
-        if not file.check_image(image_path):
-            raise TypeError(f'{image_path}文件不是照片')
-        self.__image = Image.open(image_path)
-        if Image_PIL.LOAD_TRUNCATED_IMAGES:
-            # 允许加载截断图像
-            ImageFile.LOAD_TRUNCATED_IMAGES = True
-        else:
-            # 不允许加载截断图像
-            ImageFile.LOAD_TRUNCATED_IMAGES = False
-        self.__image_path = image_path
+        # 允许加载截断图像
+        ImageFile.LOAD_TRUNCATED_IMAGES = self.LOAD_TRUNCATED_IMAGES
+        if isinstance(image_input, str):
+            if not file.check_exist(image_input):
+                raise FileNotFoundError(f'{image_input}文件不存在')
+            if not file.check_image(image_input):
+                raise TypeError(f'{image_input}文件不是照片')
+            self.__image = Image.open(image_input)
+            self.__image_path = image_input
+        elif isinstance(image_input, np.ndarray):
+            self.__image = Image.fromarray(image_input)
         return self.__image
 
     @property
@@ -115,7 +120,7 @@ class Image_PIL:
             return False
 
     @property
-    def check_image(self):
+    def check_image(self) -> bool:
         """检查图像是否完整"""
         try:
             self.__image.load()
@@ -142,12 +147,19 @@ class Image_PIL:
     @property
     def get_BytesIO(self) -> BytesIO:
         """转为BytesIO类型的图像"""
+        image = BytesIO()
+        self.__image.save(image, format='JPEG')
+        return image
+
     @property
-    def get_PIL(self)->ImageFile.ImageFile:
+    def get_PIL(self) -> ImageFile.ImageFile:
         return self.__image
 
+    def copy(self) -> ImageFile.ImageFile:
+        return self.__image.copy()
 
-    def resize(self, size: tuple[int, int], stretch: str = 'w', resample=Image.Resampling.LANCZOS) -> tuple[int, int]:
+    def resize(self, size: tuple[int, int], stretch: str = Image_Enum.resize_auto,
+               resample=Image.Resampling.LANCZOS) -> tuple[int, int]:
         """
         将照片按照指定尺寸输出
         图像缩放，通过resize()方法来实现
@@ -159,22 +171,45 @@ class Image_PIL:
         Image.Resampling.BOX：平均池化缩放（适合缩小图像）
 
         :param size:缩放到的目标尺寸(w,h)
-        :param stretch:是否拉伸,默认按照'w',可选值('w':保证w为目标尺寸,'h':保证h为目标尺寸,'wh',保证wh均为目标尺寸)
+        :param stretch:缩放方式,默认按照最接近目标分辨率的尺寸进行缩放,即宽更接近则按照宽为目标分辨率,高保存比例
+                       其余可选值:
+                       拉伸:强制分辨率与目标值一致
+                       填充:默认值上对不足目标分辨率的一边进行平均色填充
+                       剪裁:进行中心裁剪确保尺寸与目标分别率一致
+
         :param resample:缩放插值方法
         :return :w,h 返回实际的宽高
         """
+
+        def auto_size():
+            """自动计算宽高缩放,保持比例"""
+            diff_width = abs(size[0] - original_width)
+            diff_height = abs(size[1] - original_height)
+            if diff_width > diff_height:  # 按高度缩放
+                height = size[1]
+                width = int(scale * height)
+            else:  # 按宽度缩放
+                width = size[0]
+                height = int(width / scale)
+            return width, height
+
         # 计算原图宽高比
-        scale = self.get_size[0] / self.get_size[1]
-        if stretch == 'w':
-            width = int(size[0])
-            height = int(width // scale)
-        elif stretch == 'h':  # 拉伸缩放时直接采用指定的分辨率
-            height = int(size[1])
-            width = int(scale * height)
-        elif stretch == 'wh':
-            width = int(size[0])
-            height = int(size[1])
-        self.__image = self.__image.resize((width, height), resample)
+        original_width, original_height = self.get_size
+        scale = original_width / original_height
+        if stretch == Image_Enum.resize_auto:  # 自动计算图像宽高最接近目标分辨率的一条
+            width, height = auto_size()
+            self.__image = self.__image.resize((width, height), resample)
+        elif stretch == Image_Enum.resize_fill:
+            width, height = auto_size()
+            # 创建一个目标尺寸画布
+            value = self.get_array.mean(axis=(0, 1)).astype(int)  # 计算图像的每个通道的平均值
+            canvas = Image.new('RGB', size, tuple(value))
+            canvas.paste(self.__image.resize((width, height), resample),
+                         ((size[0] - width) // 2, (size[1] - height) // 2))
+            self.__image = canvas
+        elif stretch == Image_Enum.resize_stretch:
+            width, height = size
+            self.__image = self.__image.resize((width, height), resample)
         return width, height
 
     def zip(self, max_size=15, quality=100) -> ImageFile.ImageFile:
@@ -224,11 +259,12 @@ class Image_PIL:
             )
         return self.__image
 
-    def merge(self, other_half: str = 'self', w=True):
+    def merge(self, other_half: str = 'self', num: int = 1, w=True):
         """
         将两张照片拼接起来
 
         :param other_half:另一张照片的路径,如果是self则是自我拼接
+        :param num:拼接几份
         :param w: 沿w方向拼接
         """
         # 将两张同高度的照片拼接起来
@@ -236,15 +272,15 @@ class Image_PIL:
         if image_path == 'self':
             width, height = self.get_size  # 获取长宽信息
             if w:
-                image_target = Image.new('RGB', (width * 2, height))
-                image_target.paste(self.__image, box=(0, 0))
-                image_target.paste(self.__image, box=(width, 0))
+                image_target = Image.new('RGB', (width * (num + 1), height))
+                for i in range(num + 1):
+                    image_target.paste(self.__image, box=(i * width, 0))
                 self.__image = image_target
                 return self.__image
             else:
-                image_target = Image.new('RGB', (width, height * 2))
-                image_target.paste(self.__image, box=(0, 0))
-                image_target.paste(self.__image, box=(0, height))
+                image_target = Image.new('RGB', (width, height * (num + 1)))
+                for i in range(num + 1):
+                    image_target.paste(self.__image, box=(0, i * height))
                 self.__image = image_target
                 return self.__image
         else:

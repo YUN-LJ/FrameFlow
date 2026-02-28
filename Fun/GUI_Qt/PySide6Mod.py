@@ -3,17 +3,20 @@
 """
 import os, numpy as np, cv2
 from io import BytesIO
+
+from PySide6 import QtCore
+
 from Fun.Norm import get
 import win32gui, win32con
 from screeninfo import get_monitors
 
-from PySide6.QtCore import Qt, QRect, QPoint, QEvent
+from PySide6.QtCore import Qt, QRect, QPoint, QEvent, Signal
 from PySide6.QtGui import (QWindow, QAction, QIcon, QShortcut, QScreen,
                            QPixmap, QPainter, QPaintEvent,
                            QImage, QWheelEvent, QMouseEvent)
 from PySide6.QtWidgets import (
     QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
-    QSystemTrayIcon, QMenu, QApplication
+    QSystemTrayIcon, QMenu, QApplication, QTableWidget
 )
 
 
@@ -290,6 +293,13 @@ class ImageWidget(QWidget):
     disable_zoom_and_drag关闭缩放和拖拽
     showFullScreen全屏显示
     """
+    mouseEnterSignal = Signal(bool)  # 鼠标进入时发送True
+    mouseLeaveSignal = Signal(bool)  # 离开时发送True
+    mousePressSignal = Signal(bool)  # 鼠标按下时发送True,只在启用缩放和拖拽时生效
+    mouseReleaseSignal = Signal(bool)  # 鼠标松开时发送True,只在启用缩放和拖拽时生效
+    mouseDoubleSignal = Signal(bool)  # 鼠标双击时发送True,只在启用缩放和拖拽时生效
+    mouseWheelSignal = Signal(bool)  # 鼠标滚轮触发时发送True,只在启用缩放和拖拽时生效
+    fullScreenSignal = Signal(bool)  # 进入全屏时发送True,退出全屏时发送Flase
 
     def __init__(self, image_input=None):
         super().__init__()
@@ -301,7 +311,8 @@ class ImageWidget(QWidget):
 
         # 缩放和拖动功能的状态
         self.enable_zoom_drag = False
-
+        # 是否全屏显示
+        self.isFull = False
         # 缩放相关参数
         self.scale_factor = 1.0
         self.offset = QPoint(0, 0)
@@ -502,6 +513,8 @@ class ImageWidget(QWidget):
         self.image_input = image_input
         self.original_pixmap = self._load_image(image_input)
         self.reset_view()
+        if self.isFull:
+            self.fullscreen_widget.update()
         return True  # 返回True表示已更新
 
     def paintEvent(self, event: QPaintEvent):
@@ -623,7 +636,7 @@ class ImageWidget(QWidget):
                 int(target_x - new_rect.x()),
                 int(target_y - new_rect.y())
             )
-
+        self.mouseWheelSignal.emit(True)
         self.update()
         event.accept()
 
@@ -649,6 +662,7 @@ class ImageWidget(QWidget):
             self.dragging = True
             self.last_mouse_pos = event.position().toPoint()
             self.setCursor(Qt.ClosedHandCursor)
+            self.mousePressSignal.emit(True)
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent):
@@ -670,10 +684,19 @@ class ImageWidget(QWidget):
         else:
             self.setCursor(Qt.ArrowCursor)
 
+    def enterEvent(self, event: QEvent):
+        self.mouseEnterSignal.emit(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent):
+        self.mouseLeaveSignal.emit(False)
+        super().leaveEvent(event)
+
     def mouseReleaseEvent(self, event: QMouseEvent):
         if self.dragging and event.button() == Qt.LeftButton:
             self.dragging = False
             self.setCursor(Qt.ArrowCursor)
+            self.mouseReleaseSignal.emit(False)
             event.accept()
         else:
             super().mouseReleaseEvent(event)
@@ -682,6 +705,7 @@ class ImageWidget(QWidget):
         """鼠标双击事件：复原图像"""
         if event.button() == Qt.LeftButton:
             self.reset_view()
+            self.mouseDoubleSignal.emit(True)
             event.accept()
         else:
             super().mouseDoubleClickEvent(event)
@@ -788,6 +812,8 @@ class ImageWidget(QWidget):
 
         # 强制更新显示
         self.fullscreen_widget.update()
+        self.isFull = True
+        self.fullScreenSignal.emit(True)
 
     def exitFullScreen(self):
         """退出全屏"""
@@ -805,6 +831,8 @@ class ImageWidget(QWidget):
             self.fullscreen_widget = None
             self.info_bar = None
             self.esc_shortcut = None
+            self.isFull = False
+            self.fullScreenSignal.emit(False)
 
     def fullscreenPaintEvent(self, event):
         """全屏窗口的绘制事件"""
@@ -956,26 +984,58 @@ class WindowDesktop(QWidget):
     用于创建Window系统下的桌面层级窗口
     addWidget方法可以添加自定义的QWidget子类
     """
+    main_dpi = None  # 主屏幕的DPI
 
     def __init__(self, screen: QScreen):
         super().__init__()
-        # 初始化widget
+        # 实例属性
         self.name = screen.name()
-        self.layout = QHBoxLayout(self)
+        self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)  # 移除所有边距（上、右、下、左）
-        self.creatWidget(screen)
-        for monitor in get_monitors():
-            if monitor.name == self.name:
-                # 计算缩放
-                self.dpi = min(monitor.width / self.width(),
-                               monitor.height / self.height())
-        self.show()
-
-    def creatWidget(self, screen: QScreen) -> tuple[str, QWidget]:
-        """创建一个桌面层级窗口"""
-        # 获取屏幕分辨率
+        # 获取屏幕分辨率,初始化完成后会变成以屏幕左上角为准的x,y 宽高以主屏幕缩放为准
         # 排除任务栏时用 availableGeometry,不排除时用geometry
-        rect = screen.availableGeometry()
+        self.rect = screen.availableGeometry()
+        self.dpi: float = None  # 所在屏幕的DPI
+        # 计算DPI
+        for monitor in get_monitors():
+            # 计算所在屏幕的DPI
+            if monitor.name == self.name or (monitor.x == self.rect.x() and monitor.y == self.rect.y()):
+                self.dpi = round(monitor.width / screen.geometry().width(), 2)
+            # 计算主屏幕DPI
+            if self.main_dpi is None and monitor.x == 0 and monitor.y == 0:
+                for i in QApplication.screens():
+                    rect = i.geometry()
+                    if rect.x() == 0 and rect.y() == 0:  # 主屏幕
+                        self.main_dpi = round(monitor.width / rect.width(), 2)
+        # 初始化widget
+        self.uiIinit()  # 窗口初始化
+        self.embedWidget()  # 嵌入WorkerW
+        self.show()  # 显示窗口
+        # 调试信息
+        # self.addWidget(QLabel(
+        #     text=f'设备名称:{self.name}\n'
+        #          f'窗口坐标:(x:{self.rect.x()} y:{self.rect.y()} w:{self.rect.width()} h:{self.rect.height()})\n'
+        #          f'DPI:{self.dpi} 主屏幕DPI:{self.main_dpi}')
+        # )
+
+    def uiIinit(self):
+        """窗口初始化"""
+        # 将相对主屏幕坐标换算为相对左上角坐标
+        offset, normalized_rects = self.get_normalized_screen_geometries()
+        self.rect.setRect(normalized_rects[self.name].x(),
+                          normalized_rects[self.name].y(),
+                          int(self.rect.width() * self.dpi / self.main_dpi),
+                          int(self.rect.height() * self.dpi / self.main_dpi))
+        # 窗口属性:极简配置,强制显示在背景
+        self.setWindowFlags(
+            Qt.FramelessWindowHint | Qt.Tool |  # 工具窗口，不占任务栏
+            Qt.WindowStaysOnBottomHint)  # 强制最底层
+        # 设置窗口尺寸需要以主屏幕DPI来计算
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setFixedSize(self.rect.width(), self.rect.height())
+
+    def embedWidget(self) -> tuple[str, QWidget]:
+        """嵌入窗口"""
         # 获取桌面 WorkerW 窗口（替代 Progman，避免层级遮挡）
         # WorkerW 是 Windows 真正的桌面背景窗口，比 Progman 更稳定
         self.progman_hwnd = win32gui.FindWindow("Progman", None)
@@ -989,35 +1049,160 @@ class WindowDesktop(QWidget):
             return True
 
         win32gui.EnumWindows(enum_windows, None)
-
         # 绑定到 WorkerW（真正的背景窗口，无遮挡）
         if self.workerw_hwnd:
             win32gui.SetParent(int(self.winId()), self.workerw_hwnd)
+            # 配置窗口属性:窗口显示在最底层(图标在上方)
+            win32gui.SetWindowPos(
+                int(self.winId()),  # 窗口句柄
+                win32con.HWND_BOTTOM,  # 将窗口置于 Z 序的底部
+                self.rect.x(), self.rect.y(), 0, 0,  # 窗口坐标(x,y,w,h),坐标左上角屏幕为原点
+                # win32con.SWP_NOMOVE |  # 忽略x, y坐标
+                win32con.SWP_NOSIZE |  # 忽略w,h坐标
+                win32con.SWP_SHOWWINDOW |  # 显示窗口
+                win32con.SWP_NOACTIVATE  # 不将窗口激活（不使其获得焦点）
+            )
         else:
-            # 降级绑定到 Progman（兼容部分系统）
-            win32gui.SetParent(int(self.winId()), self.progman_hwnd)
+            raise ValueError(f'{__name__}.{self.__class__.__name__}.embedWidget 未找到WorkerW')
 
-        # 窗口属性:极简配置,强制显示在背景
-        self.setWindowFlags(
-            Qt.FramelessWindowHint |
-            Qt.Tool |  # 工具窗口，不占任务栏
-            Qt.WindowStaysOnBottomHint  # 强制最底层
-        )
-        # 设置窗口尺寸和窗口位置
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setFixedSize(rect.width(), rect.height())
-        self.move(rect.x(), rect.y())
+    @staticmethod
+    def get_normalized_screen_geometries() -> tuple[QPoint, dict[str:QRect]]:
+        """
+        获取归一化的屏幕几何信息,原点在所有屏幕的最左上角
 
-        # 强制窗口显示在最底层(图标在上方)
-        win32gui.SetWindowPos(
-            int(self.winId()),
-            win32con.HWND_BOTTOM,
-            0, 0, rect.width(), rect.height(),
-            win32con.SWP_SHOWWINDOW | win32con.SWP_NOACTIVATE
-        )
+        Returns:
+            Tuple[QPoint, List[QRect]]:
+                - 第一个元素是全局偏移量（最左上角的点）
+                - 第二个元素是调整后的屏幕矩形列表
+        """
+        screens = QApplication.screens()
+
+        if not screens:
+            return QPoint(0, 0), []
+
+        # 计算最小x和最小y
+        min_x = 0
+        min_y = 0
+
+        for screen in screens:
+            rect = screen.geometry()
+            min_x = min(min_x, rect.x())
+            min_y = min(min_y, rect.y())
+
+        # 创建偏移量
+        offset = QPoint(min_x, min_y)
+
+        # 转换每个屏幕的坐标
+        normalized_rects = {}
+        for screen in screens:
+            original_rect = screen.geometry()
+            adjusted_top_left = original_rect.topLeft() - offset
+            normalized_rects.update({screen.name(): QRect(adjusted_top_left, original_rect.size())})
+
+        return offset, normalized_rects
+
+    def getWidgetCount(self) -> int:
+        """获取布局内控件数量"""
+        return self.layout.count()
 
     def addWidget(self, widget: QWidget):
         self.layout.addWidget(widget)
+        for index in range(self.layout.count()):
+            self.layout.setStretch(index, index)
+
+
+class EasyTableWidget(QTableWidget):
+    """简单的表格类"""
+    delWidgetSignal = Signal(QWidget)  # 有部件被删除时的信号
+    addWidgetSignal = Signal(QWidget)  # 有部件新增时的信号
+    realignSignal = Signal(bool)  # 单元格重新排布时的信号
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.__parent = parent
+        self.__widget_dict = {}  # 存储了每个QWidget类的创建函数
+
+    def getEmptyCoord(self, start_row: int = None, start_col: int = None, create=True) -> tuple[int, int]:
+        """
+        获取首个非空单元格的坐标
+        :param start_row: 从哪一行开始,默认从首行
+        :param start_col: 从那一列开始,默认从首列
+        :param create: 如果当前表格内无非空单元格是否允许创建新的行,默认允许
+        """
+        start_row = 0 if start_row is None else start_row
+        start_col = 0 if start_col is None else start_col
+        max_row = self.rowCount()
+        max_col = self.columnCount()
+        for cur_row in range(start_row, max_row):
+            for cur_col in range(start_col, max_col):
+                if self.cellWidget(cur_row, cur_col) is None:
+                    return cur_row, cur_col
+        self.insertRow(max_row)
+        self.setRowHeight(max_row, 100)
+        return max_row, 0
+
+    def getWidgetCoord(self, widget: QWidget):
+        """获取目标容器坐标"""
+        for target_row in range(self.rowCount()):
+            for target_col in range(self.columnCount()):
+                if self.cellWidget(target_row, target_col) == widget:
+                    return target_row, target_col
+
+    def addWidget(self, widget: QWidget, create_func: callable, emit=True) -> bool:
+        """
+        添加一个QWidget子类
+        :param widget:需要添加的部件
+        :param create_func:创建这个部件的函数,用于表格内位置调整
+        :param emit:是否发射信号
+        """
+        # 获取当前非空单元格位置,如果当前没有非空单元格则创建新的行
+        target_row, target_col = self.getEmptyCoord()
+        self.setCellWidget(target_row, target_col, widget)
+        self.__widget_dict[widget] = create_func
+        if emit:
+            self.addWidgetSignal.emit(widget)
+
+    def delWidget(self, widget: QWidget, deleteLater=True, emit=True):
+        """
+        删除一个QWidget子类
+        :param widget :需要删除的Qwidget类
+        :param deleteLater:彻底清除
+        :param emit:是否发射信号
+        """
+        target_row, target_col = self.getWidgetCoord(widget)  # 获取坐标
+        widget = self.cellWidget(target_row, target_col)
+        self.removeCellWidget(target_row, target_col)
+        if deleteLater:
+            widget.deleteLater()
+        if emit:
+            self.delWidgetSignal.emit(widget)
+
+    def realign(self, start_row: int = None, start_col: int = None):
+        """
+        重新调整当前表格单元格位置
+        :param start_row: 从哪一行开始,默认从首行
+        :param start_col: 从那一列开始,默认从首列
+        """
+        start_row = 0 if start_row is None else start_row
+        start_col = 0 if start_col is None else start_col
+        # 记录全部需要重新调整位置的QWidget
+        widgets = []
+        for cur_row in range(start_row, self.rowCount()):
+            for cur_col in range(start_col, self.columnCount()):
+                widget = self.cellWidget(cur_row, cur_col)
+                if widget is not None:
+                    widgets.append(widget)
+        # 重新创建QWidget类
+        for widget in widgets:
+            create_func = self.__widget_dict.get(widget, None)
+            if create_func is not None:
+                self.delWidget(widget, emit=False)
+                self.addWidget(create_func(), create_func, emit=False)
+        # 清除多余行
+        row, col = self.getEmptyCoord(create=False)
+        if col == 0:
+            self.removeRow(row)
+        self.realignSignal.emit(True)
 
 
 if __name__ == '__main__':

@@ -9,7 +9,7 @@ from Fun.GUI_Qt import PySide6Mod
 from Fun.Norm import get, file, general
 
 # 导入全局变量
-from pyside6_GUI.globals_values import *
+from pyside6_GUI.Config import *
 
 
 class SetsWin(QWidget, Ui_sets):

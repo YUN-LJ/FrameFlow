@@ -20,7 +20,6 @@ class LeftWidget(Ui_ImageTable, QWidget):
         self.scroll_check_timer = QTimer()
         self.scroll_check_timer.setSingleShot(True)  # 单次触发
         self.scroll_check_timer.timeout.connect(self.checkShowRowSignal)
-        QTimer.singleShot(0, self.updateHight)
 
     def uiInit(self):
         # 设置列数
@@ -181,6 +180,11 @@ class LeftWidget(Ui_ImageTable, QWidget):
         height = width * ratio
         for row in range(self.tableWidget_image.rowCount()):
             self.tableWidget_image.setRowHeight(row, height)
+
+    def showEvent(self, event):
+        """重写showEvent，在控件显示时调用"""
+        super().showEvent(event)
+        self.updateHight()
 
     def resizeEvent(self, event):
         """当窗口大小改变时自动调整单元格"""

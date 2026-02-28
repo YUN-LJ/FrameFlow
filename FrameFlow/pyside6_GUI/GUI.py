@@ -1,32 +1,6 @@
 """PySide6GUI界面"""
-# 标准库
-import ctypes, sys
-# 自定义库
-from Fun.GUI_Qt.PySide6Mod import TrayIcon
-from Fun.Norm import general, get
-
-# 图形库
-from PySide6.QtWidgets import QHBoxLayout, QFrame, QWidget
-from PySide6.QtGui import QIcon
-
-# 美化库
-import darkdetect
-from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
-                            setThemeColor, setTheme, Theme,
-                            FluentIcon as FIF)
-from qframelesswindow.utils import getSystemAccentColor
-
-# 导入资源文件
-from . import res
-
 # 导入全局变量
-from pyside6_GUI.globals_values import *
-
-ICO_PATH = {
-    '主页': FIF.HOME,
-    '壁纸播放': FIF.PHOTO,
-    '设置': FIF.SETTING,
-}
+from pyside6_GUI.Config import *
 
 
 class PySide6GUI(MSFluentWindow):
@@ -109,14 +83,10 @@ class Widget(QWidget):
         self.setObjectName(text.replace(' ', '-'))
 
 
-# 导入子窗口
-from .sub_ui.home.wallhaven_win import WallHavenWin
-from .sub_ui.sets.sets_win import SetsWin
-
-
 class AddPage:
     page_dict = {
         0: WallHavenWin,
+        1: WallPaperWin,
         2: SetsWin,
     }
 
@@ -129,14 +99,14 @@ class AddPage:
     def page_change(self, index: int) -> bool:
         """页面改变时"""
         global GUI
-        function_name = AddPage.page_dict.get(index, False)
+        function_name = self.page_dict.get(index, False)
         if function_name:
             if not self.widget.hBoxLayout.count():
                 window = function_name(GUI)
                 self.widget.hBoxLayout.addWidget(window)
-                AddPage.page_object[index] = window
+                self.page_object[index] = window
                 print(f'已添加子窗口{str(function_name)}')
-                # AddPage.page_object.update({function_name: window})
+                # self.page_object.update({function_name: window})
             return True
         else:
             return False

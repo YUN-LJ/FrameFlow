@@ -1,17 +1,11 @@
 """全局变量"""
-import pandas as pd
-import numpy as np
-import os, sys, io, time, random
+import os, sys, time, random
 
-# 导入线程库
-from queue import Queue, Empty
-from concurrent.futures import ThreadPoolExecutor  # 线程池
-from threading import Lock, Thread
 # PySide6库
 from PySide6.QtWidgets import (
     QWidget, QAbstractItemView, QHeaderView, QCheckBox,
     QVBoxLayout, QHBoxLayout, QLabel, QSpacerItem, QSizePolicy,
-    QSplitter, QProgressBar, QTableWidgetItem
+    QSplitter, QProgressBar, QTableWidgetItem, QTableWidget
 )
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
 # 美化库
@@ -23,18 +17,14 @@ from qfluentwidgets.components.widgets import (
     InfoBarIcon, TeachingTip, TeachingTipTailPosition  # 气泡消息
 )
 from qfluentwidgets.components.widgets.button import PrimaryToolButton
-# UI文件
-from pyside6_GUI.sub_ui.home.ui.LeftWidget import Ui_ImageTable
-from pyside6_GUI.sub_ui.home.ui.RightWidget import Ui_RightWidget
-from pyside6_GUI.sub_ui.home.ui.wallhaven import Ui_wallhaven
-from pyside6_GUI.sub_ui.home.ui.ImageDialog import Ui_Image
-# 导入后端文件
-from wallhaven.WallHavenAPI import NUM_WORK, WallHavenAPI, TaskEnum
-# 自定义功能库
+# UI
+from pyside6_GUI.sub_ui.wallpaper.ui.wallpaper import Ui_wallpaper
+from pyside6_GUI.sub_ui.wallpaper.ui.RightWidget import Ui_rightwidget
+from pyside6_GUI.sub_ui.wallpaper.ui.LeftWidget import Ui_leftwidget
+# 自定义库
 from Fun.GUI_Qt.PySide6Mod import ImageWidget, get_exist_dir
-from Fun.Norm.ThreadSafe import Dict, List
-from Fun.Norm import file, get, ini
+from Fun.Norm import file
 from Fun.Norm.image import Image_PIL
-
-# 默认灰色图像
-DEFAULT_IMAGE = np.full((224, 224, 3), fill_value=70, dtype=np.uint8)
+# 壁纸播放库
+import wallpaper
+from wallpaper.WallPaperPlay import WallPaperPlay
