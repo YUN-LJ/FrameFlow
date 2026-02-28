@@ -172,10 +172,14 @@ class ImageProcess:
     def stop(self):
         """停止图像处理"""
         if self.isRunning:
-            self.process.kill()
-            self.process = Process(target=self.execute, name='ImageProcess')
-            self.result_queue = Queue(self.image_temp_num)  # 清空队列
-            self.isRunning = False
+            try:
+                self.process.kill()
+            except Exception as e:
+                print(f'\n{PACK_NAME}.{self.__class__.__name__}.stop: 错误{e}')
+            finally:
+                self.process = Process(target=self.execute, name='ImageProcess')
+                self.result_queue = Queue(self.image_temp_num)  # 清空队列
+                self.isRunning = False
 
 
 class DataManager:

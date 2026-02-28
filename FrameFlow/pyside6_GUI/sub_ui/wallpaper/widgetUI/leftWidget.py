@@ -71,6 +71,7 @@ class LeftWidget(Ui_leftwidget, QWidget):
             'image_widget': image_widget,
             'vlayout': layout,
             'hlayout': layout_checkbox,
+            'self': self.mode_value  # 所属stackedWidget的索引
         }
 
     def setCustomMode(self, load_thumb=True):
@@ -98,6 +99,7 @@ class LeftWidget(Ui_leftwidget, QWidget):
             cell['hlayout'].addWidget(button)
             # 保存到实例属性中
             cell['button'] = button
+            cell['self'] = 0
             self.all_cells[image_dir] = cell
             return cell['widget']
 
@@ -171,17 +173,26 @@ class LeftWidget(Ui_leftwidget, QWidget):
             """生成一个单元格内容"""
             cell = self.creatBaseCell(key)
             # 添加checkbox
-            cell['checkbox'].setText(key)
-            cell['checkbox'].setChecked(True)
+            checkBox: QCheckBox = cell['checkbox']
+            checkBox.setText(key)
+            checkBox.setChecked(key in self.wallpaper.image_choice_key)
+            checkBox.stateChanged.connect(
+                lambda state, text=key:
+                self.wallpaper.add_key(text) if state else self.wallpaper.del_key(text)
+            )
             image_info = self.wallpaper.get_key_image_list(key)
             cell['widget'].setTitle(f'共{image_info.shape[0] if not image_info.empty else 0}张')
             # 保存到实例属性中
+            cell['self'] = 1
             self.all_cells[key] = cell
             return cell['widget']
 
         load_thumb_dir = []
         # 获取全部关键词
+        key_add = False if self.wallpaper.image_choice_key else True
         for key in self.wallpaper.image_key:
+            if key_add:
+                self.wallpaper.add_key(key)
             if key not in self.all_cells:
                 self.tableWidget_key.addWidget(
                     create_cell(key),
@@ -232,7 +243,10 @@ class LeftWidget(Ui_leftwidget, QWidget):
 
     def bind(self):
         """槽函数绑定"""
-        self.LoadKeyUISigal.connect(lambda value: self.setKeyMode(load_thumb=False) if value else None)
+        self.LoadKeyUISigal.connect(
+            lambda value: self.setKeyMode(
+                load_thumb=True if self.stackedWidget.currentIndex() == 1 else False)
+            if value else None)
         self.tableWidget_userDir.delWidgetSignal.connect(self.__delWidget)
         self.tableWidget_userDir.addWidgetSignal.connect(self.updateHight)
         self.tableWidget_userDir.realignSignal.connect(self.updateHight)

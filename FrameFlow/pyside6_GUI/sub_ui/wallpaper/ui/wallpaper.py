@@ -72,6 +72,12 @@ class Ui_wallpaper(object):
 
         self.horizontalLayout_2.addWidget(self.spinBox_time)
 
+        self.pushButton_choice_all = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_choice_all.setObjectName(u"pushButton_choice_all")
+        self.pushButton_choice_all.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout_2.addWidget(self.pushButton_choice_all)
+
         self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.horizontalLayout_2.addItem(self.horizontalSpacer)
@@ -107,6 +113,7 @@ class Ui_wallpaper(object):
         self.comboBox_mode.setItemText(2, QCoreApplication.translate("wallpaper", u"\u89c6\u9891\u6a21\u5f0f", None))
 
         self.label.setText(QCoreApplication.translate("wallpaper", u"\u64ad\u653e\u95f4\u9694:", None))
+        self.pushButton_choice_all.setText(QCoreApplication.translate("wallpaper", u"\u5168\u9009", None))
         self.pushButton_set.setText(QCoreApplication.translate("wallpaper", u"\u8bbe\u7f6e", None))
     # retranslateUi
 

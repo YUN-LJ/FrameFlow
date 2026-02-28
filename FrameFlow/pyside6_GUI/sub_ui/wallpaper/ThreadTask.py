@@ -26,13 +26,15 @@ class ThreadTask(QThread):
     def add_task(self, task_name, task_enum, task_args):
         """提交任务(任务名称,任务枚举值,任务所需参数)"""
         try:
-            self.task_queue.put((task_name, task_enum, task_args))
             with self.task_dict.get_lock:
                 enum_list = self.task_dict.get_dict.get(task_enum, None)
                 if enum_list is None:
                     self.task_dict.get_dict[task_enum] = List(initial_data=[task_name])
+                    self.task_queue.put((task_name, task_enum, task_args))
                 else:
-                    enum_list.append(task_name)
+                    if task_name not in enum_list:
+                        enum_list.append(task_name)
+                        self.task_queue.put((task_name, task_enum, task_args))
             if not self.isRunning:
                 self.start()
         except Exception as e:
@@ -127,11 +129,11 @@ class ThumbProgress:
         if os.path.isdir(image_path):
             image_list = file.get_files_path(image_path, only_file=True, ext=file.IMAGE_EXTENSION)
             image = Image_PIL(random.choice(image_list))
-            image.resize(THUMB_SIZE,stretch=Image_Enum.resize_cut)
+            image.resize(THUMB_SIZE, stretch=Image_Enum.resize_cut)
             self.result_queue.put((key, (len(image_list), image.get_BytesIO)))
         else:
             image = Image_PIL(image_path)
-            image.resize(THUMB_SIZE,stretch=Image_Enum.resize_cut)
+            image.resize(THUMB_SIZE, stretch=Image_Enum.resize_cut)
             self.result_queue.put((key, image.get_BytesIO))
 
     def execute_thread(self, image_list: list):

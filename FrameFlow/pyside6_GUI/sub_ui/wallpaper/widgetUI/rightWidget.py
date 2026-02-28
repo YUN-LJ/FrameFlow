@@ -48,16 +48,11 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.image_widget.fullScreenSignal.connect(pause_play)  # 进入全屏时触发暂停,退出全屏时结束暂停
 
     def setImage(self, image_name, image,
-                 image_purity=None, image_categories=None,
-                 image_time=None, image_tags=None):
+                 ):
         """
         设置图片
-        :param image_name: 图像路径/图像ID
+        :param image_name: 图像路径
         :param image: 图像数据
-        :param image_purity: 图像级别
-        :param image_categories: 图像分类
-        :param image_time: 图像日期
-        :param image_tags: 图像标签
         """
         self.image_name = image_name
         self.image = image
@@ -65,3 +60,14 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.lineEdit_name.setText(image_name)
         # 设置图片
         self.image_widget.set_image(image)
+
+    def setInfo(self, image_purity: str, image_categories: str,
+                image_time: str, image_tags: list):
+        """
+        设置图像信息
+
+        :param image_purity: 图像级别
+        :param image_categories: 图像分类
+        :param image_time: 图像日期
+        :param image_tags: 图像标签
+        """

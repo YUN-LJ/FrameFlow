@@ -1,5 +1,5 @@
 """全局变量"""
-import os, sys, time, random
+import os, sys, time, random, pandas as pd
 from queue import Empty
 from threading import Thread
 from multiprocessing import Process, cpu_count, Queue

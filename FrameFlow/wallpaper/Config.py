@@ -6,7 +6,7 @@ from wallhaven.WallHavenAPI import WallHavenAPI
 from threading import Thread, Timer, Lock  # 定时器
 from queue import Empty
 from multiprocessing import Process, Queue  # 进程
-import os, pandas as pd, numpy as np, time
+import os, pandas as pd, numpy as np, time, random
 from screeninfo import get_monitors
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QThread
@@ -22,6 +22,7 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, 'config.ini')
 IMAGE_HISTORY_PATH = os.path.join(CONFIG_DIR, 'image_history.feather')
 # 壁纸播放,运行时会被修改,需要从实例中获取
 IMAGE_DIR = []  # 用户选择的图片文件夹
+IMAGE_CHOICE_KEY = []  # 用户选择的关键词
 IMAGE_TIME = 10.0  # 播放间隔,默认10秒
 IMAGE_TEMP_NUM = 3  # 图片缓冲数量,默认3张
 # 播放模式
@@ -42,6 +43,7 @@ def default_config():
     global CONFIG
     default = {
         'image_dir': ';'.join(IMAGE_DIR),
+        'image_key': ';'.join(IMAGE_CHOICE_KEY),
         'image_time': IMAGE_TIME,
         'image_temp_num': IMAGE_TEMP_NUM,
         'image_mode': IMAGE_CUSTOM_MODE,
@@ -51,11 +53,12 @@ def default_config():
     CONFIG = default
 
 
-def save_config(image_dir: list, image_time: float, image_temp_num: int, image_mode: int):
+def save_config(image_dir: list, image_key: list, image_time: float, image_temp_num: int, image_mode: int):
     """保存配置文件"""
     global CONFIG
     config_dict = {
         'image_dir': ';'.join(image_dir),
+        'image_key': ';'.join(image_key),
         'image_time': image_time,
         'image_temp_num': image_temp_num,
         'image_mode': image_mode,
@@ -67,11 +70,13 @@ def save_config(image_dir: list, image_time: float, image_temp_num: int, image_m
 
 def load_config():
     """加载配置文件"""
-    global IMAGE_DIR, IMAGE_TIME, IMAGE_TEMP_NUM, IMAGE_HISTORY, CONFIG
+    global IMAGE_DIR, IMAGE_CHOICE_KEY, IMAGE_TIME, IMAGE_TEMP_NUM, IMAGE_HISTORY, CONFIG
     config = ini.INI(CONFIG_PATH, 'wallpaper')
     CONFIG = config.get_values()
     if CONFIG['image_dir'] != '':
         IMAGE_DIR = CONFIG['image_dir'].split(';')
+    if CONFIG['image_key'] != '':
+        IMAGE_CHOICE_KEY = CONFIG['image_key'].split(';')
     IMAGE_TIME = float(CONFIG['image_time'])
     IMAGE_TEMP_NUM = int(CONFIG['image_temp_num'])
     CONFIG['image_mode'] = int(CONFIG['image_mode'])

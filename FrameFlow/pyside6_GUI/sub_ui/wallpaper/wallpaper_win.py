@@ -6,6 +6,7 @@ from pyside6_GUI.sub_ui.wallpaper.widgetUI.leftWidget import LeftWidget
 
 class WallPaperWin(Ui_wallpaper, QWidget):
     image_play_signal = Signal(tuple)  # 用于子线程的壁纸切换时的信号(图像名称,图像数据)
+    image_info_signal = Signal(pd.DataFrame)  # 用于子线程的壁纸播放功能在关键词模式下会收到当前图像的信息
     image_erro_stop_signal = Signal(bool)  # 用于子线程的壁纸发生错误时的信号
 
     def __init__(self, parent=None):
@@ -67,13 +68,33 @@ class WallPaperWin(Ui_wallpaper, QWidget):
                 self.pushButton_play.setIcon(FIF.PLAY)
                 self.wallpaper.stop()
 
+        def pushButton_choice_all():
+            if self.wallpaper.isRunning:
+                self.pushButton_play.click()
+            state = True if self.pushButton_choice_all.text() == '全选' else False
+            current_index = self.left_widget.stackedWidget.currentIndex()
+            for cell in self.left_widget.all_cells.values():
+                if cell.get('self', -1) == current_index:
+                    cell['checkbox'].setChecked(state)
+            text = '取消全选' if state else '全选'
+            self.pushButton_choice_all.setText(text)
+
         def comboBox_mode(index: int):
             """设置播放模式"""
             self.wallpaper.set_mode(index)
             self.left_widget.set_mode(index)
+            current_index = self.left_widget.stackedWidget.currentIndex()
+            for cell in self.left_widget.all_cells.values():
+                if cell.get('self', -1) == current_index:
+                    cell['checkbox'].isChecked()
+                    self.pushButton_choice_all.setText('取消全选')
+                    break
+            else:
+                self.pushButton_choice_all.setText('全选')
 
         # 壁纸播放控件连接
         self.image_play_signal.connect(self.dispalyImage)  # 壁纸播放信号,用于更新UI
+        self.image_info_signal.connect(self.dispalyInfo)  # 显示图像信息
         self.image_erro_stop_signal.connect(
             lambda: (self.pushButton_play.click(),
                      TeachingTip.create(
@@ -88,7 +109,10 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         )
         self.wallpaper.image_play_signal.connect(
             lambda value: self.image_play_signal.emit(value)
-        )  # 壁纸播放时发送当前播放的图片和名称
+        )  # 壁纸播放时发送当前播放的图片路径和名称
+        self.wallpaper.image_info_signal.connect(
+            lambda value: self.image_info_signal.emit(value)
+        )  # 壁纸播放在关键词模式下会发送当前图像的信息
         self.wallpaper.image_erro_stop_signal.connect(
             lambda value: self.image_erro_stop_signal.emit(value)
         )  # 壁纸播放时发生错误的信号
@@ -104,6 +128,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
 
         # 主窗口控件连接
         self.pushButton_play.clicked.connect(pushButton_play)
+        self.pushButton_choice_all.clicked.connect(pushButton_choice_all)
         self.spinBox_time.valueChanged.connect(self.wallpaper.set_time)
         self.comboBox_mode.currentIndexChanged.connect(comboBox_mode)
 
@@ -118,6 +143,10 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         """显示当前正在播放的图片"""
         name, image = value
         self.right_widget.setImage(name, image)
+
+    def dispalyInfo(self, value: pd.DataFrame):
+        print(value['id'].values[0], value['标签'].values[0].split(';'))
+        # self.right_widget.setInfo(value)
 
     def closeEvent(self, event):
         super().closeEvent(event)
