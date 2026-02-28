@@ -1,6 +1,4 @@
 """后台任务线程"""
-import os.path
-
 from pyside6_GUI.sub_ui.home.widgetUI.Config import *
 
 
@@ -302,7 +300,7 @@ class ThreadTask(QThread):
                     self.finished_task(self.LOADUI, self.LOADUI, True)
 
         if file.check_exist(self.wallhaven_api.key_word_path):
-            self.wallhaven_api.data_manager.load_data(callback)
+            self.wallhaven_api.data_manager.load_image_and_key(callback)
 
     def cancel_task(self, task_name: str | list):
         """

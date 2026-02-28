@@ -1,11 +1,14 @@
 """全局变量"""
 import os, sys, time, random
-
+from queue import Empty
+from threading import Thread
+from multiprocessing import Process, cpu_count, Queue
+from concurrent.futures import ThreadPoolExecutor  # 线程池
 # PySide6库
 from PySide6.QtWidgets import (
     QWidget, QAbstractItemView, QHeaderView, QCheckBox,
     QVBoxLayout, QHBoxLayout, QLabel, QSpacerItem, QSizePolicy,
-    QSplitter, QProgressBar, QTableWidgetItem, QTableWidget
+    QSplitter, QProgressBar, QTableWidgetItem, QTableWidget, QGroupBox
 )
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
 # 美化库
@@ -24,7 +27,12 @@ from pyside6_GUI.sub_ui.wallpaper.ui.LeftWidget import Ui_leftwidget
 # 自定义库
 from Fun.GUI_Qt.PySide6Mod import ImageWidget, get_exist_dir
 from Fun.Norm import file
-from Fun.Norm.image import Image_PIL
+from Fun.Norm.image import Image_PIL, Image_Enum
+from Fun.Norm.ThreadSafe import Dict, List
 # 壁纸播放库
 import wallpaper
 from wallpaper.WallPaperPlay import WallPaperPlay
+from wallhaven.WallHavenAPI import WallHavenAPI
+
+# 常量
+THUMB_SIZE = (300, 400)  # 略缩图尺寸宽,高

@@ -7,6 +7,7 @@ class WallPaperPlay:
     壁纸播放类
     该类只能在主线程中创建
     """
+    Object = []  # 存储了全部的实例化对象,多模块需要共享时使用
     image_play_signal = Signal()  # 壁纸播放时发送当前播放的图像名称和图像数据
     image_erro_stop_signal = Signal()  # 壁纸播放因错误发生导致停止时发送True
 
@@ -18,6 +19,8 @@ class WallPaperPlay:
         self.image_api = IMAGE_WINDOWS_QT  # 默认为使用QT作为底层窗口
         self.image_time = IMAGE_TIME  # 播放时间间隔
         self.image_dir = IMAGE_DIR  # 用户壁纸文件夹路径
+        self.image_key = []  # wallhaven模块中的收藏夹数据
+        self.image_info_by_key = {}  # 根据关键词存储的图像信息{key:image_info}
         self.image_temp_num = IMAGE_TEMP_NUM  # 壁纸缓存数量
         self.image_pause_time = time.time()  # 上次暂停的时间,时间戳
         # 图像处理类
@@ -33,6 +36,7 @@ class WallPaperPlay:
         # 壁纸播放定时器
         self.image_play = Timer(0, self.execute)
         self.image_play.daemon = True
+        self.Object.append(self)
 
     def set_mode(self, value: int):
         """设置播放模式"""
@@ -80,6 +84,44 @@ class WallPaperPlay:
         if image_dir in self.image_dir:
             self.image_dir.remove(image_dir)
             self.restart()
+
+    def get_keys(self) -> list[str]:
+        """获取全部关键词"""
+        if not self.image_key:
+            if WallHavenAPI.Object:
+                for wallhaven_api in WallHavenAPI.Object:
+                    if wallhaven_api.data_manager.isLoad:
+                        self.image_key = wallhaven_api.data_manager.KEY_WORD['关键词'].tolist()
+            else:
+                wallhaven_api = WallHavenAPI()
+                if not wallhaven_api.data_manager.isLoad:
+                    wallhaven_api.data_manager.load_image_and_key()
+                self.image_key = wallhaven_api.data_manager.KEY_WORD['关键词'].tolist()
+        return self.image_key
+
+    def get_key_image_list(self, key_word: str) -> pd.DataFrame:
+        """获取某个关键词的全部图像数据"""
+        image_info = self.image_info_by_key.get(key_word, None)
+        if image_info is None:
+            if WallHavenAPI.Object:
+                for wallhaven_api in WallHavenAPI.Object:
+                    if wallhaven_api.data_manager.isLoad:
+                        with wallhaven_api.data_manager.IMAGE_INFO_LOCK:
+                            image_info = wallhaven_api.data_manager.IMAGE_INFO.loc[
+                                wallhaven_api.data_manager.IMAGE_INFO['关键词'].str.contains(
+                                    key_word, case=True, na=False, regex=False)
+                            ].copy(deep=True).reset_index()
+            else:
+                wallhaven_api = WallHavenAPI()
+                if not wallhaven_api.data_manager.isLoad:
+                    wallhaven_api.data_manager.load_image_and_key()
+                with wallhaven_api.data_manager.IMAGE_INFO_LOCK:
+                    image_info = wallhaven_api.data_manager.IMAGE_INFO.loc[
+                        wallhaven_api.data_manager.IMAGE_INFO['关键词'].str.contains(
+                            key_word, case=True, na=False, regex=False)
+                    ].copy(deep=True).reset_index()
+            self.image_info_by_key[key_word] = image_info
+        return image_info
 
     def get_image_list(self) -> list:
         """根据配置生成播放列表"""

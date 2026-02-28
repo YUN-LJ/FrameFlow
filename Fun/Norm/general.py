@@ -463,3 +463,8 @@ def timer_decorator(func):
         return result  # 必须返回被装饰函数的结果
 
     return wrapper  # 返回包装后的函数
+
+
+def chunk_list(lst, chunk_size):
+    """将列表分割成指定大小的子列表"""
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]

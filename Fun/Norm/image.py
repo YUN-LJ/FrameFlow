@@ -75,7 +75,7 @@ class Image_Enum:
     resize_auto = '自动'
     resize_fill = '填充'
     resize_stretch = '拉伸'
-    resize_cut = '剪裁'
+    resize_cut = '剪裁'  # 自适应中心裁剪
 
 
 class Image_PIL:
@@ -148,7 +148,7 @@ class Image_PIL:
     def get_BytesIO(self) -> BytesIO:
         """转为BytesIO类型的图像"""
         image = BytesIO()
-        self.__image.save(image, format='JPEG')
+        self.__image.save(image, format='PNG')
         return image
 
     @property
@@ -199,7 +199,7 @@ class Image_PIL:
         if stretch == Image_Enum.resize_auto:  # 自动计算图像宽高最接近目标分辨率的一条
             width, height = auto_size()
             self.__image = self.__image.resize((width, height), resample)
-        elif stretch == Image_Enum.resize_fill:
+        elif stretch == Image_Enum.resize_fill:  # 填充
             width, height = auto_size()
             # 创建一个目标尺寸画布
             value = self.get_array.mean(axis=(0, 1)).astype(int)  # 计算图像的每个通道的平均值
@@ -207,9 +207,30 @@ class Image_PIL:
             canvas.paste(self.__image.resize((width, height), resample),
                          ((size[0] - width) // 2, (size[1] - height) // 2))
             self.__image = canvas
-        elif stretch == Image_Enum.resize_stretch:
+        elif stretch == Image_Enum.resize_stretch:  # 拉伸
             width, height = size
             self.__image = self.__image.resize((width, height), resample)
+        elif stretch == Image_Enum.resize_cut:  # 中心裁剪
+            target_width, target_height = size
+            img_width, img_height = self.get_size
+            # 计算缩放比例
+            width_ratio = target_width / img_width
+            height_ratio = target_height / img_height
+            # 使用较大的比例，确保裁剪后能覆盖目标区域
+            scale = max(width_ratio, height_ratio)
+            # 计算缩放后的尺寸
+            new_width = int(img_width * scale)
+            new_height = int(img_height * scale)
+            # 缩放图像
+            img_resized = self.__image.resize((new_width, new_height), resample)
+            # 计算裁剪区域（中心裁剪）
+            left = (new_width - target_width) // 2
+            top = (new_height - target_height) // 2
+            right = left + target_width
+            bottom = top + target_height
+            # 执行裁剪
+            self.__image = img_resized.crop((left, top, right, bottom))
+            width, height = self.get_size
         return width, height
 
     def zip(self, max_size=15, quality=100) -> ImageFile.ImageFile:

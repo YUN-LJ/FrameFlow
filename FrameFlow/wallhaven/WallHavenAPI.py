@@ -17,6 +17,7 @@ class WallHavenAPI:
     下载任务关键词:图像id
     标签任务关键词:图像id_tags
     """
+    Object = []  # 存储了全部的实例化对象,多模块需要共享时使用
     key_word_path = KEY_WORD_PATH  # 收藏夹路径
     image_info_path = IMAGE_INFO_PATH  # 图像信息路径
 
@@ -31,6 +32,7 @@ class WallHavenAPI:
         self.__executor_download = ThreadPoolExecutor(num_work)  # 下载线程池
         self.__executor_json = ThreadPoolExecutor(num_work)  # 文本线程池
         self.data_manager = DataManager()
+        self.Object.append(self)
 
     def add_key_like(self, key_word) -> pd.DataFrame:
         """添加收藏"""

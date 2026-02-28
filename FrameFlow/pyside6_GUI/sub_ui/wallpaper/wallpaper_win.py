@@ -1,5 +1,4 @@
 """壁纸播放UI"""
-import wallpaper
 from pyside6_GUI.sub_ui.wallpaper.ThreadTask import *
 from pyside6_GUI.sub_ui.wallpaper.widgetUI.rightWidget import RightWidget
 from pyside6_GUI.sub_ui.wallpaper.widgetUI.leftWidget import LeftWidget
@@ -51,6 +50,9 @@ class WallPaperWin(Ui_wallpaper, QWidget):
 
     def threadInit(self):
         """后台线程初始化"""
+        self.thread_task = ThreadTask(self.wallpaper, self.__parent)
+        self.thread_task.finished.connect(self.taskFinished)
+        self.thread_task.add_task(self.thread_task.LOADUI, self.thread_task.LOADUI, None)
 
     def bind(self):
         """槽函数绑定"""
@@ -70,6 +72,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
             self.wallpaper.set_mode(index)
             self.left_widget.set_mode(index)
 
+        # 壁纸播放控件连接
         self.image_play_signal.connect(self.dispalyImage)  # 壁纸播放信号,用于更新UI
         self.image_erro_stop_signal.connect(
             lambda: (self.pushButton_play.click(),
@@ -81,8 +84,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
                          isClosable=True,
                          tailPosition=TeachingTipTailPosition.BOTTOM,
                          duration=3000,
-                         parent=self.__parent)
-                     )
+                         parent=self.__parent))
         )
         self.wallpaper.image_play_signal.connect(
             lambda value: self.image_play_signal.emit(value)
@@ -90,12 +92,27 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         self.wallpaper.image_erro_stop_signal.connect(
             lambda value: self.image_erro_stop_signal.emit(value)
         )  # 壁纸播放时发生错误的信号
-        self.pushButton_play.clicked.connect(pushButton_play)
-        self.spinBox_time.valueChanged.connect(self.wallpaper.set_time)
-        self.comboBox_mode.currentIndexChanged.connect(comboBox_mode)
+
+        # 子窗口的信号连接
+        self.left_widget.LoadThumbSigal.connect(
+            lambda value: self.thread_task.add_task(value[0], self.thread_task.LOADTHUMB, value[1])
+        )  # 提交加载略缩图任务
+
         # 设置为上次关闭时的模式
         self.comboBox_mode.setCurrentIndex(wallpaper.CONFIG['image_mode'])
         comboBox_mode(wallpaper.CONFIG['image_mode'])
+
+        # 主窗口控件连接
+        self.pushButton_play.clicked.connect(pushButton_play)
+        self.spinBox_time.valueChanged.connect(self.wallpaper.set_time)
+        self.comboBox_mode.currentIndexChanged.connect(comboBox_mode)
+
+    def taskFinished(self, args):
+        task_name, task_enum, task_state = args
+        if task_enum == self.thread_task.LOADUI:
+            self.left_widget.LoadKeyUISigal.emit(task_state[0])
+        elif task_enum == self.thread_task.LOADTHUMB:
+            self.left_widget.setThumb(*task_state[1])
 
     def dispalyImage(self, value: tuple):
         """显示当前正在播放的图片"""
@@ -104,6 +121,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
 
     def closeEvent(self, event):
         super().closeEvent(event)
+        self.thread_task.stop()  # 关闭后台任务
         self.wallpaper.stop()
         self.left_widget.close()  # 主动触发关闭事件
         self.wallpaper.save_config()

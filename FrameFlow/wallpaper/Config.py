@@ -2,6 +2,7 @@
 from Fun.Norm import file, get, ini, general, ThreadSafe
 from Fun.Norm.image import Image_PIL, Image_Enum, set_wallpaper_API
 from Fun.GUI_Qt.PySide6Mod import WindowDesktop, ImageWidget
+from wallhaven.WallHavenAPI import WallHavenAPI
 from threading import Thread, Timer, Lock  # 定时器
 from queue import Empty
 from multiprocessing import Process, Queue  # 进程

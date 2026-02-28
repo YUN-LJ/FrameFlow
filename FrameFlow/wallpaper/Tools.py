@@ -180,14 +180,15 @@ class ImageProcess:
 
 class DataManager:
     """播放历史数据管理,调用auto_save_timer属性的start方法可以开启自动保存"""
+    # 类属性
+    isSave = False  # 是否正在保存
+    isAutoSave = False  # 自动保存是否正在执行
+    auto_save_time = 60  # 自动保存间隔
     IMAGE_HISTORY = pd.DataFrame(columns=IMAGE_HISTORY_COLUMNS).astype(IMAGE_HISTORY_DTYPE)
     IMAGE_HISTORY_LOCK = Lock()
 
     def __init__(self):
         self.isRunning = True  # 是否运行
-        self.isSave = False  # 是否正在保存
-        self.isAutoSave = False  # 自动保存是否正在执行
-        self.auto_save_time = 60  # 自动保存间隔
         self.auto_save_timer = Timer(self.auto_save_time, self.auto_save)  # 自动保存定时器
         self.auto_save_timer.daemon = True  # 设置为守护线程,确保主线程退出时,改子线程立即退出
 
