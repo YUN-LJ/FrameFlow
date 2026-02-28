@@ -1,44 +1,7 @@
 # FrameFlow
-一个实现windows壁纸播放的程序
+实现wallhaven网站的根据标签批量下载图片,以及壁纸播放功能
 
 ## 程序功能
-
-## 内容架构设计（后面移到开发文档之类的地方）
-> 使用的第三方库：
-> 
-> 功能模块：
-> 
-> ……抽象类和接口等等
-
-```mermaid
-%%pycharm的mermaid无法识别中文
-classDiagram
-class PGUILayer{
-    + playAction()
-    - ......
-}
-class PControlLayer{
-    - m_PInvokeModule:PInvokeModule
-}
-class PInvokeModule{
-    
-}
-class PAbstractModule{
-    
-}
-class PConcreteModuleA{
-    
-}
-class PConcreteModuleB{
-    
-}
-class PConcreteModuleC{
-    
-}
-<<interface>> PAbstractModule
-PControlLayer *-- PInvokeModule
-PAbstractModule <|-- PConcreteModuleA
-PAbstractModule <|-- PConcreteModuleB
-PAbstractModule <|-- PConcreteModuleC
-```
+1.wallhaven网站的PC端,支持搜索、下载、以及批量更新关键词
+2.支持windows系统的壁纸播放(支持视频)功能
 <!-- markdown version 0.1.0 -->
