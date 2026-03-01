@@ -24,9 +24,10 @@ from qfluentwidgets.components.widgets.button import PrimaryToolButton
 from pyside6_GUI.sub_ui.wallpaper.ui.wallpaper import Ui_wallpaper
 from pyside6_GUI.sub_ui.wallpaper.ui.RightWidget import Ui_rightwidget
 from pyside6_GUI.sub_ui.wallpaper.ui.LeftWidget import Ui_leftwidget
+from pyside6_GUI.PublicWidget import GroupBoxCell
 # 自定义库
-from Fun.GUI_Qt.PySide6Mod import ImageWidget, get_exist_dir
-from Fun.Norm import file
+from Fun.GUI_Qt.PySide6Mod import ImageWidget, get_exist_dir, LeftandRightSplitter
+from Fun.Norm import file, general
 from Fun.Norm.image import Image_PIL, Image_Enum
 from Fun.Norm.ThreadSafe import Dict, List
 # 壁纸播放库

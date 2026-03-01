@@ -1,6 +1,4 @@
 """左侧布局"""
-import random
-
 from pyside6_GUI.sub_ui.wallpaper.widgetUI.Config import *
 
 
@@ -13,7 +11,7 @@ class LeftWidget(Ui_leftwidget, QWidget):
         self.wallpaper = wallpaper
         self.__parent = parent
         self.mode_value = None  # 当前模式
-        # 全部的单元格{key:dict} 详细查看creatBaseCell的返回值
+        # 全部的单元格{key:GroupBoxCell/QWidget}
         self.all_cells = {}
         # 存储了加载过的略缩图
         self.__thumbs = {}
@@ -32,47 +30,15 @@ class LeftWidget(Ui_leftwidget, QWidget):
 
     def setThumb(self, key, image):
         """设置略缩图"""
-        cell = self.all_cells.get(key, None)
-        if cell is not None:
+        widget = self.all_cells.get(key, None)
+        if isinstance(widget, GroupBoxCell):
             if isinstance(image, tuple):
-                cell['widget'].setTitle(f'共{image[0]}张')
-                cell['image_widget'].set_image(image[1])
+                widget.setTitle(f'共{image[0]}张')
+                widget.setImage(image[1])
                 self.__thumbs[key] = image[1]
             else:
-                cell['image_widget'].set_image(image)
+                widget.setImage(image)
                 self.__thumbs[key] = image
-
-    def creatBaseCell(self, key) -> dict:
-        """
-        创建一个基本的单元格内容
-        return: 包含了创建的全部控件的字典
-        """
-        # 构建基本框架
-        widget = QGroupBox()
-        widget.setTitle('共xxx张')
-        # 添加垂直布局
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(5, 0, 5, 5)
-        layout.setSpacing(0)
-        # 添加水平布局
-        layout_checkbox = QHBoxLayout(widget)
-        layout_checkbox.setContentsMargins(0, 0, 0, 0)
-        layout_checkbox.setSpacing(0)
-        layout.addLayout(layout_checkbox)
-        # 添加内容控件
-        checkBox = QCheckBox()
-        image_widget = ImageWidget(self.__thumbs.get(key, None))
-        # 添加到布局中
-        layout_checkbox.addWidget(checkBox)
-        layout.addWidget(image_widget)
-        return {
-            'widget': widget,
-            'checkbox': checkBox,
-            'image_widget': image_widget,
-            'vlayout': layout,
-            'hlayout': layout_checkbox,
-            'self': self.mode_value  # 所属stackedWidget的索引
-        }
 
     def setCustomMode(self, load_thumb=True):
         """
@@ -80,28 +46,23 @@ class LeftWidget(Ui_leftwidget, QWidget):
         :param load_thumb: 是否加载略缩图
         """
 
-        def create_cell(image_dir: str) -> QWidget:
+        def create_cell(image_dir: str) -> GroupBoxCell:
             """生成一个单元格内容"""
-            cell = self.creatBaseCell(image_dir)
-            # 设置checkbox
-            checkBox: QCheckBox = cell['checkbox']
-            checkBox.setText(image_dir)
-            checkBox.setChecked(image_dir in self.wallpaper.image_dir)
-            checkBox.stateChanged.connect(
+            widget = GroupBoxCell(0)
+            widget.setText(image_dir)
+            widget.setState(image_dir in self.wallpaper.image_dir)
+            widget.StateChange.connect(
                 lambda state, text=image_dir:
                 self.wallpaper.add_dir(text) if state else self.wallpaper.del_dir(text)
             )
             button = PrimaryToolButton(FIF.DELETE)
             button.clicked.connect(
-                lambda _, value=cell['widget']: (self.tableWidget_userDir.delWidget(value),
-                                                 self.tableWidget_userDir.realign()))
+                lambda _, value=widget: (self.tableWidget_userDir.delWidget(value),
+                                         self.tableWidget_userDir.realign()))
             button.setFixedSize(30, 30)
-            cell['hlayout'].addWidget(button)
-            # 保存到实例属性中
-            cell['button'] = button
-            cell['self'] = 0
-            self.all_cells[image_dir] = cell
-            return cell['widget']
+            widget.addWidget(button)
+            self.all_cells[image_dir] = widget
+            return widget
 
         def create_add() -> QWidget:
             """创建一个新增单元格"""
@@ -171,21 +132,17 @@ class LeftWidget(Ui_leftwidget, QWidget):
 
         def create_cell(key: str) -> QWidget:
             """生成一个单元格内容"""
-            cell = self.creatBaseCell(key)
-            # 添加checkbox
-            checkBox: QCheckBox = cell['checkbox']
-            checkBox.setText(key)
-            checkBox.setChecked(key in self.wallpaper.image_choice_key)
-            checkBox.stateChanged.connect(
+            image_info = self.wallpaper.get_key_image_list(key)
+            widget = GroupBoxCell(1)
+            widget.setTitle(f'共{image_info.shape[0] if not image_info.empty else 0}张')
+            widget.setText(key)
+            widget.setState(key in self.wallpaper.image_choice_key)
+            widget.StateChange.connect(
                 lambda state, text=key:
                 self.wallpaper.add_key(text) if state else self.wallpaper.del_key(text)
             )
-            image_info = self.wallpaper.get_key_image_list(key)
-            cell['widget'].setTitle(f'共{image_info.shape[0] if not image_info.empty else 0}张')
-            # 保存到实例属性中
-            cell['self'] = 1
-            self.all_cells[key] = cell
-            return cell['widget']
+            self.all_cells[key] = widget
+            return widget
 
         load_thumb_dir = []
         # 获取全部关键词
@@ -259,20 +216,9 @@ class LeftWidget(Ui_leftwidget, QWidget):
         for table in self.stackedWidget.findChildren(QTableWidget):
             for row in range(table.rowCount()):
                 table.setRowHeight(row, height)
-        for text, cell in self.all_cells.items():
-            checkBox: QCheckBox = cell.get('checkbox', None)
-            if checkBox is not None:
-                # 根据列宽自动调整文本换行符
-                limit_width = checkBox.width()
-                text_split = []
-                weight = 0  # 权重,一个汉字的权重为21,其余字符权重为7
-                for char in text:
-                    if weight > limit_width:
-                        text_split.append('\n')
-                        weight = 0
-                    weight += 21 if '\u4e00' <= char <= '\u9fff' else 7
-                    text_split.append(char)
-                checkBox.setText(''.join(text_split))
+        for text, widget in self.all_cells.items():
+            if isinstance(widget, GroupBoxCell):
+                widget.setText(general.char_auto_line_break(text, widget.checkBox.width()))
 
     def showEvent(self, event):
         """重写showEvent，在控件显示时调用"""

@@ -13,7 +13,7 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,1">
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0">
    <property name="spacing">
     <number>0</number>
    </property>
@@ -60,29 +60,61 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="PrimaryToolButton" name="pushButton_open">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>30</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="PrimaryToolButton" name="pushButton_full">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>30</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1">
+    <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0">
      <property name="spacing">
-      <number>5</number>
+      <number>0</number>
      </property>
      <property name="rightMargin">
       <number>0</number>
      </property>
      <item>
       <widget class="QGroupBox" name="groupBox_info">
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>100</height>
-        </size>
-       </property>
        <property name="title">
         <string>图像信息:</string>
        </property>
-       <layout class="QHBoxLayout" name="horizontalLayout">
+       <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="2,3">
         <property name="spacing">
          <number>0</number>
         </property>
@@ -90,13 +122,13 @@
          <number>5</number>
         </property>
         <property name="topMargin">
-         <number>0</number>
+         <number>5</number>
         </property>
         <property name="rightMargin">
          <number>5</number>
         </property>
         <property name="bottomMargin">
-         <number>0</number>
+         <number>5</number>
         </property>
         <item>
          <widget class="QScrollArea" name="scrollArea">
@@ -108,69 +140,40 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>524</width>
-             <height>70</height>
+             <width>221</width>
+             <height>316</height>
             </rect>
            </property>
-           <layout class="QGridLayout" name="gridLayout"/>
+           <layout class="QGridLayout" name="gridLayout">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <property name="spacing">
+             <number>0</number>
+            </property>
+           </layout>
           </widget>
          </widget>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
           <property name="spacing">
-           <number>10</number>
+           <number>0</number>
           </property>
-          <item>
-           <widget class="PrimaryToolButton" name="pushButton_open">
-            <property name="minimumSize">
-             <size>
-              <width>30</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>30</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="PrimaryToolButton" name="pushButton_full">
-            <property name="minimumSize">
-             <size>
-              <width>30</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>30</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-           </widget>
-          </item>
          </layout>
         </item>
        </layout>
       </widget>
      </item>
-    </layout>
-   </item>
-   <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
-     <property name="spacing">
-      <number>0</number>
-     </property>
     </layout>
    </item>
   </layout>

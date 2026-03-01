@@ -29,25 +29,11 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         # 实例化左右布局
         self.left_widget = LeftWidget(self.wallpaper, self.__parent)
         self.right_widget = RightWidget(self.wallpaper, self.__parent)
-        # 实例化进度对话框
-        # self.load_dialog: LoadDialog = None
         # 创建QSplitter对象，指定为水平方向（左右分栏）
-        self.splitter = QSplitter(Qt.Horizontal)
-        # 关闭实时更新
-        # self.splitter.setOpaqueResize(False)
+        self.splitter = LeftandRightSplitter(self.horizontalLayout, Qt.Horizontal)
         # 将左右部件添加到splitter
         self.splitter.addWidget(self.left_widget)
         self.splitter.addWidget(self.right_widget)
-        # 设置初始比例,数字代表宽度像素
-        self.splitter.setSizes([500, 300])
-        # 设置分界线样式
-        self.splitter.setStyleSheet(
-            """QSplitter::handle { 
-                            background-color: rgb(220,220,220); 
-                            border: 1px solid rgb(220,220,220); 
-                            margin: 1px;}""")
-        # 将splitter添加到主布局
-        self.horizontalLayout.addWidget(self.splitter)
 
     def threadInit(self):
         """后台线程初始化"""
@@ -73,9 +59,10 @@ class WallPaperWin(Ui_wallpaper, QWidget):
                 self.pushButton_play.click()
             state = True if self.pushButton_choice_all.text() == '全选' else False
             current_index = self.left_widget.stackedWidget.currentIndex()
-            for cell in self.left_widget.all_cells.values():
-                if cell.get('self', -1) == current_index:
-                    cell['checkbox'].setChecked(state)
+            for widget in self.left_widget.all_cells.values():
+                if isinstance(widget, GroupBoxCell):
+                    if widget.parent == current_index:
+                        widget.setState(state)
             text = '取消全选' if state else '全选'
             self.pushButton_choice_all.setText(text)
 
@@ -84,11 +71,11 @@ class WallPaperWin(Ui_wallpaper, QWidget):
             self.wallpaper.set_mode(index)
             self.left_widget.set_mode(index)
             current_index = self.left_widget.stackedWidget.currentIndex()
-            for cell in self.left_widget.all_cells.values():
-                if cell.get('self', -1) == current_index:
-                    cell['checkbox'].isChecked()
-                    self.pushButton_choice_all.setText('取消全选')
-                    break
+            for widget in self.left_widget.all_cells.values():
+                if isinstance(widget, GroupBoxCell):
+                    if widget.parent == current_index and widget.getState():
+                        self.pushButton_choice_all.setText('取消全选')
+                        break
             else:
                 self.pushButton_choice_all.setText('全选')
 
@@ -145,8 +132,12 @@ class WallPaperWin(Ui_wallpaper, QWidget):
         self.right_widget.setImage(name, image)
 
     def dispalyInfo(self, value: pd.DataFrame):
-        print(value['id'].values[0], value['标签'].values[0].split(';'))
-        # self.right_widget.setInfo(value)
+        self.right_widget.setInfo(
+            image_purity=value['分级'].values[0],
+            image_categories=value['类别'].values[0],
+            image_time=value['日期'].values[0],
+            image_tags=value['标签'].values[0].split(';')
+        )
 
     def closeEvent(self, event):
         super().closeEvent(event)

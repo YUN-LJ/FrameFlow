@@ -246,7 +246,7 @@ class Image_PIL:
         # 照片的格式
         img_byte_arr = io.BytesIO()  # 开辟内存空间类似于物理磁盘可以保存数据
         # 保存至内存中
-        self.__image.save(img_byte_arr, 'JPEG', quality=quality)
+        self.__image.save(img_byte_arr, 'PNG', quality=quality)
         # 照片的大小
         img_byte_arr.seek(0, io.SEEK_END)
         image_size = img_byte_arr.tell() / 1024 / 1024  # MB度量单位

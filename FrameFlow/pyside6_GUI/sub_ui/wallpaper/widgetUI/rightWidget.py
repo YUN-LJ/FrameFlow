@@ -11,6 +11,7 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.image_name = None  # 当前图像的名称
         self.image = None  # 当前图像数据
         self.isPause = False  # 是否暂停
+        self.colmun = 1  # 网格布局列数
         self.setupUi(self)
         self.uiInit()
         self.bind()
@@ -71,3 +72,28 @@ class RightWidget(Ui_rightwidget, QWidget):
         :param image_time: 图像日期
         :param image_tags: 图像标签
         """
+
+        # 清空布局
+        self.clear_layout(self.gridLayout)
+        row = -1
+        for index, tag in enumerate(image_tags):
+            col = index % self.colmun
+            if col == 0:
+                row += 1
+            button = TransparentPushButton(tag)
+            # button.clicked.connect(lambda _, value=tag: self.tag_clicked.emit(value))
+            self.gridLayout.addWidget(
+                button, row, col, 1, 1
+            )
+
+    def clear_layout(self, layout):
+        """清空布局中的所有控件"""
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)  # 取出并移除第一个项目
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()  # 删除控件
+                else:
+                    # 如果是子布局，递归删除
+                    clear_layout(item.layout())
