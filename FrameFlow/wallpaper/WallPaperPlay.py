@@ -35,7 +35,7 @@ class WallPaperPlay:
         # Qt桌面背景设置,必须由主线程创建,否则内部的定时器将会失效
         self.image_qt = ImageQt()
         # 壁纸播放定时器
-        self.image_play = Timer(0, self.execute)
+        self.image_play = Timer(0, self.execute)  # 壁纸播放定时器
         self.image_play.daemon = True
         self.Object.append(self)
 
@@ -61,8 +61,7 @@ class WallPaperPlay:
             self.image_time = timeout
             # 如果正在运行则重设置定时器
             if self.isRunning:
-                self.image_play = Timer(self.image_time, self.execute)
-                self.image_play.daemon = True
+                self.restart_timer()
                 self.image_play.start()
         else:
             raise TypeError(f'{PACK_NAME}.{self.__class__.__name__}.set_time 错误:输入不是浮点类型 {timeout}')
@@ -173,35 +172,33 @@ class WallPaperPlay:
         if self.isRunning:
             result = self.image_process.get_image()
             if result is None:
-                print(f'{PACK_NAME}.{self.__class__.__name__} 播放队列为空')
+                print(f'\n{PACK_NAME}.{self.__class__.__name__} 播放队列为空')
                 self.image_erro_stop_signal.emit(True)
                 self.stop()
                 return
             else:
                 image_path, image_progress, image_org = result
                 if image_path is None and image_progress is None and image_org is None:
-                    print(f'{PACK_NAME}.{self.__class__.__name__} 播放队列播放完成,准备重启')
+                    print(f'\n{PACK_NAME}.{self.__class__.__name__} 播放队列播放完成,准备重启')
                     self.data_manager.clear_history()
-                    self.restart()
+                    self.restart_timer(0)
+                    self.image_play.start()
                     return
             # image.show_image(3000)  # 显示图像
-            print(f'壁纸播放:{PACK_NAME}.{self.__class__.__name__}.execute'
-                  f'\n路径:{image_path} 时间{get.now_time()}')
+            print(f'\r壁纸播放|路径:{image_path} 时间{get.now_time()} 间隔:{self.image_time}|', end='')
             # 发送信号
             self.image_play_signal.emit((image_path, image_org))  # 发送图像路径和图像数据
             if self.image_mode == IMAGE_KEY_MODE:
                 self.image_info_signal.emit(self.get_image_info(image_path))
             # 设置为壁纸
             if self.image_api == IMAGE_WINDOWS_QT:
-                QTimer.singleShot(0, self.image_qt.create)  # 创建桌面窗口
                 self.image_qt.set_wallpaper(image_progress)
             elif self.image_api == IMAGE_WINDOWS_API:
                 set_wallpaper_API(Image_PIL().open_image(image_progress))
             # 添加到历史数据中
             self.data_manager.add_history(image_path)
             # 重置定时器
-            self.image_play = Timer(self.image_time, self.execute)  # 壁纸播放定时器
-            self.image_play.daemon = True
+            self.restart_timer()
             if not self.isPause:
                 self.image_play.start()
 
@@ -231,9 +228,8 @@ class WallPaperPlay:
             try:
                 self.image_play.start()
             except RuntimeError:
-                # 重置定时器
-                self.image_play = Timer(0, self.execute)  # 壁纸播放定时器
-                self.image_play.daemon = True
+                self.restart_timer()  # 重置定时器
+                self.image_play.start()
 
     def pause(self, pause: bool = True):
         """暂停"""
@@ -247,8 +243,7 @@ class WallPaperPlay:
                 self.isPause = False
                 diff_time = time.time() - self.image_pause_time  # 暂停了多久
                 interval = min(abs(self.image_time - diff_time), self.image_time)
-                self.image_play = Timer(interval, self.execute)  # 壁纸播放定时器
-                self.image_play.daemon = True
+                self.restart_timer(interval)
                 self.image_play.start()
 
     def stop(self):
@@ -257,12 +252,7 @@ class WallPaperPlay:
             print(f'{PACK_NAME}.{self.__class__.__name__} 正在停止...')
             self.isRunning = False
             self.image_list = []  # 重置播放列表
-            # 定时器只有在start()方法后到等待执行的这段时间is_alive的返回值是True
-            if self.image_play.is_alive():
-                self.image_play.cancel()
-                # 重置定时器
-                self.image_play = Timer(0, self.execute)  # 壁纸播放定时器
-                self.image_play.daemon = True
+            self.restart_timer()  # 重置定时器
             self.image_qt.stop()
             self.image_process.stop()
             # 保存历史数据
@@ -274,6 +264,16 @@ class WallPaperPlay:
         if self.isRunning:
             self.stop()
             self.start()
+
+    def restart_timer(self, interval: float = None):
+        """重置定时器"""
+        # 定时器只有在start()方法后到等待执行的这段时间is_alive的返回值是True
+        if self.image_play.is_alive():
+            self.image_play.cancel()
+        if interval is None:
+            interval = self.image_time
+        self.image_play = Timer(interval, self.execute)  # 壁纸播放定时器
+        self.image_play.daemon = True
 
     def save_config(self):
         """保存当前配置"""

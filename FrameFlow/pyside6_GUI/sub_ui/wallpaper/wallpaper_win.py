@@ -133,6 +133,7 @@ class WallPaperWin(Ui_wallpaper, QWidget):
 
     def dispalyInfo(self, value: pd.DataFrame):
         self.right_widget.setInfo(
+            image_key=value['关键词'].values[0],
             image_purity=value['分级'].values[0],
             image_categories=value['类别'].values[0],
             image_time=value['日期'].values[0],

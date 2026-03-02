@@ -62,7 +62,7 @@ class RightWidget(Ui_rightwidget, QWidget):
         # 设置图片
         self.image_widget.set_image(image)
 
-    def setInfo(self, image_purity: str, image_categories: str,
+    def setInfo(self, image_key: str, image_purity: str, image_categories: str,
                 image_time: str, image_tags: list):
         """
         设置图像信息
@@ -72,7 +72,7 @@ class RightWidget(Ui_rightwidget, QWidget):
         :param image_time: 图像日期
         :param image_tags: 图像标签
         """
-
+        self.groupBox_info.setTitle(f'图像信息:{image_key[1:]}')
         # 清空布局
         self.clear_layout(self.gridLayout)
         row = -1

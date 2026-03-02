@@ -33,16 +33,28 @@ class ImageQt:
 
     def __init__(self):
         self.isRunning = False
+        self.image = None  # 当前播放的照片
+        self.interval = 60
+        self.time_clock = 0  # 内部计时器,每1分钟重置一次桌面窗口,防止卡死
         self.all_widget = {}
-        self.timer = QTimer()  # 定时器,用于实时检测新增显示器
+        self.timer = QTimer()  # 定时器,用于实时更新窗口部件
         self.timer.timeout.connect(self.create)
+
+    def clear_all_widgets(self):
+        for widget, image_widegt in self.all_widget.values():
+            image_widegt.deleteLater()
+            widget.deleteLater()
+        self.all_widget = {}
 
     def create(self):
         """创建桌面背景"""
         for screen in QApplication.screens():
+            if time.time() - self.time_clock > self.interval:
+                self.clear_all_widgets()
+                self.time_clock = time.time()  # 记录时间
             if screen.name() not in self.all_widget:
                 widget = WindowDesktop(screen)
-                image_widegt = ImageWidget()  # 用于显示图像的类
+                image_widegt = ImageWidget(self.image)  # 用于显示图像的类
                 widget.addWidget(image_widegt)
                 self.all_widget[widget.name] = (widget, image_widegt)
 
@@ -54,10 +66,7 @@ class ImageQt:
     def stop(self):
         """删除桌面背景,并停止"""
         if self.isRunning:
-            for widget, image_widegt in self.all_widget.values():
-                image_widegt.deleteLater()
-                widget.deleteLater()
-            self.all_widget = {}
+            self.clear_all_widgets()
             self.timer.stop()
             self.isRunning = False
 
@@ -80,7 +89,8 @@ class ImageQt:
                     image_progress = Image_PIL()
                     image_progress.open_image(image)
                     image_progress.resize(screen_size, stretch=mode)
-                    image_widget.set_image(image_progress.get_array)
+                    self.image = image_progress.get_array
+                    image_widget.set_image(self.image)
             except Exception as e:
                 print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper {e}')
         else:
@@ -142,26 +152,27 @@ class ImageProcess:
 
     def execute(self):
         """执行器,执行单张图像的处理"""
-        scale = self.screen_size[0] / self.screen_size[1]
-        image = Image_PIL(load_trunc_images=True)
-        for image_path in self.image_list:
-            try:
-                image.open_image(image_path)
-                image_org = image.get_array
-                if not image.check_w_screen:
-                    # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
-                    w, h = image.get_size
-                    num_2 = abs((w * 2 / h) - scale)
-                    num_3 = abs((w * 3 / h) - scale)
-                    num = 1 if num_2 > num_3 else 2
-                    image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
-                image.resize(size=self.screen_size)
-                image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
-                self.result_queue.put((image_path, image.get_array, image_org))
-            except Exception as e:
-                print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
-                      f'错误文件名称:{image_path}')
-        self.result_queue.put((None, None, None))
+        while self.isRunning:
+            scale = self.screen_size[0] / self.screen_size[1]
+            image = Image_PIL(load_trunc_images=True)
+            for image_path in self.image_list:
+                try:
+                    image.open_image(image_path)
+                    image_org = image.get_array
+                    if not image.check_w_screen:
+                        # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
+                        w, h = image.get_size
+                        num_2 = abs((w * 2 / h) - scale)
+                        num_3 = abs((w * 3 / h) - scale)
+                        num = 1 if num_2 > num_3 else 2
+                        image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
+                    image.resize(size=self.screen_size)
+                    image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
+                    self.result_queue.put((image_path, image.get_array, image_org))
+                except Exception as e:
+                    print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
+                          f'错误文件名称:{image_path}')
+            self.result_queue.put((None, None, None))
 
     def start(self):
         """开始图像处理"""
