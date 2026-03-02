@@ -16,7 +16,7 @@ from PySide6.QtGui import (QWindow, QAction, QIcon, QShortcut, QScreen,
                            QImage, QWheelEvent, QMouseEvent)
 from PySide6.QtWidgets import (
     QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
-    QSystemTrayIcon, QMenu, QApplication, QTableWidget
+    QSystemTrayIcon, QMenu, QApplication, QTableWidget, QSplitter
 )
 
 
@@ -1203,6 +1203,24 @@ class EasyTableWidget(QTableWidget):
         if col == 0:
             self.removeRow(row)
         self.realignSignal.emit(True)
+
+
+class LeftandRightSplitter(QSplitter):
+    """左右滑动容器"""
+
+    def __init__(self, layout: QHBoxLayout, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 设置初始比例,数字代表宽度像素
+        self.setSizes([500, 500])
+        # 设置分界线样式
+        self.setStyleSheet(
+            """QSplitter::handle { 
+                            background-color: rgb(220,220,220); 
+                            border: 1px solid rgb(220,220,220); 
+                            margin: 1px;}""")
+        # 实时更新
+        # self.setOpaqueResize(False)
+        layout.addWidget(self)
 
 
 if __name__ == '__main__':

@@ -44,6 +44,9 @@ class PySide6GUI(MSFluentWindow):
         # 设置
         self.addSubInterface(self.subwidget['设置'], ICO_PATH['设置'], '设置', position=NavigationItemPosition.BOTTOM)
 
+    def get_sub_widget(self, index) -> WallHavenWin | WallPaperWin | SetsWin | None:
+        return AddPage.page_object.get(index, None)
+
     def closeEvent(self, event):
         # 重写关闭函数,只隐藏窗口不退出
         event.ignore()
@@ -140,12 +143,13 @@ def start_GUI():
     # 创建系统托盘
     tray = TrayIcon(GUI, GUI.exit_)
     # 加载子窗口
-    if GUI.fast_run:
-        AddPage(GUI.stackedWidget.widget(2), 2)  # 对应设置
-        AddPage(GUI.stackedWidget.widget(0), 0)  # 对应主页
-    else:
-        for index in AddPage.page_dict.keys():
+    for index, pack_name in AddPage.page_dict.items():
+        if GUI.fast_run:  # 快速启动,只加载主页和设置页面
+            if pack_name is WallHavenWin or pack_name is SetsWin:
+                AddPage(GUI.stackedWidget.widget(index), index)
+        else:
             AddPage(GUI.stackedWidget.widget(index), index)
+
     is_show = True
     # 参数映射字典
     argv_dict = {

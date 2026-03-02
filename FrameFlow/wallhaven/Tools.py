@@ -33,6 +33,11 @@ class Signal:
 
 class DataManager:
     """数据管理:获取锁后再操作表数据,调用auto_save_timer属性的start方法可以开启自动保存"""
+    # 类属性
+    isSave = False  # 是否正在保存
+    isAutoSave = False  # 自动保存是否正在执行
+    auto_save_time = 60  # 自动保存间隔
+    isLoad = False  # 是否已经加载本地文件
     # DatatFrame数据
     IMAGE_INFO = pd.DataFrame(columns=IMAGE_COLUMNS).astype(IMAGE_DTYPE)  # 图像信息
     SEARCH_INFO = pd.DataFrame(columns=SEARCH_COLUMNS).astype(SEARCH_DTYPE)  # 搜索信息
@@ -45,9 +50,6 @@ class DataManager:
 
     def __init__(self, num_work=NUM_WORK):
         self.isRunning = True  # 是否运行
-        self.isSave = False  # 是否正在保存
-        self.isAutoSave = False  # 自动保存是否正在执行
-        self.auto_save_time = 60  # 自动保存间隔
         self.auto_save_timer = Timer(self.auto_save_time, self.auto_save)  # 自动保存定时器
         self.auto_save_timer.daemon = True  # 设置为守护线程,确保主线程退出时,改子线程立即退出
 
@@ -70,19 +72,22 @@ class DataManager:
         return load_pd
 
     @general.timer_decorator
-    def load_data(self, callback):
-        state = False
-        if file.check_exist(IMAGE_INFO_PATH):
-            self.add_image_info(self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True))
-            state = True
-            # Thread(target=lambda: self.add_image_info(
-            #     self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True)), daemon=True).start()
-        if file.check_exist(KEY_WORD_PATH):
-            self.add_key_word(self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE))
-            state = True
-            # Thread(target=lambda: self.add_key_word(
-            #     self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE)), daemon=True).start()
-        Signal(callback).emit(state)
+    def load_image_and_key(self, callback=None):
+        if not self.isLoad:
+            if file.check_exist(IMAGE_INFO_PATH):
+                self.add_image_info(self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True))
+                self.isLoad = True
+                # Thread(target=lambda: self.add_image_info(
+                #     self.load_pd(IMAGE_INFO_PATH, IMAGE_DTYPE, True)), daemon=True).start()
+            if file.check_exist(KEY_WORD_PATH):
+                self.add_key_word(self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE))
+                self.isLoad = True
+                # Thread(target=lambda: self.add_key_word(
+                #     self.load_pd(KEY_WORD_PATH, KEY_WORD_DTYPE)), daemon=True).start()
+        if callback is not None:
+            Signal(callback).emit(self.isLoad)
+        else:
+            return self.isLoad
 
     def add_image_info(self, data):
         """添加图像数据"""

@@ -1,19 +1,20 @@
 """左侧布局"""
 from pyside6_GUI.sub_ui.wallpaper.widgetUI.Config import *
 
-THUMB_SIZE = (512, 512)  # 略缩图尺寸
-
 
 class LeftWidget(Ui_leftwidget, QWidget):
+    LoadKeyUISigal = Signal(bool)  # 收藏夹表格UI加载信号
+    LoadThumbSigal = Signal(tuple)  # 加载略缩图信号
 
     def __init__(self, wallpaper: WallPaperPlay, parent=None):
         super().__init__()
         self.wallpaper = wallpaper
         self.__parent = parent
         self.mode_value = None  # 当前模式
-        # 全部的单元格{key:{'widget','checkbox','image_widget','button'}},部分单元格内不一定有全部控件
+        # 全部的单元格{key:GroupBoxCell/QWidget}
         self.all_cells = {}
-        self.__thumb = {}  # 打开的图片
+        # 存储了加载过的略缩图
+        self.__thumbs = {}
         self.setupUi(self)
         self.uiIint()
         self.bind()
@@ -27,26 +28,30 @@ class LeftWidget(Ui_leftwidget, QWidget):
             self.wallpaper.del_dir(key)
         self.updateHight()
 
-    def setCustomMode(self):
-        """设置为用户模式"""
-        self.mode_value = wallpaper.IMAGE_CUSTOM_MODE
-        self.stackedWidget.setCurrentIndex(0)
+    def setThumb(self, key, image):
+        """设置略缩图"""
+        widget = self.all_cells.get(key, None)
+        if isinstance(widget, GroupBoxCell):
+            if isinstance(image, tuple):
+                widget.setTitle(f'共{image[0]}张')
+                widget.setImage(image[1])
+                self.__thumbs[key] = image[1]
+            else:
+                widget.setImage(image)
+                self.__thumbs[key] = image
 
-        def create_cell(image_dir: str) -> QWidget:
+    def setCustomMode(self, load_thumb=True):
+        """
+        设置为用户模式
+        :param load_thumb: 是否加载略缩图
+        """
+
+        def create_cell(image_dir: str) -> GroupBoxCell:
             """生成一个单元格内容"""
-            # 创建容器
-            widget = QWidget()
-            # 添加垂直布局
-            layout = QVBoxLayout(widget)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(0)
-            # 添加checkbox,button
-            layout_button = QHBoxLayout(widget)
-            layout_button.setContentsMargins(0, 0, 0, 0)
-            layout_button.setSpacing(0)
-            checkBox = QCheckBox(text=image_dir)
-            checkBox.setChecked(image_dir in self.wallpaper.image_dir)
-            checkBox.stateChanged.connect(
+            widget = GroupBoxCell(0)
+            widget.setText(image_dir)
+            widget.setState(image_dir in self.wallpaper.image_dir)
+            widget.StateChange.connect(
                 lambda state, text=image_dir:
                 self.wallpaper.add_dir(text) if state else self.wallpaper.del_dir(text)
             )
@@ -55,28 +60,8 @@ class LeftWidget(Ui_leftwidget, QWidget):
                 lambda _, value=widget: (self.tableWidget_userDir.delWidget(value),
                                          self.tableWidget_userDir.realign()))
             button.setFixedSize(30, 30)
-            layout_button.addWidget(checkBox)
-            layout_button.addWidget(button)
-            layout.addLayout(layout_button)
-            image_widget = ImageWidget()
-            image_widget.enable_zoom_and_drag()
-            image = self.__thumb.get(image_dir, None)
-            if image is None:  # 设置图片
-                image_list = file.get_files_path(image_dir, only_file=True, ext=file.IMAGE_EXTENSION)
-                if image_list:
-                    image = Image_PIL(random.choice(image_list))
-                    image.resize(THUMB_SIZE)
-                    image = image.get_BytesIO
-                    self.__thumb[image_dir] = image
-            image_widget.set_image(image)
-            layout.addWidget(image_widget)
-            # 保存到实例属性中
-            self.all_cells[image_dir] = {
-                'widget': widget,
-                'checkbox': checkBox,
-                'image': image,
-                'image_widget': image_widget if image_widget is not None else None,
-                'button': button}
+            widget.addWidget(button)
+            self.all_cells[image_dir] = widget
             return widget
 
         def create_add() -> QWidget:
@@ -95,6 +80,8 @@ class LeftWidget(Ui_leftwidget, QWidget):
                         lambda value=image_dir: create_cell(value))
                     self.tableWidget_userDir.addWidget(
                         create_add(), create_add)
+                    if not self.__thumbs.get(image_dir, False):
+                        self.LoadThumbSigal.emit((image_dir, [(image_dir, image_dir)]))  # 发送需要加载略缩图
                 else:
                     TeachingTip.create(
                         target=widget,
@@ -122,31 +109,77 @@ class LeftWidget(Ui_leftwidget, QWidget):
             return widget
 
         # 添加数据
+        load_thumb_dir = []
         for image_dir in self.wallpaper.image_dir:
             if image_dir not in self.all_cells:
                 self.tableWidget_userDir.addWidget(
                     create_cell(image_dir),
                     lambda value=image_dir: create_cell(value))
+            if image_dir not in self.__thumbs:
+                load_thumb_dir.append((image_dir, image_dir))
         if 'add' not in self.all_cells:
             self.tableWidget_userDir.addWidget(
                 create_add(), create_add)
+        if load_thumb and load_thumb_dir:
+            self.LoadThumbSigal.emit(('load_custom_thumb', load_thumb_dir))
+        self.updateHight()
 
-    def setKeyMode(self):
-        """设置为收藏夹模式"""
-        self.mode_value = wallpaper.IMAGE_KEY_MODE
-        self.stackedWidget.setCurrentIndex(1)
+    def setKeyMode(self, load_thumb=True):
+        """
+        设置为收藏夹模式
+        :param load_thumb: 是否加载略缩图
+        """
+
+        def create_cell(key: str) -> QWidget:
+            """生成一个单元格内容"""
+            image_info = self.wallpaper.get_key_image_list(key)
+            widget = GroupBoxCell(1)
+            widget.setTitle(f'共{image_info.shape[0] if not image_info.empty else 0}张')
+            widget.setText(key)
+            widget.setState(key in self.wallpaper.image_choice_key)
+            widget.StateChange.connect(
+                lambda state, text=key:
+                self.wallpaper.add_key(text) if state else self.wallpaper.del_key(text)
+            )
+            self.all_cells[key] = widget
+            return widget
+
+        load_thumb_dir = []
+        # 获取全部关键词
+        key_add = False if self.wallpaper.image_choice_key else True
+        for key in self.wallpaper.image_key:
+            if key_add:
+                self.wallpaper.add_key(key)
+            if key not in self.all_cells:
+                self.tableWidget_key.addWidget(
+                    create_cell(key),
+                    lambda value=key: create_cell(value)
+                )
+            if key not in self.__thumbs:
+                image_info = self.wallpaper.get_key_image_list(key)
+                load_thumb_dir.append(
+                    (key, image_info.loc[random.randint(0, image_info.shape[0] - 1), '本地路径'])
+                )
+        if load_thumb and load_thumb_dir:
+            self.LoadThumbSigal.emit(('load_key_thumb', load_thumb_dir))
+        self.updateHight()
 
     def setVideoMode(self):
         """设置为视频模式"""
-        self.mode_value = wallpaper.IMAGE_VIDEO_MODE
-        self.stackedWidget.setCurrentIndex(2)
+        self.updateHight()
 
     def set_mode(self, value: int):
         if value == wallpaper.IMAGE_CUSTOM_MODE:
+            self.mode_value = wallpaper.IMAGE_CUSTOM_MODE
+            self.stackedWidget.setCurrentIndex(0)
             self.setCustomMode()
         elif value == wallpaper.IMAGE_KEY_MODE:
+            self.mode_value = wallpaper.IMAGE_KEY_MODE
+            self.stackedWidget.setCurrentIndex(1)
             self.setKeyMode()
         elif value == wallpaper.IMAGE_VIDEO_MODE:
+            self.mode_value = wallpaper.IMAGE_VIDEO_MODE
+            self.stackedWidget.setCurrentIndex(2)
             self.setVideoMode()
 
     def uiIint(self):
@@ -167,6 +200,10 @@ class LeftWidget(Ui_leftwidget, QWidget):
 
     def bind(self):
         """槽函数绑定"""
+        self.LoadKeyUISigal.connect(
+            lambda value: self.setKeyMode(
+                load_thumb=True if self.stackedWidget.currentIndex() == 1 else False)
+            if value else None)
         self.tableWidget_userDir.delWidgetSignal.connect(self.__delWidget)
         self.tableWidget_userDir.addWidgetSignal.connect(self.updateHight)
         self.tableWidget_userDir.realignSignal.connect(self.updateHight)
@@ -176,14 +213,12 @@ class LeftWidget(Ui_leftwidget, QWidget):
         width = self.tableWidget_userDir.columnWidth(0)  # 获取列宽
         height = min(self.tableWidget_userDir.height() * 0.5, width * 4 / 3)
         # 根据当前列宽设置行高
-        for row in range(self.tableWidget_userDir.rowCount()):
-            self.tableWidget_userDir.setRowHeight(row, height)
-        for text, cell in self.all_cells.items():
-            # 根据列宽自动调整文本换行符
-            text = '\n'.join([text[i:i + int(width / 8)] for i in range(0, len(text), int(width / 8))])
-            checkBox = cell.get('checkbox', None)
-            if checkBox is not None:
-                checkBox.setText(text)
+        for table in self.stackedWidget.findChildren(QTableWidget):
+            for row in range(table.rowCount()):
+                table.setRowHeight(row, height)
+        for text, widget in self.all_cells.items():
+            if isinstance(widget, GroupBoxCell):
+                widget.setText(general.char_auto_line_break(text, widget.checkBox.width()))
 
     def showEvent(self, event):
         """重写showEvent，在控件显示时调用"""

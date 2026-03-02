@@ -15,8 +15,8 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QHeaderView, QSizePolicy, QStackedWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QHeaderView, QScrollArea, QSizePolicy,
+    QStackedWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from Fun.GUI_Qt.PySide6Mod import EasyTableWidget
 
@@ -24,13 +24,25 @@ class Ui_leftwidget(object):
     def setupUi(self, leftwidget):
         if not leftwidget.objectName():
             leftwidget.setObjectName(u"leftwidget")
-        leftwidget.resize(400, 300)
+        leftwidget.resize(478, 300)
+        leftwidget.setMinimumSize(QSize(0, 0))
         self.verticalLayout = QVBoxLayout(leftwidget)
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.stackedWidget = QStackedWidget(leftwidget)
+        self.scrollArea = QScrollArea(leftwidget)
+        self.scrollArea.setObjectName(u"scrollArea")
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollAreaWidgetContents = QWidget()
+        self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 476, 298))
+        self.verticalLayout_5 = QVBoxLayout(self.scrollAreaWidgetContents)
+        self.verticalLayout_5.setSpacing(0)
+        self.verticalLayout_5.setObjectName(u"verticalLayout_5")
+        self.verticalLayout_5.setContentsMargins(0, 0, 0, 0)
+        self.stackedWidget = QStackedWidget(self.scrollAreaWidgetContents)
         self.stackedWidget.setObjectName(u"stackedWidget")
+        self.stackedWidget.setMinimumSize(QSize(450, 0))
         self.page_custom = QWidget()
         self.page_custom.setObjectName(u"page_custom")
         self.verticalLayout_2 = QVBoxLayout(self.page_custom)
@@ -68,7 +80,11 @@ class Ui_leftwidget(object):
 
         self.stackedWidget.addWidget(self.page_video)
 
-        self.verticalLayout.addWidget(self.stackedWidget)
+        self.verticalLayout_5.addWidget(self.stackedWidget)
+
+        self.scrollArea.setWidget(self.scrollAreaWidgetContents)
+
+        self.verticalLayout.addWidget(self.scrollArea)
 
 
         self.retranslateUi(leftwidget)

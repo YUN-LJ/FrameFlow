@@ -11,6 +11,7 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.image_name = None  # 当前图像的名称
         self.image = None  # 当前图像数据
         self.isPause = False  # 是否暂停
+        self.colmun = 1  # 网格布局列数
         self.setupUi(self)
         self.uiInit()
         self.bind()
@@ -48,16 +49,11 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.image_widget.fullScreenSignal.connect(pause_play)  # 进入全屏时触发暂停,退出全屏时结束暂停
 
     def setImage(self, image_name, image,
-                 image_purity=None, image_categories=None,
-                 image_time=None, image_tags=None):
+                 ):
         """
         设置图片
-        :param image_name: 图像路径/图像ID
+        :param image_name: 图像路径
         :param image: 图像数据
-        :param image_purity: 图像级别
-        :param image_categories: 图像分类
-        :param image_time: 图像日期
-        :param image_tags: 图像标签
         """
         self.image_name = image_name
         self.image = image
@@ -65,3 +61,39 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.lineEdit_name.setText(image_name)
         # 设置图片
         self.image_widget.set_image(image)
+
+    def setInfo(self, image_key: str, image_purity: str, image_categories: str,
+                image_time: str, image_tags: list):
+        """
+        设置图像信息
+
+        :param image_purity: 图像级别
+        :param image_categories: 图像分类
+        :param image_time: 图像日期
+        :param image_tags: 图像标签
+        """
+        self.groupBox_info.setTitle(f'图像信息:{image_key[1:]}')
+        # 清空布局
+        self.clear_layout(self.gridLayout)
+        row = -1
+        for index, tag in enumerate(image_tags):
+            col = index % self.colmun
+            if col == 0:
+                row += 1
+            button = TransparentPushButton(tag)
+            # button.clicked.connect(lambda _, value=tag: self.tag_clicked.emit(value))
+            self.gridLayout.addWidget(
+                button, row, col, 1, 1
+            )
+
+    def clear_layout(self, layout):
+        """清空布局中的所有控件"""
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)  # 取出并移除第一个项目
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()  # 删除控件
+                else:
+                    # 如果是子布局，递归删除
+                    clear_layout(item.layout())

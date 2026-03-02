@@ -463,3 +463,21 @@ def timer_decorator(func):
         return result  # 必须返回被装饰函数的结果
 
     return wrapper  # 返回包装后的函数
+
+
+def chunk_list(lst, chunk_size):
+    """将列表分割成指定大小的子列表"""
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+
+
+def char_auto_line_break(text: str, limit_width: int) -> str:
+    # 根据列宽自动调整文本换行符
+    text_split = []
+    weight = 0  # 权重,一个汉字的权重为21,其余字符权重为7
+    for char in text:
+        if weight > limit_width:
+            text_split.append('\n')
+            weight = 0
+        weight += 21 if '\u4e00' <= char <= '\u9fff' else 7
+        text_split.append(char)
+    return ''.join(text_split)
