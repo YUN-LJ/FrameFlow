@@ -33,7 +33,7 @@ class Ui_rightwidget(object):
         self.groupBox_name = QGroupBox(rightwidget)
         self.groupBox_name.setObjectName(u"groupBox_name")
         self.horizontalLayout_4 = QHBoxLayout(self.groupBox_name)
-        self.horizontalLayout_4.setSpacing(0)
+        self.horizontalLayout_4.setSpacing(5)
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
         self.horizontalLayout_4.setContentsMargins(5, 0, 5, 0)
         self.lineEdit_name = QLineEdit(self.groupBox_name)
