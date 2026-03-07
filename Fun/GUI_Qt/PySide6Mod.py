@@ -237,11 +237,12 @@ class ReMouseWidget(QWidget):
 
 # 系统托盘
 class TrayIcon(QSystemTrayIcon):
+    # showClicked = Signal(bool)  # 显示按钮
+    quitClicked = Signal(bool)  # 退出按钮
 
-    def __init__(self, SetUI, exit_func=None, parent=None):
+    def __init__(self, SetUI, parent=None):
         super(TrayIcon, self).__init__(parent)
         self.ui = SetUI
-        self.exit_func = exit_func
         self.createMenu()
 
     def createMenu(self):
@@ -267,9 +268,7 @@ class TrayIcon(QSystemTrayIcon):
         self.ui.activateWindow()
 
     def quit(self):
-        # QtWidgets.qApp.quit()
-        self.exit_func()
-        os._exit(0)  # 强制退出
+        self.quitClicked.emit(True)
 
     def onIconClicked(self, reason):
         # 鼠标点击icon传递的信号会带有一个整形的值
@@ -300,12 +299,15 @@ class ImageWidget(QWidget):
     mouseDoubleSignal = Signal(bool)  # 鼠标双击时发送True,只在启用缩放和拖拽时生效
     mouseWheelSignal = Signal(bool)  # 鼠标滚轮触发时发送True,只在启用缩放和拖拽时生效
     fullScreenSignal = Signal(bool)  # 进入全屏时发送True,退出全屏时发送Flase
+    defaultImage = np.full((224, 224, 4), fill_value=0, dtype=np.uint8)
 
     def __init__(self, image_input=None):
         super().__init__()
         if image_input is None:
-            image_input = np.full((224, 224, 3), fill_value=70, dtype=np.uint8)
+            # 默认显示四通道全透明图像
+            image_input = self.__class__.defaultImage
         self.image_input = image_input
+        self.display_text = None  # 需要显示的文字
         self.original_pixmap = self._load_image(image_input)
         self.setMinimumSize(50, 50)
 
@@ -506,6 +508,7 @@ class ImageWidget(QWidget):
 
     def set_image(self, image_input) -> bool:
         """设置新图片，如果是相同的图片则跳过更新"""
+        self.display_text = None
         # 检查是否相同
         if self.is_same_image(image_input):
             return False  # 返回False表示没有更新
@@ -517,7 +520,16 @@ class ImageWidget(QWidget):
             self.fullscreen_widget.update()
         return True  # 返回True表示已更新
 
+    def set_text(self, text: str):
+        """显示文字"""
+        self.set_image(self.__class__.defaultImage)
+        self.display_text = text
+
     def paintEvent(self, event: QPaintEvent):
+        if self.display_text:
+            painter = QPainter(self)
+            painter.drawText(self.rect(), Qt.AlignCenter, self.display_text)
+            return
         if self.original_pixmap.isNull():
             painter = QPainter(self)
             painter.drawText(self.rect(), Qt.AlignCenter, "图片加载失败")
@@ -1148,7 +1160,7 @@ class EasyTableWidget(QTableWidget):
                 if self.cellWidget(target_row, target_col) == widget:
                     return target_row, target_col
 
-    def addWidget(self, widget: QWidget, create_func: callable, emit=True) -> bool:
+    def addWidget(self, widget: QWidget, create_func: callable, emit=True) -> QWidget:
         """
         添加一个QWidget子类
         :param widget:需要添加的部件
@@ -1157,12 +1169,15 @@ class EasyTableWidget(QTableWidget):
         """
         # 获取当前非空单元格位置,如果当前没有非空单元格则创建新的行
         target_row, target_col = self.getEmptyCoord()
+        if widget is None:
+            widget = create_func()
         self.setCellWidget(target_row, target_col, widget)
         self.__widget_dict[widget] = create_func
         if emit:
             self.addWidgetSignal.emit(widget)
+        return widget
 
-    def delWidget(self, widget: QWidget, deleteLater=True, emit=True):
+    def delWidget(self, widget: QWidget, deleteLater=True, emit=True) -> tuple[int, int]:
         """
         删除一个QWidget子类
         :param widget :需要删除的Qwidget类
@@ -1176,6 +1191,7 @@ class EasyTableWidget(QTableWidget):
             widget.deleteLater()
         if emit:
             self.delWidgetSignal.emit(widget)
+        return target_row, target_col
 
     def realign(self, start_row: int = None, start_col: int = None):
         """

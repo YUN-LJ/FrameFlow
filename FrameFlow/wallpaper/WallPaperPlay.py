@@ -15,7 +15,6 @@ class WallPaperPlay:
     def __init__(self):
         # 类属性
         self.isRunning = False  # 是否正在运行
-        self.isPause = False  # 是否暂停
         self.image_mode = IMAGE_CUSTOM_MODE  # 默认为自定义模式,不同的播放模式将影响播放列表
         self.image_api = IMAGE_WINDOWS_QT  # 默认为使用QT作为底层窗口
         self.image_time = IMAGE_TIME  # 播放时间间隔
@@ -35,8 +34,7 @@ class WallPaperPlay:
         # Qt桌面背景设置,必须由主线程创建,否则内部的定时器将会失效
         self.image_qt = ImageQt()
         # 壁纸播放定时器
-        self.image_play = Timer(0, self.execute)  # 壁纸播放定时器
-        self.image_play.daemon = True
+        self.image_play = general.ReuseTimer(self.image_time, self.execute)
         self.Object.append(self)
 
     def set_mode(self, value: int):
@@ -56,13 +54,10 @@ class WallPaperPlay:
     def set_time(self, timeout: float | int):
         """设置播放间隔"""
         if isinstance(timeout, (float, int)):
-            if self.image_play.is_alive():
-                self.image_play.cancel()
             self.image_time = timeout
             # 如果正在运行则重设置定时器
             if self.isRunning:
-                self.restart_timer()
-                self.image_play.start()
+                self.image_play.set_interval(self.image_time)
         else:
             raise TypeError(f'{PACK_NAME}.{self.__class__.__name__}.set_time 错误:输入不是浮点类型 {timeout}')
 
@@ -181,8 +176,6 @@ class WallPaperPlay:
                 if image_path is None and image_progress is None and image_org is None:
                     print(f'\n{PACK_NAME}.{self.__class__.__name__} 播放队列播放完成,准备重启')
                     self.data_manager.clear_history()
-                    self.restart_timer(0)
-                    self.image_play.start()
                     return
             # image.show_image(3000)  # 显示图像
             print(f'\r壁纸播放|路径:{image_path} 时间{get.now_time()} 间隔:{self.image_time}|', end='')
@@ -197,10 +190,6 @@ class WallPaperPlay:
                 set_wallpaper_API(Image_PIL().open_image(image_progress))
             # 添加到历史数据中
             self.data_manager.add_history(image_path)
-            # 重置定时器
-            self.restart_timer()
-            if not self.isPause:
-                self.image_play.start()
 
     def start(self):
         """开始播放"""
@@ -225,26 +214,12 @@ class WallPaperPlay:
             # 开启子进程处理图像数据
             self.image_process.set_image_list(self.image_list)
             self.image_process.start()
-            try:
-                self.image_play.start()
-            except RuntimeError:
-                self.restart_timer()  # 重置定时器
-                self.image_play.start()
+            self.image_play.start()
 
     def pause(self, pause: bool = True):
         """暂停"""
         if self.isRunning:
-            if pause and not self.isPause:
-                self.isPause = True
-                if self.image_play.is_alive():
-                    self.image_play.cancel()
-                self.image_pause_time = time.time()
-            elif not pause and self.isPause:
-                self.isPause = False
-                diff_time = time.time() - self.image_pause_time  # 暂停了多久
-                interval = min(abs(self.image_time - diff_time), self.image_time)
-                self.restart_timer(interval)
-                self.image_play.start()
+            self.image_play.pause(pause)
 
     def stop(self):
         """停止播放"""
@@ -252,7 +227,7 @@ class WallPaperPlay:
             print(f'{PACK_NAME}.{self.__class__.__name__} 正在停止...')
             self.isRunning = False
             self.image_list = []  # 重置播放列表
-            self.restart_timer()  # 重置定时器
+            self.image_play.stop()  # 重置定时器
             self.image_qt.stop()
             self.image_process.stop()
             # 保存历史数据
@@ -264,16 +239,6 @@ class WallPaperPlay:
         if self.isRunning:
             self.stop()
             self.start()
-
-    def restart_timer(self, interval: float = None):
-        """重置定时器"""
-        # 定时器只有在start()方法后到等待执行的这段时间is_alive的返回值是True
-        if self.image_play.is_alive():
-            self.image_play.cancel()
-        if interval is None:
-            interval = self.image_time
-        self.image_play = Timer(interval, self.execute)  # 壁纸播放定时器
-        self.image_play.daemon = True
 
     def save_config(self):
         """保存当前配置"""

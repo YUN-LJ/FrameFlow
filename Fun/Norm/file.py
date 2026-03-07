@@ -1,12 +1,166 @@
 """
 文件基础操作
 """
-import os, sys, shutil
+import os, sys, shutil, configparser, re
 
 FILE_PATH = None  # 文件路径
 DIR_PATH = None  # 文件夹路径
 
 IMAGE_EXTENSION = {'.png', '.jpg', '.jpeg'}  # 照片格式
+
+
+class EasyConfig:
+    """
+    便捷的存储配置文件
+    该类在存储数据时会自动存储数据类型并在读取时转为python数据类型
+    目前支持的数据类型:int、float、str、list、bool
+    """
+
+    def __init__(self, config_file: str = None, cur_section=None):
+        """
+        :param config_file:文件路径
+        :param cur_section:当前要操作的节
+        """
+        self.cur_section = 'default'
+        if cur_section is not None:
+            self.set_section(cur_section)
+        self.config_data = {}  # 存储的数据
+        self.config_file = config_file
+
+    def __str__(self):
+        return str(self.config_data)
+
+    def __repr__(self):
+        return str(self.config_data)
+
+    def load_config(self) -> bool:
+        """加载本地配置文件"""
+        if self.config_file is not None and check_exist(self.config_file):
+            config = configparser.RawConfigParser()  # 实际存储数据的
+            config.optionxform = lambda option: option  # 防止保存文件时键值小写
+            config.read(self.config_file, encoding='utf-8')
+            for section in config.sections():
+                # 获取当前节的全部数据,数据格式是[(值名,值)]并转为字典类型
+                value_dict = {}
+                for key, value in config.items(section):
+                    # 匹配规则去AI上查,()为只保留的匹配内容
+                    value_type = re.findall(r" type=<class '(\w*)'>$", value)[0]
+                    value = re.findall(r"(.*) type=<class '\w*'>$", value)[0]
+                    if value_type == 'list':
+                        value = value.split(';')
+                    elif value_type == 'bool':
+                        value = True if value == 'True' else False
+                    elif value_type == 'int':
+                        value = int(value)
+                    elif value_type == 'float':
+                        value = float(value)
+                    value_dict[key] = value
+                self.config_data[section] = value_dict
+            return True
+        return False
+
+    def set_section(self, section: str) -> bool:
+        """设置当前要操作的节,如果不存在则会创建"""
+        if section not in self.config_data:
+            self.add_section(section)
+        self.cur_section = section
+
+    def set_file_path(self, file_path: str):
+        """设置文件路径"""
+        self.config_file = file_path
+
+    def add_section(self, section_name: str) -> bool:
+        """
+        新增节
+        :param section_name:要添加的节的名称
+        """
+        if section_name not in self.config_data:
+            self.config_data[section_name] = {}
+            return True
+        return False
+
+    def add_values(self, value_dict: dict, section_name=None) -> bool:
+        """
+        新增数据
+
+        :param value_dict:要添加的数据,数据格式{值名:值}
+        :param section_name:将数据添加在哪个节下面,默认为当前操作的节,节不存在时会创建该节
+        """
+        if section_name is None:
+            section_name = self.cur_section
+        target_section = self.config_data.get(section_name, None)
+        if target_section is None:
+            self.add_section(section_name)
+        self.config_data[section_name].update(value_dict)
+        return True
+
+    def del_section(self, section_name=None) -> bool:
+        """
+        删除节
+
+        :param section_name:要删除的节的名称
+        """
+        if section_name is None:
+            section_name = self.cur_section
+        if section_name in self.config_data:
+            del self.config_data[section_name]
+            return True
+        return False
+
+    def del_values(self, value_name: str | list, section_name=None) -> bool:
+        """
+        删除数据
+
+        :param section_name:要删除的数据在哪个节下面
+        :param value_name:要删除的数据列表名称
+        """
+        if section_name is None:
+            section_name = self.cur_section
+        if isinstance(value_name, str):
+            value_name = [value_name]
+        target_section = self.config_data.get(section_name, None)
+        if target_section is not None:
+            for name in value_name:
+                target_section.pop(name, None)
+            return True
+        return False
+
+    def get_sections(self) -> list:
+        """
+        获取ini文件的全部节
+        返回所有节列表,没有内容时返回[]
+        """
+        return list[self.config_data.keys()]
+
+    def get_values(self, value_name: str = None, section_name: str = None) -> dict | list | str | float | int:
+        """
+        获取指定变量名的数据内容,不指定时默认返回全部
+        返回数据内容,指定变量名时返回str类型,否则返回dict
+        """
+        if section_name is None:
+            section_name = self.cur_section
+        if section_name in self.config_data:
+            if value_name is None:
+                return self.config_data[section_name]
+            else:
+                return self.config_data[section_name].get(value_name, {})
+
+    def save(self):
+        if self.config_file is not None:
+            ensure_exist(os.path.dirname(self.config_file))
+            config = configparser.RawConfigParser()  # 实际存储数据的
+            config.optionxform = lambda option: option  # 防止保存文件时键值小写
+            for section, value in self.config_data.items():
+                config.add_section(section)
+                for key, value in value.items():
+                    value_type = type(value)
+                    if value_type in [int, float, list, str, bool]:
+                        if value_type == list:
+                            value = ';'.join(value)
+                        value = f'{value} type={type(value)}'
+                        config.set(section, key, value)
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                config.write(f)
 
 
 def ensure_exist(dir_path: str = None) -> bool:

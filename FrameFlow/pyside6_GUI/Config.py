@@ -12,8 +12,8 @@ from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
 from qframelesswindow.utils import getSystemAccentColor
 # 导入子窗口
 from pyside6_GUI.sub_ui.home.wallhaven_win import WallHavenWin
-from pyside6_GUI.sub_ui.sets.sets_win import SetsWin
-from pyside6_GUI.sub_ui.wallpaper.wallpaper_win import WallPaperWin
+# from pyside6_GUI.sub_ui.sets.sets_win import SetsWin
+# from pyside6_GUI.sub_ui.wallpaper.wallpaper_win import WallPaperWin
 # 自定义库
 from Fun.GUI_Qt.PySide6Mod import TrayIcon
 from Fun.Norm import general, get

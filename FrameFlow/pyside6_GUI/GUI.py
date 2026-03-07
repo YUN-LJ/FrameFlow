@@ -44,7 +44,7 @@ class PySide6GUI(MSFluentWindow):
         # 设置
         self.addSubInterface(self.subwidget['设置'], ICO_PATH['设置'], '设置', position=NavigationItemPosition.BOTTOM)
 
-    def get_sub_widget(self, index) -> WallHavenWin | WallPaperWin | SetsWin | None:
+    def get_sub_widget(self, index) -> WallHavenWin | None:
         return AddPage.page_object.get(index, None)
 
     def closeEvent(self, event):
@@ -58,7 +58,7 @@ class PySide6GUI(MSFluentWindow):
         self.hide()
         tray.hide()
         AddPage.page_close()
-        app.exit(0)
+        app.exit()
 
     def restart(self, *argv):
         general.cmd_admin_run(f'{get.run_file()} {' '.join(argv)}')
@@ -89,8 +89,8 @@ class Widget(QWidget):
 class AddPage:
     page_dict = {
         0: WallHavenWin,
-        1: WallPaperWin,
-        2: SetsWin,
+        1: QWidget,
+        2: QWidget,
     }
 
     page_object = {}  # 实例化对象
@@ -141,7 +141,8 @@ def start_GUI():
         # save=True时对后续创建的对象也会生效,否则只对当前存在的对象生效
         setThemeColor(getSystemAccentColor(), save=False, lazy=True)
     # 创建系统托盘
-    tray = TrayIcon(GUI, GUI.exit_)
+    tray = TrayIcon(GUI)
+    tray.quitClicked.connect(GUI.exit_)
     # 加载子窗口
     for index, pack_name in AddPage.page_dict.items():
         if GUI.fast_run:  # 快速启动,只加载主页和设置页面

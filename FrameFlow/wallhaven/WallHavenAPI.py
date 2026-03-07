@@ -1,297 +1,351 @@
 """
-该文件为wallhaven后端API
-程序运行时的数据存在在DataManager类中
-图像缓存中如果是本地不存在的文件则是BytesIO类型,否则为str(本地路径)
+wallhaven外部接口
 """
-from wallhaven.Tools import *
+from wallhaven.ImportPack import *
+
+
+class ImageData:
+    """图像数据类"""
+    Clear_Time = 30  # 清理时间
+
+    def __init__(self, image_id: str, type: str):
+        self.image_id = image_id  # 图像ID
+        self.type = type  # 文件类型
+        self.cache_path = os.path.join(GlobalValue.image_cache_dir, image_id + type)  # 缓存地址
+        self.image_path = None  # 本地路径
+        self.thumb_bytesio: BytesIO = None  # 略缩图的内存数据
+        self.image_bytesio: BytesIO = None  # 原图内存数据
+        self.__lock = Lock()
+        self.__clear_bytesio = general.ReuseTimer(
+            self.__class__.Clear_Time, self.__clear_image, is_while=False)
+
+    def get_thumb(self) -> BytesIO | None:
+        if self.thumb_bytesio is not None:
+            return self.thumb_bytesio
+
+    def get_image(self) -> BytesIO | None:
+        with self.__lock:
+            if self.image_bytesio is not None:
+                data = self.image_bytesio
+            elif self.image_path is not None:
+                data = self.load_bytesIO(self.image_path)
+            else:
+                data = self.load_bytesIO(self.cache_path)
+            self.__clear_bytesio.start()
+            return data
+
+    def set_image(self, data):
+        with self.__lock:
+            self.image_bytesio = data
+        self.__clear_bytesio.start()
+
+    def __clear_image(self):
+        with self.__lock:
+            if self.image_path is None and not file.check_exist(self.cache_path):
+                self.save_bytesIO(self.cache_path, self.image_bytesio)
+            self.image_bytesio = None
+
+    @staticmethod
+    def load_bytesIO(file_path) -> BytesIO:
+        """加载文件"""
+        if file.check_exist(file_path):
+            with open(file_path, 'rb') as f:
+                return BytesIO(f.read())
+
+    def save_bytesIO(self, save_path: str, save_file: BytesIO):
+        """保存文件"""
+        file.ensure_exist(os.path.dirname(save_path))
+        if isinstance(save_file, BytesIO):
+            with open(save_path, 'wb') as f:
+                f.write(save_file.getvalue())
+            self.image_path = save_path
+
+
+class RequestAPI:
+    """请求类"""
+
+    Timeout = (3, 10)  # 超时时间
+    Retry = 3  # 重试次数
+    Sleep_Time = 1  # 等待时间
+
+    def __init__(self, task: Task, url: str, params: dict = None):
+        self.task = task
+        self.url = url
+        self.params = params
+        self.state_code = None
+        self.result = self.request_api(
+            url, params, self.__class__.Timeout, retry=self.__class__.Retry
+        )
+
+    def request_api(self, url, params=None, timeout=(3, 10), header=None, retry=3) -> bool | requests.Response:
+        """
+        请求API结果
+        :param url:请求链接
+        :param params:参数
+        :param timeout:设置超时(连接超时,读取超时)
+        :param header:请求头
+        :param retry:重试次数
+        :return 如果请求成功则返回requests.Response,否则返回Flase
+        """
+        header = Config.HEADERS if header is None else header
+        for _ in range(retry):
+            while not self.task.isCancel:
+                try:
+                    response = requests.get(url,
+                                            stream=True,  # 允许流式获取
+                                            params=params,  # 请求参数
+                                            headers=header,  # 头文件
+                                            timeout=timeout,  # 超时
+                                            # verify=False,  # 忽略SSL证书验证
+                                            )
+                except Exception:
+                    print(f'连接超时{self.task.name},正在重试... {get.now_time()}')
+                    time.sleep(self.__class__.Sleep_Time)
+                    break
+                self.status_code = response.status_code
+                if self.status_code == 200:  # 正常状态
+                    return response
+                elif self.status_code == 429:  # 请求达到限制
+                    time.sleep(self.__class__.Sleep_Time)
+                    continue
+
+    def get_search_data(self) -> pd.DataFrame | None:
+        """获取搜索结果"""
+        if self.result:
+            response = self.result.json()
+            meta = response['meta']
+            results = response['data']
+            if not results: return None
+            # 处理搜索数据
+            data = [[result['id'],  # id
+                     self.params['q'],  # 关键词
+                     Config.CATEGORY_DICT[result['category']],  # 分类
+                     Config.PURITY_DICT[result['purity']],  # 分级
+                     int(result['file_size']),  # 大小
+                     Config.TYPE_DICT[result['file_type']],  # 扩张名
+                     int(result['dimension_x']),  # 长
+                     int(result['dimension_y']),  # 宽
+                     float(result['ratio']),  # 比例
+                     int(result['views']),  # 预览量
+                     int(result['favorites']),  # 收藏量
+                     result['path'],  # 远程路径
+                     result['thumbs']["original"],  # 略缩图_原
+                     result['thumbs']["large"],  # 略缩图_大
+                     result['thumbs']["small"],  # 略缩图_小
+                     pd.to_datetime(result['created_at']),  # 日期
+                     int(meta['current_page']),  # 当前页码
+                     int(meta['last_page']),  # 总页数
+                     int(meta['total']),  # 总数
+                     self.params['categories'],  # 类别码
+                     self.params['purity'],  # 分级码
+                     ] for result in results]
+            return pd.DataFrame(data, columns=GlobalValue.search_columns).astype(GlobalValue.search_dtype)
+
+    def get_tags_data(self) -> pd.DataFrame | None:
+        """获取标签结果"""
+        if self.result:
+            result = self.result.json()['data']
+            if not result: return None
+            data = [[result['id'],  # id
+                     '',  # 关键词
+                     Config.CATEGORY_DICT[result['category']],  # 类别
+                     Config.PURITY_DICT[result['purity']],  # 分类
+                     int(result['file_size']),  # 大小
+                     Config.TYPE_DICT[result['file_type']],  # 扩展名
+                     int(result['dimension_x']),  # 长
+                     int(result['dimension_y']),  # 宽
+                     float(result['ratio']),  # 比例
+                     int(result['views']),  # 预览量
+                     int(result['favorites']),  # 收藏量
+                     '',  # 本地路径
+                     result['path'],  # 远程路径
+                     result['thumbs']["original"],  # 略缩图_原
+                     result['thumbs']["large"],  # 略缩图_大
+                     result['thumbs']["small"],  # 略缩图_小
+                     pd.to_datetime(result['created_at']),  # 日期
+                     ';'.join([tag['name'] for tag in result['tags']])  # 文件的标签信息,  # 标签
+                     ]]
+            return pd.DataFrame(data, columns=GlobalValue.image_info_columns).astype(GlobalValue.image_info_dtype)
+
+    def get_download_data(self, chunk_size):
+        if self.result:
+            return self.result.iter_content(chunk_size=chunk_size)
 
 
 class WallHavenAPI:
-    """
-    主控进程
-    可以通过get方法获取任务类,调用start方法即可阻塞执行任务
-    若不需要阻塞执行则将任务类传入submit方法
+    """wallhavenAPI"""
+    json_task = 'json_task'  # json任务
+    file_task = 'file_task'  # 原图下载任务
+    thumb_task = 'thumb_task'  # 略缩图下载任务
 
-    搜索任务关键词:关键词.页码.分类码.分级码
-    略缩图任务关键词:图像id.png/图像id.jpg
-    下载任务关键词:图像id
-    标签任务关键词:图像id_tags
-    """
-    Object = []  # 存储了全部的实例化对象,多模块需要共享时使用
-    key_word_path = KEY_WORD_PATH  # 收藏夹路径
-    image_info_path = IMAGE_INFO_PATH  # 图像信息路径
-
-    def __init__(self, download_dir=None, num_work=NUM_WORK):
-        self.num_work = num_work
-        self.api_key = API_KEY
-        self.download_dir = SAVE_DIR if download_dir is None else download_dir
-        self.isRunning = False  # 运行状态
-        # 任务字典name:TaskWorker
-        self.__task_dict = ThreadSafe.Dict()
-        # 执行任务的线程池
-        self.__executor_download = ThreadPoolExecutor(num_work)  # 下载线程池
-        self.__executor_json = ThreadPoolExecutor(num_work)  # 文本线程池
-        self.data_manager = DataManager()
-        self.Object.append(self)
-
-    def add_key_like(self, key_word) -> pd.DataFrame:
-        """添加收藏"""
-        # 筛选数据(case是否区分大小写,na空值是否匹配,regex禁用正则表达式)
-        with self.data_manager.SEARCH_INFO_LOCK:
-            data = self.data_manager.SEARCH_INFO[
-                self.data_manager.SEARCH_INFO['关键词'].str.contains(key_word, case=True, na=False, regex=False) &
-                self.data_manager.SEARCH_INFO['当前页码'] == 1
-                ].copy(deep=True)
-        if not data.empty:
-            key_data = pd.DataFrame(
-                [[key_word,
-                  data.iloc[0]['总页数'],
-                  data.iloc[0]['总数'],
-                  data['日期'].max(),
-                  get.now_time('%Y-%m-%d %H:%M:%S')]
-                 ],
-                columns=KEY_WORD_COLUMNS
-            ).astype(KEY_WORD_DTYPE)
-            self.data_manager.add_key_word(key_data)
-            return key_data
-        else:
-            return pd.DataFrame([])
-
-    def del_key_like(self, key_word):
-        """删除关键词"""
-        # 删除关键词信息
-        with self.data_manager.KEY_WORD_LOCK:
-            self.data_manager.KEY_WORD = self.data_manager.KEY_WORD[
-                self.data_manager.KEY_WORD['关键词'] != key_word].reset_index(drop=True)
-        # 删除该关键词的图像信息
-        with self.data_manager.IMAGE_INFO_LOCK:
-            mask = self.data_manager.IMAGE_INFO['关键词'].str.contains(
-                key_word, case=True, na=False, regex=False)
-            load_paths = self.data_manager.IMAGE_INFO.loc[mask, '本地路径'].copy(deep=True)  # 待删除本地路径
-            self.data_manager.IMAGE_INFO = self.data_manager.IMAGE_INFO[~mask].reset_index(drop=True)
-        if not load_paths.empty:
-            del_work = ThreadPoolExecutor(self.num_work)
-            # for index, load_path in load_paths.iterrows():
-            for load_path in load_paths:
-                del_work.submit(file.del_file, load_path)
-
-    def set_download_dir(self, dir_path: str):
-        if dir_path != '':
-            self.download_dir = os.path.realpath(dir_path)
-
-    def set_api_key(self, api_key):
-        header = {'X-Api-Key': api_key}
-        if request_api(f'{IMAGE_INFO_URL}/7p373o', header=header):
-            self.api_key = api_key
-            return True
-        else:
-            return False
-
-    def set_num_work(self, num_work):
-        """工作线程"""
-        self.num_work = num_work
-
-    @staticmethod
-    def set_purity(purity: str):
-        """设置分级码,支持字符串形式的001/010/111"""
-        if (isinstance(purity, str) and
-                purity.isdigit() and
-                len(purity) == 3):
-            SEARCH_PARAMS['purity'] = purity
-        else:
-            raise ValueError('set_purity 错误:不支持的分级码')
-
-    @staticmethod
-    def set_categories(categories: str):
-        """设置类别码:100/101/111/等,三位数字每位上的意思(常规/动漫/人物)"""
-        if (isinstance(categories, str) and
-                categories.isdigit() and
-                len(categories) == 3):
-            SEARCH_PARAMS['categories'] = categories
-        else:
-            raise ValueError('set_categories 错误:不支持的类别码')
-
-    @staticmethod
-    def set_sort(sort: str):
-        SEARCH_PARAMS['sorting'] = sort
-
-    @staticmethod
-    def get_purity():
-        return SEARCH_PARAMS['purity']
-
-    @staticmethod
-    def get_categories():
-        return SEARCH_PARAMS['categories']
+    def __init__(self):
+        """
+        初始化
+        """
+        self.isRunning = True
+        self.image_cache = ThreadSafe.Dict()  # 图像缓存{download_url:BytesIO}
+        self.search_params = Config.SearchParams(Config.SEARCH_PARAMS)
+        self.__thread_pool_json = TaskManage(Config.THREAD_NUM)
+        self.__thread_pool_file = TaskManage(Config.THREAD_NUM)
+        self.__thread_pool_thumb = TaskManage(Config.THREAD_NUM)
 
     @property
-    def get_task_names(self):
-        """获取当前全部任务的名称"""
-        with self.__task_dict.get_lock:
-            keys = self.__task_dict.get_dict.copy()
-            return list(keys.keys())
+    def get_search_params(self) -> Config.SearchParams:
+        return self.search_params
 
-    def get_tags_task(self, image_id: str, result_callback=None) -> TaskEnum.Task.Tags:
-        """
-        获取标签任务
-        :param image_id:图像ID
-        :param result_callback: 回调函数{'name','state','data'}
-        """
-        return TaskEnum.Task.Tags(
-            f'{image_id}_tags',
-            f'{IMAGE_INFO_URL}/{image_id}',
-            self.data_manager,
-            Signal(result_callback))
-
-    def get_search_task(self, key_word: str, page: int, result_callback=None) -> TaskEnum.Task.Search:
+    def get_search_task(self, search_params: Config.SearchParams) -> Task:
         """
         获取搜索任务
-        :param key_word: 关键词
-        :param page: 页码
-        :param result_callback: 回调函数{'name','state','data'}
+        :param search_params:搜索参数
         """
-        params = SEARCH_PARAMS.copy()
-        params['q'] = key_word
-        params['page'] = page
-        name = f'{params['q']}.{params['page']}.{params['categories']}.{params['purity']}'
-        return TaskEnum.Task.Search(
-            name, SEARCH_URL, params,
-            self.data_manager,
-            Signal(result_callback))
 
-    def get_thumbs_task(self, url: str, result_callback=None) -> TaskEnum.Task.Download:
-        """
-        获取略缩图任务
-        :param url:略缩图地址
-        :param result_callback:回调函数{'name','state','progress','total','rate','data'}
-        """
-        name = os.path.basename(url)
-        return TaskEnum.Task.Download(
-            name, url, self.data_manager, Signal(result_callback))
+        def sub_func() -> pd.DataFrame | None:
+            nonlocal search_params, task
+            with search_data.lock:  # 获取数据缓存
+                result = search_data.data.loc[
+                    (search_data.data['关键词'] == search_params.q) &
+                    (search_data.data['当前页码'] == search_params.page) &
+                    (search_data.data['类别码'] == search_params.categories) &
+                    (search_data.data['分级码'] == search_params.purity)
+                    ].copy(deep=True)
+            if not result.empty: return result
+            response = RequestAPI(task, Config.SEARCH_URL, search_params.to_dict())
+            if response.result is not None:
+                data = response.get_search_data()
+                if data is not None:
+                    search_data.add_data(data)
+                return data
 
-    def get_download_task(self, tags: pd.DataFrame, key_word: str, result_callback=None) -> TaskEnum.Task.Download:
+        task = Task(func=sub_func,
+                    name=f'{search_params.q}_{search_params.page}',
+                    desc=self.__class__.json_task)
+        return task
+
+    def get_search_all_task(self, search_params: Config.SearchParams) -> Task:
+        """获取搜索全部的任务"""
+
+    def get_download_task(self, download_url: str) -> Task:
         """
         获取下载任务
-        :param tags : 图像标签
-        :param key_word:图像关键词
-        :param result_callback:回调函数{'name','state','progress','total','rate','data'}
-        """
-        tags = tags.iloc[0]
-        image_id = tags['id']
-        url = tags['远程路径']
-        save_dir = os.path.join(self.download_dir, tags['分级'], tags['类别'])
-        save_path = os.path.realpath(
-            os.path.join(save_dir, tags['id'] + tags['文件扩展名'])
-        )
-        # 保存数据
-        with self.data_manager.IMAGE_INFO_LOCK:
-            # 该关键词不存在时添加
-            if isinstance(key_word, str) and key_word != '':
-                if not self.data_manager.IMAGE_INFO.loc[
-                    self.data_manager.IMAGE_INFO['id'] == image_id, '关键词'
-                ].str.contains(key_word, case=True, na=False, regex=False).any():
-                    self.data_manager.IMAGE_INFO.loc[
-                        self.data_manager.IMAGE_INFO['id'] == image_id, '关键词'
-                    ] += f';{key_word}'
-            # 设置本地路径的值
-            self.data_manager.IMAGE_INFO.loc[
-                self.data_manager.IMAGE_INFO['id'] == image_id, '本地路径'
-            ] = save_path
-        if file.check_exist(save_path):
-            # with open(save_path, 'rb') as f:
-            #     byte_arr = BytesIO(f.read())
-            # self.data_manager.IMAGE_CACHE[image_id] = byte_arr
-            self.data_manager.IMAGE_CACHE[image_id] = save_path
-        return TaskEnum.Task.Download(
-            image_id, url, self.data_manager, Signal(result_callback))
-
-    def submit_download(self, image_id: str, key_word: str, result_callback=None):
-        """
-        提交下载任务
-        :param image_id : 图像ID
-        :param result_callback:回调函数{'name','state','progress','total','rate','data'}
+        :param download_url:下载地址
         """
 
-        def tags_callback(result: dict):
-            if result['state'] == TaskEnum.State.success:
-                self.submit(self.get_download_task(result['data'], key_word, result_callback))
+        def sub_func() -> ImageData | None:
+            """如果本地存在的文件则返回的是str即文件路径,否则从网络上下载BytesIO类型文件"""
+            nonlocal task, download_url, image_id, image_type
+            image_data: ImageData = self.image_cache.get(image_id)  # 获取数据缓存
+            if image_data is None:
+                image_data = ImageData(image_id, f'.{image_type}')
             else:
-                result_callback({'name': image_id,
-                                 'state': result['state'],
-                                 'progress': 0, 'total': 0, 'rate': 0,
-                                 'data': None})
+                if task.desc == self.__class__.thumb_task and image_data.get_thumb():
+                    return image_data
+                elif task.desc == self.__class__.file_task and image_data.get_image():
+                    return image_data
+            # 如果是原图下载检查本地是否已经存在
+            if task.desc == self.__class__.file_task:
+                while not image_info_task.done(): time.sleep(1)
+                with image_info.lock:
+                    image_path = image_info.data.loc[
+                        image_info.data['id'] == image_id, '本地路径'
+                    ].copy(deep=True)
+                if not image_path.empty and image_path.iloc[0]:
+                    image_data.image_path = image_path.iloc[0]
+                    image_data.get_image()  # 加载本地文件
+                    self.image_cache[image_id] = image_data
+                    return image_data
+            # 以上都不存在时发送网络请求
+            response = RequestAPI(task, download_url)
+            if response.result:
+                task.progress.total = int(response.result.headers['content-length'])  # 单位字节(b)
+                chunk_size = 1024 * 8 if task.progress.total >= 1024 * 100 else 1024 * 32
+                data = BytesIO()
+                up_time = time.time()
+                # iter_content 按chunk_size分块读取
+                # 这里会有可能出现读取超时,即request_api函数
+                # 的time_out的第二个值是指,两次chunk之间的时间不能超过20秒
+                for count, chunk in enumerate(response.get_download_data(chunk_size)):
+                    if self.isRunning and not task.isCancel:
+                        if chunk:  # 过滤保持连接的chunk
+                            data.write(chunk)
+                            task.progress.finished += len(chunk)
+                            if (count + 1) % 5 == 0:
+                                time_taken = 1024 * (time.time() - up_time)
+                                up_time = time.time()
+                                task.progress.rate = (chunk_size * 5) / time_taken if time_taken != 0 else 0
+                        else:
+                            break
+                    else:
+                        break
+                if task.progress.finished == task.progress.total:
+                    if task.desc == self.__class__.file_task:
+                        image_data.set_image(data)  # 设置内存数据,将在一段时间后自动保存到缓存文件夹中
+                    elif task.desc == self.__class__.thumb_task:
+                        image_data.thumb_bytesio = data  # 设置内存数据
+                    self.image_cache[image_id] = image_data
+                    return image_data
 
-        self.submit(self.get_tags_task(image_id, tags_callback))
-
-    def submit(self, task: TaskEnum.Task.Download | TaskEnum.Task.Search | TaskEnum.Task.Tags) -> bool:
-        """
-        提交任务
-        :param task:任务枚举值
-        """
-        if self.isRunning:
-            TaskWorker(self.__executor_download,
-                       self.__executor_json,
-                       self.__task_dict,
-                       task)
-            return True
+        image_id, image_type = os.path.basename(download_url).split('.')
+        # 确定是原图下载还是略缩图下载
+        if '-' in image_id:
+            image_id = image_id.split('-')[1]
+            desc = self.__class__.file_task
         else:
-            print(f'{PACK_NAME}.{self.__class__.__name__}.submit error:未启动')
-            return False
+            desc = self.__class__.thumb_task
+        task = Task(func=sub_func, name=f'{image_id}_download', desc=desc)
+        return task
 
-    def cancel_task(self, names: str | list):
-        """删除任务"""
-        with self.__task_dict.get_lock:
-            if isinstance(names, str):
-                names = [names]
-            for name in names:
-                task_work: TaskWorker = self.__task_dict.get_dict.pop(name, None)
-                if task_work is not None:
-                    task_work.stop()
+    def get_tags_task(self, image_id: str) -> Task:
+        def sub_func() -> pd.DataFrame | None:
+            nonlocal image_id
+            while not image_info_task.done(): time.sleep(1)
+            with image_info.lock:
+                data = image_info.data[image_info.data['id'] == image_id].copy(deep=True)
+            if not data.empty: return data
+            response = RequestAPI(task, f'{Config.IMAGE_INFO_URL}/{image_id}')
+            if response.result:
+                data = response.get_tags_data()
+                if data is not None:
+                    image_info.add_data(data)
+                return data
 
-    def start(self):
-        self.isRunning = True
-        self.data_manager.auto_save_timer.start()  # 启动定时保存
+        task = Task(sub_func, name=f'{image_id}_tags', desc=self.__class__.json_task)
+        return task
+
+    def add_task(self, task: Task):
+        if task.desc == self.__class__.file_task:
+            return self.__thread_pool_file.add_task(task)
+        elif task.desc == self.__class__.json_task:
+            return self.__thread_pool_json.add_task(task)
+        elif task.desc == self.__class__.thumb_task:
+            return self.__thread_pool_thumb.add_task(task)
+        else:
+            return self.__thread_pool_json.add_task(task)
+
+    def close_thumb_pool(self):
+        self.__thread_pool_thumb.stop()
+        self.__thread_pool_thumb = TaskManage(Config.THREAD_NUM)
 
     def stop(self):
-        print(f'{PACK_NAME}.{self.__class__.__name__} 正在停止...')
         self.isRunning = False
-        # 停止全部任务
-        with self.__task_dict.get_lock:
-            names = self.__task_dict.get_dict.copy()
-        self.cancel_task(names)
-        self.__executor_download.shutdown(wait=True)
-        self.__executor_json.shutdown(wait=True)
-        self.data_manager.stop()
-        # 保存数据文件
-        self.data_manager.save(self.image_info_path, self.data_manager.IMAGE_INFO)
-        self.data_manager.save(self.key_word_path, self.data_manager.KEY_WORD)
-        # 保存配置文件
-        save_config(self.download_dir,
-                    self.get_categories(),
-                    self.get_purity(),
-                    self.num_work,
-                    self.api_key
-                    )
-        print(f'{PACK_NAME}.{self.__class__.__name__} 已停止。')
+        self.__thread_pool_json.stop()
+        self.__thread_pool_file.stop()
+        self.__thread_pool_thumb.stop()
+        data = self.search_params.to_dict()
+        data.update({'save_dir': Config.SAVE_DIR, 'num_work': Config.THREAD_NUM, 'api_key': Config.API_KEY})
+        del data['q'], data['page']
+        config_data.data.add_values(data, Config.PACK_NAME)
 
-    def save_image(self, image_id: str, cover=False) -> bool:
-        """
-        保存文件
-        :param image_id: 图像id
-        :param cover: 是否覆盖,默认不覆盖
-        """
-        with self.data_manager.IMAGE_INFO_LOCK:
-            save_path = self.data_manager.IMAGE_INFO.loc[
-                self.data_manager.IMAGE_INFO['id'] == image_id, '本地路径'
-            ].copy(deep=True)
-        if not save_path.empty:
-            save_path = save_path.values[0]
-            data = self.data_manager.IMAGE_CACHE.get(image_id, None)
-            # if data is not None:
-            # 文件是BytesIO类型就代表本地不存在
-            if cover or isinstance(data, BytesIO):
-                file.ensure_exist(os.path.dirname(save_path))
-                with open(save_path, 'wb') as f:
-                    f.write(data.getvalue())
-            self.data_manager.IMAGE_CACHE.pop(image_id, None)
-            return True
-        return False
+
+if __name__ == '__main__':
+    from wallhaven.WallHavenAPI import WallHavenAPI
+
+    # requet_limit = WallHavenAPI()
+    # search_params = requet_limit.get_search_params
+    # search_params.q = 'Fantasy Factory'
+    # search_params.purity = '111'
+    # search_params.categories = '001'
+    # task = requet_limit.get_search_task(search_params)
+    # requet_limit.add_task(task)
+    # while not task.done():
+    #     time.sleep(1)
+    # print(task.result())

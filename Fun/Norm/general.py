@@ -3,7 +3,117 @@
 """
 import sys, time
 import subprocess
-from . import get
+from Fun.Norm import get
+from threading import Timer
+from typing import Callable
+
+
+class ReuseTimer:
+    """可复用定时器"""
+
+    def __init__(self, interval: float, func: Callable, is_while=True, daemon=True, *args, **kwargs):
+        """
+        :param interval:间隔时间
+        :param func:执行函数
+        :param is_while:是否循环执行
+        :param daemon:是否为守护线程,默认为守护线程
+        :param args: 执行函数需要的位置参数
+        :param kwargs: 执行函数需要的关键字参数
+        """
+        self.interval = interval  # 间隔时间
+        self.func = func  # 执行函数
+        self.is_while = is_while  # 是否循环执行
+        self.daemon = daemon  # 是否为守护线程
+        self.args = args  # 位置参数
+        self.kwargs = kwargs  # 关键字参数
+        self.isRunning = False  # 是否正在运行
+        self.isPause = False
+        self.__pause_time = time.time()
+        self.__timer: Timer = Timer(interval, self.__func)  # 定时器
+        self.__timer.daemon = daemon
+
+    def set_is_while(self, is_while: bool):
+        self.is_while = is_while
+
+    def set_daemon(self, daemon: bool):
+        self.__timer.daemon = daemon
+
+    def set_interval(self, interval: float):
+        self.interval = interval
+        if self.isRunning:
+            self.stop()
+            self.start()
+
+    def set_func(self, func: Callable):
+        self.func = func
+        if self.isRunning:
+            self.stop()
+            self.start()
+
+    def __func(self):
+        """执行具体函数"""
+        if self.isRunning:
+            self.func(*self.args, **self.kwargs)
+            if self.isRunning and self.is_while:
+                if not self.isPause:
+                    self.__restart_timer()
+                    self.__timer.start()
+                else:
+                    while self.isPause:
+                        time.sleep(0.2)
+                    self.__restart_timer()
+                    self.__timer.start()
+            else:
+                self.stop()
+
+    def __restart_timer(self, interval: float = None):
+        """重置定时器"""
+        if interval is None:
+            interval = self.interval
+        # 定时器只有在start()方法后到等待执行的这段时间is_alive的返回值是True
+        if self.__timer.is_alive():
+            self.__timer.cancel()
+        self.__timer = Timer(interval, self.__func)  # 壁纸播放定时器
+        self.__timer.daemon = self.daemon
+
+    def start(self, time_out=None):
+        """开始"""
+        if self.isRunning:
+            self.stop()
+        self.isRunning = True
+        try:
+            self.__restart_timer(time_out)
+            self.__timer.start()
+        except RuntimeError:
+            self.__restart_timer(time_out)  # 重置定时器
+            self.__timer.start()
+
+    def pause(self, pause: bool = True):
+        """
+        暂停
+        :param pause:True表示暂停,Flase表示恢复运行
+        """
+        if self.isRunning:
+            if pause and not self.isPause:
+                self.isPause = True
+                if self.__timer.is_alive():
+                    self.__timer.cancel()
+                self.__restart_timer()
+                self.__pause_time = time.time()
+            elif not pause and self.isPause:
+                self.isPause = False
+                diff_time = time.time() - self.__pause_time  # 暂停了多久
+                interval = min(abs(self.interval - diff_time), self.interval)
+                self.__restart_timer(interval)
+                self.__timer.start()
+
+    def stop(self):
+        """停止"""
+        if self.isRunning:
+            if self.__timer.is_alive():
+                self.__timer.cancel()
+            self.__restart_timer()
+            self.isRunning = False
 
 
 def add_start_user(name: str, file_path: str) -> bool:
