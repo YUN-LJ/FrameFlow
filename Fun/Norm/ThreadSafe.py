@@ -56,6 +56,11 @@ class Dict:
             else:
                 return self.__dict[key]
 
+    def __contains__(self, key: Any) -> bool:
+        """检查元素是否在列表中"""
+        with self.__lock:
+            return key in self.__dict.keys()
+
     def __delitem__(self, key):
         with self.__lock:
             del self.__dict[key]

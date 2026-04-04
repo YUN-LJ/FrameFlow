@@ -2,6 +2,7 @@
 有关PySide6类的高级封装操作
 """
 import os, numpy as np, cv2
+from PIL import Image
 from io import BytesIO
 
 from PySide6 import QtCore
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QSystemTrayIcon, QMenu, QApplication, QTableWidget, QSplitter
 )
+
 
 
 def get_exist_dir(caption: str = '选择文件夹', dir_path: str = get.run_dir()) -> str:

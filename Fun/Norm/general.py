@@ -1,8 +1,10 @@
 """
 通用函数
 """
-import sys, time
-import subprocess
+import win32clipboard, win32con, struct
+import os, sys, time, subprocess
+from io import BytesIO
+from PIL import Image
 from Fun.Norm import get
 from threading import Timer
 from typing import Callable
@@ -277,6 +279,60 @@ def check_is_run(title: str, count: int = 1, accurate: bool = True) -> bool:
         return True
     else:
         return False
+
+
+def copy_files_to_clipboard(file_paths):
+    """复制文件到剪贴板"""
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
+
+    # 转换为绝对路径
+    file_paths = [os.path.abspath(p) for p in file_paths if os.path.exists(p)]
+
+    if not file_paths:
+        return
+
+    # 构建 DROPFILES 结构
+    # 文件列表：每个文件路径以 null 结尾，最后双 null 结束
+    paths_bytes = []
+    for path in file_paths:
+        # Windows 使用 UTF-16 LE
+        paths_bytes.append(path.encode('utf-16le'))
+
+    # 计算总大小
+    struct_size = 20  # DROPFILES 结构大小
+    files_size = sum(len(p) + 2 for p in paths_bytes)  # 每个文件加 \0\0
+    total_size = struct_size + files_size + 2  # 最后加 \0\0
+
+    # 构建数据
+    data = bytearray(total_size)
+
+    # DROPFILES 结构
+    struct.pack_into('<I', data, 0, struct_size)  # pFiles
+    struct.pack_into('<I', data, 16, 1)  # fWide = 1 (使用宽字符)
+
+    # 文件列表从偏移 20 开始
+    offset = struct_size
+    for path_bytes in paths_bytes:
+        data[offset:offset + len(path_bytes)] = path_bytes
+        offset += len(path_bytes)
+        data[offset:offset + 2] = b'\0\0'  # UTF-16 null
+        offset += 2
+
+    # 最后的结束符
+    data[offset:offset + 2] = b'\0\0'
+
+    # 写入剪贴板
+    win32clipboard.OpenClipboard()
+    try:
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32con.CF_HDROP, data)
+
+        # 同时设置文本格式（可选）
+        text = '\n'.join(os.path.basename(p) for p in file_paths)
+        win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
+    finally:
+        win32clipboard.CloseClipboard()
 
 
 def check_is_admin() -> bool:
@@ -591,3 +647,7 @@ def char_auto_line_break(text: str, limit_width: int) -> str:
         weight += 21 if '\u4e00' <= char <= '\u9fff' else 7
         text_split.append(char)
     return ''.join(text_split)
+
+
+if __name__ == '__main__':
+    copy_files_simple(r"E:\user_file\Pictures\壁纸\wallhaven\限制级\人物\1kdqy3.jpg")

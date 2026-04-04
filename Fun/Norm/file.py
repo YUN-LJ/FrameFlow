@@ -44,17 +44,18 @@ class EasyConfig:
                 value_dict = {}
                 for key, value in config.items(section):
                     # 匹配规则去AI上查,()为只保留的匹配内容
-                    value_type = re.findall(r" type=<class '(\w*)'>$", value)[0]
-                    value = re.findall(r"(.*) type=<class '\w*'>$", value)[0]
-                    if value_type == 'list':
-                        value = value.split(';')
-                    elif value_type == 'bool':
-                        value = True if value == 'True' else False
-                    elif value_type == 'int':
-                        value = int(value)
-                    elif value_type == 'float':
-                        value = float(value)
-                    value_dict[key] = value
+                    if value.find('type=<class ') != 0:
+                        value_type = re.findall(r" type=<class '(\w*)'>$", value)[0]
+                        value = re.findall(r"(.*) type=<class '\w*'>$", value)[0]
+                        if value_type == 'list':
+                            value = value.split(';')
+                        elif value_type == 'bool':
+                            value = True if value == 'True' else False
+                        elif value_type == 'int':
+                            value = int(value)
+                        elif value_type == 'float':
+                            value = float(value)
+                        value_dict[key] = value
                 self.config_data[section] = value_dict
             return True
         return False
@@ -155,9 +156,9 @@ class EasyConfig:
                 for key, value in value.items():
                     value_type = type(value)
                     if value_type in [int, float, list, str, bool]:
-                        if value_type == list:
+                        if value_type == list and value:
                             value = ';'.join(value)
-                        value = f'{value} type={type(value)}'
+                        value = f'{value} type={value_type}'
                         config.set(section, key, value)
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 config.write(f)
