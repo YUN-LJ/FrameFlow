@@ -180,9 +180,7 @@ class ImageDialog(Ui_Image, MessageBoxBase):
                 row += 1
             button = TransparentPushButton(tag)
             button.clicked.connect(lambda _, value=tag: self.tagClicked.emit(value))
-            self.gridLayout_tags.addWidget(
-                button, row, col, 1, 1
-            )
+            self.gridLayout_tags.addWidget(button, row, col, 1, 1)
         self.label_id_value.setText(image_info.iloc[0]['id'])
         self.label_category_value.setText(image_info.iloc[0]['类别'])
         self.label_purity_value.setText(image_info.iloc[0]['分级'])

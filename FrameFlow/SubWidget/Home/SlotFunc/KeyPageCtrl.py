@@ -124,7 +124,7 @@ class Table(GroupBoxTable):
                 for index in range(1, 7):
                     item = self.item(row_index, index)
                     item.setText(row.row_data[index])
-            QTimer.singleShot(0, self.__submit_task)
+            QTimer.singleShot(10, self.__submit_task)
         except Empty:
             self.__timer_isRunning = False
 

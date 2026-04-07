@@ -28,6 +28,7 @@ class SetPage(QWidget, Ui_set_page):
         self.pushButton_output.clicked.connect(self.slot.pushButton_output)
         self.pushButton_input.clicked.connect(self.slot.pushButton_input)
         self.spinBox_history.valueChanged.connect(self.slot.spinBox_history)
+        self.spinBox_history.setValue(WH.Config.SEARCH_HISTORY_COUNT)
 
 
 class SetSlot:

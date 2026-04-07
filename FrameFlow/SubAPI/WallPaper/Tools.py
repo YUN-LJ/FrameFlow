@@ -1,31 +1,72 @@
 """壁纸播放工具类"""
-from wallpaper.Config import *
+import pandas as pd
+
+from SubAPI.WallPaper.ImportPack import *
+from SubAPI.WallPaper import Config
 
 
-class Signal:
-    """信号类,用于线程之间通信"""
+def get_screen_size(scaling_factor=1.0):
+    """
+    获取屏幕尺寸,返回最大屏幕尺寸
+    :param scaling_factor:缩放因子,图像的最终尺寸以屏幕尺寸乘以缩放因子
+    """
+    # 获取所有屏幕信息
+    monitors = get_monitors()
+    max_width = 0  # 最大宽度
+    max_height = 0  # 最大高度
+    max_diagonal = 0  # 最大对角线尺寸
+    for monitor in monitors:
+        cur_width = monitor.width
+        cur_height = monitor.height
+        cur_diagonal = cur_width ** 2 + cur_height ** 2
+        if cur_diagonal > max_diagonal:
+            max_width = cur_width
+            max_height = cur_height
+            max_diagonal = cur_diagonal
+    return (int(max_width * scaling_factor),
+            int(max_height * scaling_factor))
 
-    def __init__(self, func=None):
-        self.func = ThreadSafe.List()  # 可调用对象列表
-        if func is not None:
-            self.connect(func)
 
-    def emit(self, value):
-        """发送信号"""
-        for func in self.func:
-            if callable(func):
-                func(value)
+def get_tags_class() -> list:
+    """获取当前全部标签类别"""
+    ImageInfo.is_loaded(1)
+    # explode将子项展开为每一行
+    tags = ImageInfo.data()[ImageInfo.columns.tags].str.split(';').explode().str.strip().unique()
+    return tags.tolist()
 
-    def connect(self, func):
-        """连接槽函数"""
-        if callable(func):
-            self.func.append(func)
 
-    def disconnect(self, func=None):
-        if func is None:
-            self.func.clear()
-        else:
-            self.func.remove(func)
+def get_keys_class(from_info=False) -> list:
+    """
+    获取全部关键词
+    :param from_info:从图像数据中去重筛选,默认从KeyWord中获取数据
+    """
+    if from_info:
+        ImageInfo.is_loaded(1)
+        # explode将子项展开为每一行
+        keys = ImageInfo.data()[ImageInfo.columns.key_word].str.split(';').explode().str.strip().unique()
+        return keys.tolist()
+    else:
+        KeyWord.is_loaded(1)
+        keys = KeyWord.data()[KeyWord.columns.key_word].tolist()
+        return keys
+
+
+def get_image_info_by_tags(tag: str) -> pd.DataFrame:
+    """通过标签获取图像信息"""
+    ImageInfo.is_loaded(1)
+    mask_key = ImageInfo.data()['标签'].str.contains(
+        tag, case=False, na=False, regex=False)
+    result = ImageInfo.data()[mask_key].copy(deep=True).reset_index(drop=True)
+    return result
+
+
+def get_image_info_by_key(key: str) -> pd.DataFrame:
+    """通过关键词获取图像信息"""
+    ImageInfo.is_loaded(1)
+    mask_key = ImageInfo.data()['关键词'].str.contains(
+        key, case=True, na=False, regex=False)
+    result = ImageInfo.data()[mask_key].copy(deep=True).reset_index(drop=True)
+    return result
 
 
 class ImageQt:
@@ -34,41 +75,40 @@ class ImageQt:
     def __init__(self):
         self.isRunning = False
         self.image = None  # 当前播放的照片
-        self.interval = 60
-        self.time_clock = 0  # 内部计时器,每1分钟重置一次桌面窗口,防止卡死
+        self.interval = 60000  # 定时器重置桌面间隔
+        self.lock = Lock()  # 用于防止背景在创建或重置时与播放照片冲突
         self.all_widget = {}
-        self.timer = QTimer()  # 定时器,用于实时更新窗口部件
-        self.timer.timeout.connect(self.create)
 
     def clear_all_widgets(self):
-        for widget, image_widegt in self.all_widget.values():
-            image_widegt.deleteLater()
-            widget.deleteLater()
-        self.all_widget = {}
+        with self.lock:
+            for widget, image_widget in self.all_widget.values():
+                image_widget.deleteLater()
+                widget.deleteLater()
+            self.all_widget = {}
 
-    def create(self):
+    def createBackground(self):
         """创建桌面背景"""
-        for screen in QApplication.screens():
-            if time.time() - self.time_clock > self.interval:
-                self.clear_all_widgets()
-                self.time_clock = time.time()  # 记录时间
-            if screen.name() not in self.all_widget:
-                widget = WindowDesktop(screen)
-                image_widegt = ImageWidget(self.image)  # 用于显示图像的类
-                widget.addWidget(image_widegt)
-                self.all_widget[widget.name] = (widget, image_widegt)
+        if self.isRunning:
+            self.clear_all_widgets()
+            for screen in QApplication.screens():
+                with self.lock:
+                    if screen.name() not in self.all_widget:
+                        widget = WindowDesktop(screen)
+                        image_widget = ImageWidget(self.image)  # 用于显示图像的类
+                        widget.addWidget(image_widget)
+                        self.all_widget[widget.name] = (widget, image_widget)
+            QTimer.singleShot(self.interval, self.createBackground)
 
     def start(self):
         if not self.isRunning:
             self.isRunning = True
-            self.timer.start(1000)
+            QTimer.singleShot(0, self.createBackground)
 
     def stop(self):
         """删除桌面背景,并停止"""
         if self.isRunning:
-            self.clear_all_widgets()
-            self.timer.stop()
             self.isRunning = False
+            self.clear_all_widgets()
 
     def set_wallpaper(self, image: np.ndarray):
         """
@@ -77,215 +117,252 @@ class ImageQt:
         """
         if self.isRunning:
             try:
-                image_w, image_h = image.shape[:2]
-                image_scale = image_w / image_h
-                for widget, image_widget in self.all_widget.values():
-                    # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
-                    screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
-                    screen_scale = screen_size[0] / screen_size[1]
-                    mode = Image_Enum.resize_stretch if abs(
-                        screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
-                    # 重新缩放图像
-                    image_progress = Image_PIL()
-                    image_progress.open_image(image)
-                    image_progress.resize(screen_size, stretch=mode)
-                    self.image = image_progress.get_array
-                    image_widget.set_image(self.image)
+                with self.lock:
+                    image_w, image_h = image.shape[:2]
+                    image_scale = image_w / image_h
+                    for widget, image_widget in self.all_widget.values():
+                        # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
+                        screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
+                        screen_scale = screen_size[0] / screen_size[1]
+                        mode = Image_Enum.resize_stretch if abs(
+                            screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
+                        # 重新缩放图像
+                        image_progress = Image_PIL()
+                        image_progress.open_image(image)
+                        image_progress.resize(screen_size, stretch=mode)
+                        self.image = image_progress.get_array
+                        image_widget.set_image(self.image)
             except Exception as e:
-                print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper {e}')
+                print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.set_wallpaper {e}')
         else:
-            print(f'\n{PACK_NAME}.{self.__class__.__name__}.set_wallpaper 请调用start方法后再使用')
+            print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.set_wallpaper 请调用start方法后再使用')
 
 
-class ImageProcess:
-    """图像处理类,采用子进程处理图像,将其结果返回到队列中"""
+class ImageProcessTask:
+    """处理单张图片的缩放操作"""
 
-    def __init__(self, image_temp_num: int, scaling_factor=1.0):
+    def __init__(self, image_path: str):
+        self.image_id = os.path.basename(image_path).split('.')[0]
+        self.image_path = image_path
+        self.image_info: pd.Series = None  # 图像信息
+        self.image_process: np.ndarray = None  # 处理后的图片
+        self.image_original: np.ndarray = None  # 原图
+        self.screen_size = get_screen_size()
+
+    def start(self) -> np.ndarray | None:
+        try:
+            scale = self.screen_size[0] / self.screen_size[1]
+            image = Image_PIL(load_trunc_images=True)
+            if image.open_image(self.image_path):
+                self.image_original = image.get_array
+                if not image.check_w_screen:
+                    # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
+                    w, h = image.get_size
+                    num_2 = abs((w * 2 / h) - scale)
+                    num_3 = abs((w * 3 / h) - scale)
+                    num = 1 if num_2 > num_3 else 2
+                    image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
+                image.resize(size=self.screen_size)
+                image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
+                self.image_process = image.get_array
+                return self.image_process
+        except Exception as e:
+            print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
+                  f'错误文件名称:{self.image_path}')
+
+
+class ImageProcessManage:
+    """图像处理管理类"""
+
+    def __init__(self, image_temp_num: int = Config.IMAGE_TEMP_NUM):
         """
         :param image_temp_num:图片缓冲数量
         """
         self.isRunning = False  # 是否正在运行
-        self.image_list = None  # 待处理列表
         self.image_temp_num = image_temp_num
-        self.scaling_factor = scaling_factor  # 缩放因子,图像的最终尺寸以屏幕尺寸乘以缩放因子
-        self.screen_size = self.get_screen_size()  # 获取屏幕尺寸
-        self.result_queue = Queue(self.image_temp_num)  # 缓冲队列,默认三张
-        self.process = Process(target=self.execute, name='ImageProcess')
+        self.task_queue = Queue(1)  # 任务队列,队列中存放图像路径
+        self.result_queue = Queue(self.image_temp_num - 1)  # 缓冲队列,队列中存放ImageProcessTask类型
+        self.process = Process(target=self._execute, name='ImageProcess')
 
-    def set_temp_num(self, image_temp_num: int):
-        """设置图像缓冲数量,如果正在运行中则会关闭处理进程"""
-        if self.isRunning:
-            self.stop()
-        self.image_temp_num = image_temp_num
+    def submit_image_path(self, image_paths: list | str):
+        """
+        提交待处理图像路径
+        :param image_paths:图片路径列表,当任务满时会阻塞
+        """
+        if isinstance(image_paths, str):
+            image_paths = [image_paths]
+        for image_path in image_paths:
+            self.task_queue.put(image_path)
+        if not self.isRunning:
+            self.start()
 
-    def set_image_list(self, image_list):
-        """设置待处理列表,如果正在运行中则会关闭处理进程"""
-        if self.isRunning:
-            self.stop()
-        self.image_list = image_list
-
-    def get_screen_size(self):
-        """获取屏幕尺寸,返回最大屏幕尺寸"""
-        # 获取所有屏幕信息
-        monitors = get_monitors()
-        max_width = 0  # 最大宽度
-        max_height = 0  # 最大高度
-        max_diagonal = 0  # 最大对角线尺寸
-        for monitor in monitors:
-            cur_width = monitor.width
-            cur_height = monitor.height
-            cur_diagonal = cur_width ** 2 + cur_height ** 2
-            if cur_diagonal > max_diagonal:
-                max_width = cur_width
-                max_height = cur_height
-                max_diagonal = cur_diagonal
-        return (int(max_width * self.scaling_factor),
-                int(max_height * self.scaling_factor))
-
-    def get_image(self, timeout=3) -> tuple[str, np.ndarray, np.ndarray] | None:
-        """获取图片"""
-        try:
-            result = self.result_queue.get(timeout=timeout)
-            return result
-        except Empty:
-            return None
-
-    def execute(self):
-        """执行器,执行单张图像的处理"""
+    def get_result(self, wait: bool = False) -> ImageProcessTask | None:
+        """
+        获取结果
+        :param wait:是否等待,不等待则有可能返回None
+        """
+        time_out = 1 if wait else 0
         while self.isRunning:
-            scale = self.screen_size[0] / self.screen_size[1]
-            image = Image_PIL(load_trunc_images=True)
-            for image_path in self.image_list:
-                try:
-                    image.open_image(image_path)
-                    image_org = image.get_array
-                    if not image.check_w_screen:
-                        # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
-                        w, h = image.get_size
-                        num_2 = abs((w * 2 / h) - scale)
-                        num_3 = abs((w * 3 / h) - scale)
-                        num = 1 if num_2 > num_3 else 2
-                        image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
-                    image.resize(size=self.screen_size)
-                    image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
-                    self.result_queue.put((image_path, image.get_array, image_org))
-                except Exception as e:
-                    print(f'\n{PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
-                          f'错误文件名称:{image_path}')
-            self.result_queue.put((None, None, None))
+            try:
+                return self.result_queue.get(timeout=time_out)
+            except Empty:
+                if not wait:
+                    return None
+
+    def _execute(self):
+        """子进程执行器"""
+        while self.isRunning:
+            try:
+                image_path = self.task_queue.get(timeout=1)
+                if file.check_exist(image_path):
+                    task = ImageProcessTask(image_path)
+                    result = task.start()
+                    if result is not None:
+                        self.result_queue.put(task)
+            except Empty:
+                pass
 
     def start(self):
         """开始图像处理"""
-        if self.image_list != []:
+        if not self.isRunning:
             self.isRunning = True
             self.process.start()
 
     def stop(self):
         """停止图像处理"""
         if self.isRunning:
+            self.isRunning = False
             try:
-                self.process.kill()
+                self.process.kill()  # 退出进程
             except Exception as e:
-                print(f'\n{PACK_NAME}.{self.__class__.__name__}.stop: 错误{e}')
+                print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.stop: {e}')
             finally:
-                self.process = Process(target=self.execute, name='ImageProcess')
-                self.result_queue = Queue(self.image_temp_num)  # 清空队列
-                self.isRunning = False
+                self.process = Process(target=self._execute, name='ImageProcess')
 
 
-class DataManager:
-    """播放历史数据管理,调用auto_save_timer属性的start方法可以开启自动保存"""
-    # 类属性
-    isSave = False  # 是否正在保存
-    isAutoSave = False  # 自动保存是否正在执行
-    auto_save_time = 60  # 自动保存间隔
-    IMAGE_HISTORY = pd.DataFrame(columns=IMAGE_HISTORY_COLUMNS).astype(IMAGE_HISTORY_DTYPE)
-    IMAGE_HISTORY_LOCK = Lock()
+class ImagePlay:
+    """壁纸播放"""
 
-    def __init__(self):
-        self.isRunning = True  # 是否运行
-        self.auto_save_timer = Timer(self.auto_save_time, self.auto_save)  # 自动保存定时器
-        self.auto_save_timer.daemon = True  # 设置为守护线程,确保主线程退出时,改子线程立即退出
+    def __init__(self, image_key_mode: 'ImageKeyMode'):
+        self.isRunning = False
+        self.sample = False
+        self.start_signal = TaskSignal()
+        self.pause_signal = TaskSignal()
+        self.play_image_signal = TaskSignal()  # 当前播放的图片,发送ImageProcessTask类
+        self.image_key_mode = image_key_mode  # 关键词模式数据管理类
+        self.image_qt = ImageQt()  # 壁纸Qt接口管理类
+        self.image_process_manage = ImageProcessManage()  # 图像处理进程管理器
+        self.play_timer = general.ReuseTimer(Config.IMAGE_TIME, self.set_wallpaper)
+        self.submit_timer = general.ReuseTimer(0, self.submit_image_process)
 
-    @general.timer_decorator
-    def load_history(self, callback=None):
-        """
-        加载历史数据,返回一个bool值给回调函数
-        :param callback:回调函数
-        """
-        state = False
-        if file.check_exist(IMAGE_HISTORY_PATH):
-            extension = file.get_file_extension(IMAGE_HISTORY_PATH)
-            # 读取文件
-            if extension == '.csv':
-                load_pd = pd.read_csv(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
-            elif extension == '.xlsx':
-                load_pd = pd.read_excel(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
-            elif extension == '.feather':
-                load_pd = pd.read_feather(IMAGE_HISTORY_PATH).astype(IMAGE_HISTORY_DTYPE)
-            # 添加数据
-            if not load_pd.empty:
-                self.add_history(load_pd)
-                state = True
-        if callback is not None:
-            Signal(callback).emit(state)
+    def set_sample(self, value: bool):
+        self.sample = value
+
+    def submit_image_process(self):
+        """提交图像处理任务"""
+        image_data = None
+        if Config.IMAGE_PLAY_MODE == Config.IMAGE_KEY_MODE:
+            image_data = self.image_key_mode.get_image_play_data(sample=self.sample)
+        if image_data['本地路径'].tolist():
+            self.image_process_manage.submit_image_path(image_data['本地路径'].tolist())
         else:
-            return state
+            if not self.play_timer.isPause:
+                self.pause()
+            time.sleep(1)
 
-    def add_history(self, image_id: str | pd.DataFrame):
-        """新增已播放数据"""
-        if isinstance(image_id, str):
-            image_id = pd.DataFrame([image_id], columns=IMAGE_HISTORY_COLUMNS).astype(IMAGE_HISTORY_DTYPE)
-        with self.IMAGE_HISTORY_LOCK:
-            # 表合并+数据去重(链式操作pandas内部有优化且避免线程安全问题)
-            self.IMAGE_HISTORY = pd.concat([self.IMAGE_HISTORY, image_id]).drop_duplicates(
-                subset=['id'], keep='last', ignore_index=True)
+    def set_wallpaper(self):
+        """获取处理后的图像并设置为壁纸"""
 
-    def clear_history(self):
-        """清空播放历史"""
-        with self.IMAGE_HISTORY_LOCK:
-            self.IMAGE_HISTORY = pd.DataFrame(columns=IMAGE_HISTORY_COLUMNS).astype(IMAGE_HISTORY_DTYPE)
-
-    def get_history(self):
-        """获取播放历史"""
-        with self.IMAGE_HISTORY_LOCK:
-            return self.IMAGE_HISTORY['id'].tolist()
-
-    def auto_save(self):
-        """自动保存"""
-        if self.isRunning:
-            print(f'\n{PACK_NAME}.{self.__class__.__name__}.auto_save :'
-                  f'正在保存,当前时间:{get.now_time('%Y-%m-%d %H:%M:%S')}')
-            self.isAutoSave = True
-            with self.IMAGE_HISTORY_LOCK:
-                self.save(IMAGE_HISTORY_PATH, self.IMAGE_HISTORY)
-            self.isAutoSave = False
-            # 重新设置定时器
-            if self.isRunning:
-                self.auto_save_timer = Timer(self.auto_save_time, self.auto_save)
-                self.auto_save_timer.daemon = True
-                self.auto_save_timer.start()
-
-    def save(self, file_path: str, df: pd.DataFrame):
-        try:
-            self.isSave = True
-            extension = os.path.splitext(file_path)[1]
-            file.ensure_exist(os.path.dirname(file_path))
-            if extension == '.xlsx':
-                df.to_excel(file_path, index=False)
-            elif extension == '.csv':
-                df.to_csv(file_path, index=False, encoding='utf-8')
-            elif extension == '.feather':
-                df.to_feather(file_path)
-            self.isSave = False
-            return True
-        except Exception as e:
-            print(f'{PACK_NAME}.{self.__class__.__name__}.save error:\n\t{e}')
+        def key_mode(result: ImageProcessTask) -> bool:
+            """关键词模式"""
+            # 确保图片在播放列表中
+            image_info = self.image_key_mode.get_image_play_info(result.image_path)
+            if image_info is not None:
+                result.image_info = image_info
+                self.play_image_signal.emit(result)
+                self.image_qt.set_wallpaper(result.image_process)
+                return True
             return False
 
+        while self.isRunning:
+            result = self.image_process_manage.get_result(True)
+            if result is not None:  # 图像处理数据不为空
+                if Config.IMAGE_PLAY_MODE == Config.IMAGE_KEY_MODE:  # 判断模式
+                    if key_mode(result):
+                        break
+
+    def start(self):
+        if not self.isRunning:
+            self.isRunning = True
+            self.image_qt.start()
+            self.submit_timer.start()
+            self.play_timer.start()
+            self.start_signal.emit(True)
+
+    def pause(self):
+        self.play_timer.pause()
+        self.submit_timer.pause()
+        self.pause_signal.emit(True)
+
     def stop(self):
-        self.isRunning = False
-        if self.auto_save_timer.is_alive():
-            self.auto_save_timer.cancel()
-        while self.isSave or self.isAutoSave:
-            time.sleep(1)
+        if self.isRunning:
+            self.image_qt.stop()
+            self.submit_timer.stop()
+            self.play_timer.stop()
+            self.image_process_manage.stop()
+
+
+class ImageKeyMode:
+    """关键字模式"""
+
+    def __init__(self):
+        # 播放数据
+        self.play_data = pd.DataFrame(columns=GlobalValue.image_info_columns).astype(GlobalValue.image_info_dtype)
+        self.history_data = ImageHistory()
+        self.__lock = Lock()
+
+    def get_image_play_data(self, n: int = 1, sample: bool = False) -> pd.DataFrame:
+        """
+        获取图像信息
+        :param n:取几张图片,默认1张
+        :param sample:启用随机,默认不随机
+        """
+        with self.__lock:
+            mask = self.play_data['本地路径'].isin(self.history_data.data()['本地路径'])
+            filter_data = self.play_data[~mask]
+            if filter_data.empty:
+                self.history_data.clear()
+                data = self.play_data.sample(n=n) if sample else self.play_data.head(n)
+            else:
+                data = filter_data.sample(n=n) if sample else filter_data.head(n)
+            self.history_data.add_data(data)
+            return data
+
+    def get_image_play_info(self, image_path: str) -> pd.Series | None:
+        """根据图像路径获取信息,如果在播放列表内会返回数据,否则返回None"""
+        image_info = self.play_data[self.play_data['本地路径'] == image_path].copy(deep=True).reset_index(drop=True)
+        if not image_info.empty:
+            return image_info.iloc[0]
+
+    def add_play_data(self, data: pd.DataFrame):
+        with self.__lock:
+            self.play_data = pd.concat([self.play_data, data]).drop_duplicates(
+                subset=['本地路径'], keep='last', ignore_index=True)
+
+    def del_play_data(self, key: str = None):
+        """
+        删除播放数据
+        :param key:关键词
+        """
+        with self.__lock:
+            if key is not None:
+                mask_bool = ~self.play_data['关键词'].str.contains(
+                    key, case=True, na=False, regex=False)
+                self.play_data = self.play_data[mask_bool].reset_index(drop=True)
+            else:
+                self.play_data = pd.DataFrame(columns=GlobalValue.image_info_columns).astype(
+                    GlobalValue.image_info_dtype)
+
+
+if __name__ == '__main__':
+    print(get_image_info_by_key('Nian Tuanzitu').shape)

@@ -13,6 +13,7 @@ from qfluentwidgets import (NavigationItemPosition, MSFluentWindow,
 from qframelesswindow.utils import getSystemAccentColor
 # 导入子窗口
 from SubWidget.Home import HomeWin
+from SubWidget.WallPaper import WallPaperWin
 from BaseClass import DataManage, GlobalValue, AppCore
 # 自定义库
 from Fun.GUI_Qt.PySide6Mod import TrayIcon

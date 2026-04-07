@@ -58,9 +58,12 @@ def check_connect(proxy=None) -> bool:
     header = Config.HEADERS if Config.API_KEY else None
     kwargs = {'headers': header, 'timeout': (3, 10)}
     proxy = kwargs.update({'proxies': {'http': f'http://{proxy}', 'https': f'http://{proxy}'}}) if proxy else None
-    response = requests.get(Config.CONNECT_TEST_URL, **kwargs)
-    if response.status_code == 200:
-        return True
+    try:
+        response = requests.get(Config.CONNECT_TEST_URL, **kwargs)
+        if response.status_code == 200:
+            return True
+    except Exception:
+        pass
     return False
 
 
@@ -71,9 +74,12 @@ def check_api(api) -> bool:
         return False
     kwargs = {'headers': header, 'timeout': (3, 10)}
     proxy = kwargs.update({'proxies': Config.PROXIES}) if Config.PROXIES_URL else None
-    response = requests.get(Config.API_KEY_TEST_URL, **kwargs)
-    if response.status_code == 200:
-        return True
+    try:
+        response = requests.get(Config.API_KEY_TEST_URL, **kwargs)
+        if response.status_code == 200:
+            return True
+    except Exception as e:
+        pass
     return False
 
 

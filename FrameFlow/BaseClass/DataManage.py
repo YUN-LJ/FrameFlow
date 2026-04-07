@@ -10,7 +10,7 @@ DataBase类的子类其内部数据保存在变量self.__data中
 with DataBase.lock:
     data = DataBase.data
 """
-import pandas as pd, os
+import pandas as pd, os, time
 import threading
 from threading import Lock
 from BaseClass.TaskManage import Task, TaskManage, TaskSignal
@@ -121,9 +121,17 @@ class DataBase:
             self.load_signal.emit(self.data())
 
     @classmethod
-    def is_loaded(cls) -> bool:
-        """是否加载完本地数据"""
-        return cls().loaded
+    def is_loaded(cls, wait: float | int = None) -> bool:
+        """
+        是否加载完本地数据
+        :param wait:等待到加载完成,输入等待间隔
+        """
+        self = cls()
+        if wait is not None and isinstance(wait, (float, int)):
+            wait_time = wait if isinstance(wait, (float, int)) and wait >= 0 else 1
+            while not self.loaded: time.sleep(wait_time)
+            return True
+        return self.loaded
 
     def __repr__(self):
         return str(self.__data)
@@ -224,6 +232,7 @@ class SearchData(DataBase):
 class ImageInfo(DataBase):
     _instance = None
     _lock = threading.Lock()
+    columns = GlobalValue.ImageInfoColumns()
 
     def __new__(cls):
         with cls._lock:
@@ -270,7 +279,8 @@ class ImageInfo(DataBase):
         self = cls()
         if self.is_loaded():
             load_pd = self.load_pandas(file_path, GlobalValue.image_info_columns, GlobalValue.image_info_dtype)
-            load_pd.sort_values('关键词', key=lambda x: x.str.lower(), inplace=True)
+            load_pd.sort_values(by=['关键词', '日期'], ascending=[True, False],
+                                key=self.__smart_key, inplace=True)
             self.add_data(load_pd)
             return True
         return False
@@ -278,6 +288,12 @@ class ImageInfo(DataBase):
     @classmethod
     def data(cls) -> pd.DataFrame:
         return super(ImageInfo, cls()).data
+
+    def __smart_key(self, series):
+        if series.name == '关键词':
+            return series.str.lower()
+        else:
+            return series  # 日期列不做任何转换
 
     @classmethod
     def load(cls) -> pd.DataFrame:
@@ -290,6 +306,9 @@ class ImageInfo(DataBase):
             # 检查本地路径的文件是否存在,将不存在的路径改为''
             mask = pd.Series(file.check_exist(load_pd['本地路径']))
             load_pd.loc[~mask, '本地路径'] = ''
+            # 将结果排序
+            load_pd.sort_values(by=['关键词', '日期'], ascending=[True, False],
+                                key=self.__smart_key, inplace=True)
         return load_pd
 
     @classmethod
@@ -303,6 +322,7 @@ class ImageInfo(DataBase):
 class KeyWord(DataBase):
     _instance = None
     _lock = threading.Lock()
+    columns = GlobalValue.KeyWordColumns()
 
     def __new__(cls):
         with cls._lock:
@@ -392,8 +412,49 @@ class ImageHistory(DataBase):
         super().__init__(GlobalValue.image_history_path)
 
     @classmethod
+    def add_data(cls, new_data: pd.DataFrame):
+        """新增结构化数据"""
+        self = cls()
+        with self.lock:
+            self.set_data(pd.concat(
+                [self.data(), new_data]).drop_duplicates(
+                subset=['本地路径'], keep='last', ignore_index=True), use_lock=False)
+
+    @classmethod
+    def del_data(cls, mask_bool: pd.Series, use_lock=True):
+        """传入bool掩码,True表示留下,False表示删除"""
+        self = cls()
+        if use_lock:
+            with self.lock:
+                self.set_data(self.data()[mask_bool].reset_index(drop=True), use_lock=False)
+        else:
+            self.set_data(self.data()[mask_bool].reset_index(drop=True), use_lock=False)
+
+    @classmethod
+    def clear(cls):
+        self = cls()
+        self.set_data(pd.DataFrame(columns=GlobalValue.image_history_columns).astype(GlobalValue.image_history_dtype))
+
+    @classmethod
     def data(cls) -> pd.DataFrame:
         return super(ImageHistory, cls()).data
+
+    @classmethod
+    def to_excel(cls) -> str | None:
+        self = cls()
+        if self.is_loaded():
+            save_path = os.path.join(GlobalValue.config_dir, 'image_history.xlsx')
+            self.data().to_excel(save_path, index=False)
+            return save_path
+
+    @classmethod
+    def load_from_excel(cls, file_path: str) -> bool:
+        self = cls()
+        if self.is_loaded():
+            load_pd = self.load_pandas(file_path, GlobalValue.image_history_columns, GlobalValue.image_history_dtype)
+            self.add_data(load_pd)
+            return True
+        return False
 
     @classmethod
     def load(cls) -> pd.DataFrame:

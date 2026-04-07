@@ -53,7 +53,7 @@ class PySide6GUI(MSFluentWindow):
         # 设置
         self.addSubInterface(self.subwidget['设置'], ICO_PATH['设置'], '设置', position=NavigationItemPosition.BOTTOM)
 
-    def get_sub_widget(self, index) -> HomeWin | None:
+    def get_sub_widget(self, index) -> HomeWin | WallPaperWin | None:
         return AddPage.page_object.get(index, None)
 
     def resizeEvent(self, event):
@@ -102,7 +102,7 @@ class Widget(QWidget):
 class AddPage:
     page_dict = {
         0: HomeWin,
-        1: QWidget,
+        1: WallPaperWin,
         2: QWidget,
     }
 

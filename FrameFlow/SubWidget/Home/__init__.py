@@ -9,16 +9,15 @@ from SubWidget.Home.SearchPage import SearchPage
 from SubWidget.Home.DownloadPage import DownloadPage
 from SubWidget.Home.KeyWordPage import KeyWordPage
 from SubWidget.Home.SetPage import SetPage
-from SubAPI import WallHaven as WH
 
 
 class HomeWin(TopWidget):
-    switchPageSiganl = Signal(QWidget)  # 发送需要切换页面的对象即可切换到指定页面
+    switchPageSignal = Signal(QWidget)  # 发送需要切换页面的对象即可切换到指定页面
 
     def __init__(self, parent=None):
         self.__parent = self if parent is None else parent
         super().__init__(self.__parent)
-        AppCore().addSignal('Home_switchPage', self.switchPageSiganl)
+        AppCore().addSignal('Home_switchPage', self.switchPageSignal)
         self.uiInit()
         self.bind()
 
@@ -38,7 +37,7 @@ class HomeWin(TopWidget):
         self.topWidget.setCurrentItem(widget.objectName())
 
     def bind(self):
-        self.switchPageSiganl.connect(self.switchPage)
+        self.switchPageSignal.connect(self.switchPage)
         self.search_page.downloadSignal.connect(self.download_page.addDownload)
         self.key_page.downloadSignal.connect(self.download_page.addDownload)
 

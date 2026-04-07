@@ -91,7 +91,7 @@
             <number>0</number>
            </property>
            <item>
-            <widget class="EasyTableWidget" name="tableWidget_userDir"/>
+            <widget class="QTableWidget" name="tableWidget_userDir"/>
            </item>
           </layout>
          </widget>
@@ -113,7 +113,7 @@
             <number>0</number>
            </property>
            <item>
-            <widget class="EasyTableWidget" name="tableWidget_key"/>
+            <widget class="KeyTable" name="tableWidget_key"/>
            </item>
           </layout>
          </widget>
@@ -135,7 +135,7 @@
             <number>0</number>
            </property>
            <item>
-            <widget class="EasyTableWidget" name="tableWidget_video"/>
+            <widget class="QTableWidget" name="tableWidget_video"/>
            </item>
           </layout>
          </widget>
@@ -149,9 +149,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>EasyTableWidget</class>
+   <class>KeyTable</class>
    <extends>QTableWidget</extends>
-   <header>Fun.GUI_Qt.PySide6Mod</header>
+   <header>SubWidget.WallPaper.SlotFunc.KeyWordModeCtrl</header>
   </customwidget>
  </customwidgets>
  <resources/>

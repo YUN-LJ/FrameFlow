@@ -90,8 +90,10 @@ class Cell(GroupBoxCell):
             self.image_loading = False
 
     def loadThumb(self):
-        self.work_flow = ThumbWorkFlow(self.thumb_url, self.key_word, self.thumbStartSignal, self.thumbFinishedSignal)
-        self.work_flow.start()
+        if self.thumb_url:
+            self.work_flow = ThumbWorkFlow(
+                self.thumb_url, self.key_word, self.thumbStartSignal, self.thumbFinishedSignal)
+            self.work_flow.start()
 
     def stopThumb(self):
         if self.work_flow is not None:
@@ -221,6 +223,8 @@ class Table(GroupBoxTable):
 
     def getShowRowSignal(self, emit=True):
         rows = super().getShowRowSignal(emit)
-        for cell in self.all_cells[rows[0] * 4:rows[-1] * 4 + 4]:
-            if not cell.image_loading:
-                cell.loadThumb()
+        column = self.columnCount()
+        if rows:
+            for cell in self.all_cells[rows[0] * column:rows[-1] * column + column]:
+                if not cell.image_loading:
+                    cell.loadThumb()

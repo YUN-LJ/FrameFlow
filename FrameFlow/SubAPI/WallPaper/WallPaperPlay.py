@@ -1,5 +1,5 @@
 """壁纸播放主文件"""
-from wallpaper.Tools import *
+from SubAPI.WallPaper.Tools import *
 
 
 class WallPaperPlay:

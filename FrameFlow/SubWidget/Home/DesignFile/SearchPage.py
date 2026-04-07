@@ -36,7 +36,7 @@ class Ui_SearchPage(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 713, 445))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 708, 457))
         self.verticalLayout_3 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_3.setSpacing(0)
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
@@ -119,23 +119,29 @@ class Ui_SearchPage(object):
 
         self.horizontalLayout.addWidget(self.pushButton_download)
 
-        self.checkBox_use_network = SwitchButton(self.scrollAreaWidgetContents)
-        self.checkBox_use_network.setObjectName(u"checkBox_use_network")
-        self.checkBox_use_network.setMinimumSize(QSize(0, 40))
-
-        self.horizontalLayout.addWidget(self.checkBox_use_network)
-
-        self.checkBox_use_tags = SwitchButton(self.scrollAreaWidgetContents)
-        self.checkBox_use_tags.setObjectName(u"checkBox_use_tags")
-        self.checkBox_use_tags.setMinimumSize(QSize(0, 40))
-
-        self.horizontalLayout.addWidget(self.checkBox_use_tags)
-
 
         self.verticalLayout_4.addLayout(self.horizontalLayout)
 
 
         self.horizontalLayout_2.addLayout(self.verticalLayout_4)
+
+        self.verticalLayout_6 = QVBoxLayout()
+        self.verticalLayout_6.setSpacing(0)
+        self.verticalLayout_6.setObjectName(u"verticalLayout_6")
+        self.checkBox_use_network = SwitchButton(self.scrollAreaWidgetContents)
+        self.checkBox_use_network.setObjectName(u"checkBox_use_network")
+        self.checkBox_use_network.setMinimumSize(QSize(0, 40))
+
+        self.verticalLayout_6.addWidget(self.checkBox_use_network)
+
+        self.checkBox_use_tags = SwitchButton(self.scrollAreaWidgetContents)
+        self.checkBox_use_tags.setObjectName(u"checkBox_use_tags")
+        self.checkBox_use_tags.setMinimumSize(QSize(0, 40))
+
+        self.verticalLayout_6.addWidget(self.checkBox_use_tags)
+
+
+        self.horizontalLayout_2.addLayout(self.verticalLayout_6)
 
         self.verticalLayout_5 = QVBoxLayout()
         self.verticalLayout_5.setObjectName(u"verticalLayout_5")

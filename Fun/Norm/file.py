@@ -156,8 +156,8 @@ class EasyConfig:
                 for key, value in value.items():
                     value_type = type(value)
                     if value_type in [int, float, list, str, bool]:
-                        if value_type == list and value:
-                            value = ';'.join(value)
+                        if value_type == list:
+                            value = ';'.join(value) if value else ''
                         value = f'{value} type={value_type}'
                         config.set(section, key, value)
             with open(self.config_file, 'w', encoding='utf-8') as f:

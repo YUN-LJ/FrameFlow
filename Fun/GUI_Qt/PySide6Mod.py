@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
 )
 
 
-
 def get_exist_dir(caption: str = '选择文件夹', dir_path: str = get.run_dir()) -> str:
     """
     用于选择单个目录,外部调用时需要用lambda :方法
@@ -294,12 +293,12 @@ class ImageWidget(QWidget):
     disable_zoom_and_drag关闭缩放和拖拽
     showFullScreen全屏显示
     """
-    mouseEnterSignal = Signal(bool)  # 鼠标进入时发送True
-    mouseLeaveSignal = Signal(bool)  # 离开时发送True
-    mousePressSignal = Signal(bool)  # 鼠标按下时发送True,只在启用缩放和拖拽时生效
-    mouseReleaseSignal = Signal(bool)  # 鼠标松开时发送True,只在启用缩放和拖拽时生效
-    mouseDoubleSignal = Signal(bool)  # 鼠标双击时发送True,只在启用缩放和拖拽时生效
-    mouseWheelSignal = Signal(bool)  # 鼠标滚轮触发时发送True,只在启用缩放和拖拽时生效
+    mouseEnterSignal = Signal()  # 鼠标进入时发送
+    mouseLeaveSignal = Signal()  # 离开时发送
+    mousePressSignal = Signal()  # 鼠标按下时发送,只在启用缩放和拖拽时生效
+    mouseReleaseSignal = Signal()  # 鼠标松开时发送,只在启用缩放和拖拽时生效
+    mouseDoubleSignal = Signal()  # 鼠标双击时发送,只在启用缩放和拖拽时生效
+    mouseWheelSignal = Signal()  # 鼠标滚轮触发时发送,只在启用缩放和拖拽时生效
     fullScreenSignal = Signal(bool)  # 进入全屏时发送True,退出全屏时发送Flase
     defaultImage = np.full((224, 224, 4), fill_value=0, dtype=np.uint8)
 
@@ -650,7 +649,7 @@ class ImageWidget(QWidget):
                 int(target_x - new_rect.x()),
                 int(target_y - new_rect.y())
             )
-        self.mouseWheelSignal.emit(True)
+        self.mouseWheelSignal.emit()
         self.update()
         event.accept()
 
@@ -676,7 +675,7 @@ class ImageWidget(QWidget):
             self.dragging = True
             self.last_mouse_pos = event.position().toPoint()
             self.setCursor(Qt.ClosedHandCursor)
-            self.mousePressSignal.emit(True)
+            self.mousePressSignal.emit()
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent):
@@ -699,18 +698,18 @@ class ImageWidget(QWidget):
             self.setCursor(Qt.ArrowCursor)
 
     def enterEvent(self, event: QEvent):
-        self.mouseEnterSignal.emit(True)
+        self.mouseEnterSignal.emit()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent):
-        self.mouseLeaveSignal.emit(False)
+        self.mouseLeaveSignal.emit()
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if self.dragging and event.button() == Qt.LeftButton:
             self.dragging = False
             self.setCursor(Qt.ArrowCursor)
-            self.mouseReleaseSignal.emit(False)
+            self.mouseReleaseSignal.emit()
             event.accept()
         else:
             super().mouseReleaseEvent(event)
@@ -719,7 +718,7 @@ class ImageWidget(QWidget):
         """鼠标双击事件：复原图像"""
         if event.button() == Qt.LeftButton:
             self.reset_view()
-            self.mouseDoubleSignal.emit(True)
+            self.mouseDoubleSignal.emit()
             event.accept()
         else:
             super().mouseDoubleClickEvent(event)
@@ -1227,15 +1226,15 @@ class LeftandRightSplitter(QSplitter):
     """左右滑动容器"""
 
     def __init__(self, layout: QHBoxLayout, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(Qt.Horizontal, *args, **kwargs)
         # 设置初始比例,数字代表宽度像素
         self.setSizes([500, 500])
         # 设置分界线样式
-        self.setStyleSheet(
-            """QSplitter::handle { 
-                            background-color: rgb(220,220,220); 
-                            border: 1px solid rgb(220,220,220); 
-                            margin: 1px;}""")
+        # self.setStyleSheet("""
+        #             QSplitter::handle {
+        #             background-color: rgb(220,220,220);
+        #             border: 1px solid rgb(220,220,220);
+        #             margin: 1px;}""")
         # 实时更新
         # self.setOpaqueResize(False)
         layout.addWidget(self)

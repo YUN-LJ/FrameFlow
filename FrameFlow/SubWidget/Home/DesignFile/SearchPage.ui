@@ -39,8 +39,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>713</width>
-        <height>445</height>
+        <width>708</width>
+        <height>457</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -77,7 +77,7 @@
           <number>0</number>
          </property>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0">
+          <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0">
            <property name="spacing">
             <number>5</number>
            </property>
@@ -217,33 +217,40 @@
                  </property>
                 </widget>
                </item>
-               <item>
-                <widget class="SwitchButton" name="checkBox_use_network">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>40</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>联网搜索</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="SwitchButton" name="checkBox_use_tags">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>40</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>搜索标签</string>
-                 </property>
-                </widget>
-               </item>
               </layout>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_6">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="SwitchButton" name="checkBox_use_network">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>40</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>联网搜索</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="SwitchButton" name="checkBox_use_tags">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>40</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>搜索标签</string>
+               </property>
+              </widget>
              </item>
             </layout>
            </item>

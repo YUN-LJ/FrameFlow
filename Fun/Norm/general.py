@@ -90,19 +90,16 @@ class ReuseTimer:
             self.__restart_timer(time_out)  # 重置定时器
             self.__timer.start()
 
-    def pause(self, pause: bool = True):
-        """
-        暂停
-        :param pause:True表示暂停,Flase表示恢复运行
-        """
+    def pause(self):
+        """暂停"""
         if self.isRunning:
-            if pause and not self.isPause:
+            if not self.isPause:  # 暂停
                 self.isPause = True
                 if self.__timer.is_alive():
                     self.__timer.cancel()
                 self.__restart_timer()
                 self.__pause_time = time.time()
-            elif not pause and self.isPause:
+            else:  # 恢复
                 self.isPause = False
                 diff_time = time.time() - self.__pause_time  # 暂停了多久
                 interval = min(abs(self.interval - diff_time), self.interval)

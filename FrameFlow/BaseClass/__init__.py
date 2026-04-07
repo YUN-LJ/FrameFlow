@@ -1,5 +1,5 @@
 from BaseClass import GlobalValue
-from BaseClass.DataManage import ImageInfo, KeyWord, SearchData, ConfigData, DataManage
+from BaseClass.DataManage import ImageInfo, KeyWord, SearchData, ConfigData, ImageHistory, DataManage
 from BaseClass.TaskManage import Task, TaskManage, TaskProgress, TaskSignal
 from BaseClass.WidgetMod import AppCore
 
@@ -11,6 +11,7 @@ __all__ = [
     'TaskSignal',
     'Task',
     'ImageInfo',
+    'ImageHistory',
     'KeyWord',
     'SearchData',
     'ConfigData',
