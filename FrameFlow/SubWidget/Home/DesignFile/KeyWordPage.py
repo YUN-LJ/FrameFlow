@@ -54,18 +54,6 @@ class Ui_KeyWordWidget(object):
 
         self.horizontalLayout.addWidget(self.lineEdit)
 
-        self.pushButton_select_all = PrimaryPushButton(self.scrollAreaWidgetContents)
-        self.pushButton_select_all.setObjectName(u"pushButton_select_all")
-        self.pushButton_select_all.setMinimumSize(QSize(0, 40))
-
-        self.horizontalLayout.addWidget(self.pushButton_select_all)
-
-        self.pushButton_update = PrimaryPushButton(self.scrollAreaWidgetContents)
-        self.pushButton_update.setObjectName(u"pushButton_update")
-        self.pushButton_update.setMinimumSize(QSize(0, 40))
-
-        self.horizontalLayout.addWidget(self.pushButton_update)
-
         self.pushButton_add = PrimaryPushButton(self.scrollAreaWidgetContents)
         self.pushButton_add.setObjectName(u"pushButton_add")
         self.pushButton_add.setMinimumSize(QSize(0, 40))
@@ -77,6 +65,18 @@ class Ui_KeyWordWidget(object):
         self.pushButton_delete.setMinimumSize(QSize(0, 40))
 
         self.horizontalLayout.addWidget(self.pushButton_delete)
+
+        self.pushButton_select_all = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_select_all.setObjectName(u"pushButton_select_all")
+        self.pushButton_select_all.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout.addWidget(self.pushButton_select_all)
+
+        self.pushButton_update = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_update.setObjectName(u"pushButton_update")
+        self.pushButton_update.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout.addWidget(self.pushButton_update)
 
 
         self.verticalLayout_2.addLayout(self.horizontalLayout)
@@ -117,10 +117,10 @@ class Ui_KeyWordWidget(object):
     def retranslateUi(self, KeyWordWidget):
         KeyWordWidget.setWindowTitle(QCoreApplication.translate("KeyWordWidget", u"Form", None))
         self.lineEdit.setPlaceholderText(QCoreApplication.translate("KeyWordWidget", u"\u641c\u7d22\u5173\u952e\u8bcd\u6216\u6dfb\u52a0\u5173\u952e\u8bcd", None))
-        self.pushButton_select_all.setText(QCoreApplication.translate("KeyWordWidget", u"\u5168\u9009", None))
-        self.pushButton_update.setText(QCoreApplication.translate("KeyWordWidget", u"\u66f4\u65b0", None))
         self.pushButton_add.setText(QCoreApplication.translate("KeyWordWidget", u"\u65b0\u589e", None))
         self.pushButton_delete.setText(QCoreApplication.translate("KeyWordWidget", u"\u5220\u9664", None))
+        self.pushButton_select_all.setText(QCoreApplication.translate("KeyWordWidget", u"\u5168\u9009", None))
+        self.pushButton_update.setText(QCoreApplication.translate("KeyWordWidget", u"\u66f4\u65b0", None))
         self.progress_label.setText("")
     # retranslateUi
 

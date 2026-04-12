@@ -1,16 +1,240 @@
-"""
-通用函数
-"""
+"""通用函数"""
 import win32clipboard, win32con, struct
 import os, sys, time, subprocess
 from io import BytesIO
-from PIL import Image
 from Fun.Norm import get
+import threading
 from threading import Timer
-from typing import Callable
+from typing import Callable, Optional
+from enum import Enum
+
+
+class TimerState(Enum):
+    """定时器状态"""
+    IDLE = "idle"  # 空闲
+    RUNNING = "running"  # 运行中
+    PAUSED = "paused"  # 暂停
+    STOPPING = "stopping"  # 停止中
 
 
 class ReuseTimer:
+    """可复用定时器（线程复用版）"""
+
+    def __init__(self, interval: float, func: Callable, is_while=True, daemon=True, *args, **kwargs):
+        """
+        :param interval:间隔时间
+        :param func:执行函数
+        :param is_while:是否循环执行
+        :param daemon:是否为守护线程,默认为守护线程
+        :param args: 执行函数需要的位置参数
+        :param kwargs: 执行函数需要的关键字参数
+        """
+        self.interval = interval
+        self.func = func
+        self.is_while = is_while
+        self.daemon = daemon
+        self.args = args
+        self.kwargs = kwargs
+
+        # 状态管理
+        self._state = TimerState.IDLE
+        self._state_lock = threading.RLock()
+        self._state_changed = threading.Condition(self._state_lock)
+
+        # 时间控制
+        self._next_run_time: float = 0
+        self._pause_accumulated_time: float = 0  # 累计暂停时间
+        self._pause_start_time: float = 0
+
+        # 线程控制
+        self._thread: Optional[threading.Thread] = None
+        self._wakeup_event = threading.Event()  # 用于唤醒工作线程
+
+    @property
+    def isRunning(self) -> bool:
+        """是否正在运行"""
+        with self._state_lock:
+            return self._state in (TimerState.RUNNING, TimerState.PAUSED)
+
+    @property
+    def isPause(self) -> bool:
+        """是否暂停"""
+        with self._state_lock:
+            return self._state == TimerState.PAUSED
+
+    def set_is_while(self, is_while: bool):
+        with self._state_lock:
+            self.is_while = is_while
+
+    def set_daemon(self, daemon: bool):
+        with self._state_lock:
+            self.daemon = daemon
+
+    def set_interval(self, interval: float):
+        with self._state_lock:
+            self.interval = interval
+            if self._state == TimerState.RUNNING:
+                # 如果正在运行，重新调度
+                self._next_run_time = time.time() + interval
+                self._wakeup_event.set()
+
+    def set_func(self, func: Callable):
+        with self._state_lock:
+            self.func = func
+
+    def _worker(self):
+        """工作线程主循环"""
+        while True:
+            # 等待状态变为非暂停或退出
+            with self._state_changed:
+                # 检查是否需要退出
+                if self._state == TimerState.STOPPING:
+                    break
+
+                # 如果是暂停状态，等待恢复
+                while self._state == TimerState.PAUSED:
+                    self._state_changed.wait()
+                    if self._state == TimerState.STOPPING:
+                        break
+
+                if self._state == TimerState.STOPPING:
+                    break
+
+                # 计算等待时间
+                if self._state == TimerState.RUNNING:
+                    wait_time = max(0, self._next_run_time - time.time())
+                else:
+                    wait_time = None  # 无限等待
+
+                # 等待到达执行时间或状态变化
+                if wait_time is not None:
+                    self._state_changed.wait(wait_time)
+                else:
+                    self._state_changed.wait()
+
+                # 再次检查状态
+                if self._state == TimerState.STOPPING:
+                    break
+
+                if self._state == TimerState.PAUSED:
+                    continue
+
+                # 检查是否到达执行时间
+                current_time = time.time()
+                if self._state == TimerState.RUNNING and current_time >= self._next_run_time:
+                    # 执行任务前，先复制任务信息并释放锁
+                    func = self.func
+                    args = self.args
+                    kwargs = self.kwargs
+                    is_while = self.is_while
+
+                    # 释放锁执行用户函数
+                    self._state_changed.release()
+                    try:
+                        func(*args, **kwargs)
+                    except Exception as e:
+                        print(f"定时器任务执行出错: {e}")
+                    self._state_changed.acquire()
+
+                    # 执行后处理
+                    if self._state == TimerState.RUNNING:
+                        if is_while:
+                            # 设置下次执行时间
+                            self._next_run_time = time.time() + self.interval
+                        else:
+                            # 单次执行，准备退出
+                            self._state = TimerState.STOPPING
+                            break
+
+        # 清理状态
+        with self._state_lock:
+            self._state = TimerState.IDLE
+            self._wakeup_event.clear()
+
+    def start(self, time_out=None):
+        """开始"""
+        with self._state_lock:
+            # 如果已经在运行，先停止
+            if self._state != TimerState.IDLE:
+                self._stop_locked()
+                # 等待线程结束
+                if self._thread and self._thread.is_alive():
+                    self._state_lock.release()
+                    self._thread.join(timeout=2.0)
+                    self._state_lock.acquire()
+
+            # 设置为运行状态
+            self._state = TimerState.RUNNING
+
+            # 计算首次执行时间
+            first_interval = time_out if time_out is not None else self.interval
+            self._next_run_time = time.time() + first_interval
+            self._pause_accumulated_time = 0
+
+            # 创建并启动工作线程
+            self._thread = threading.Thread(target=self._worker, daemon=self.daemon)
+            self._thread.start()
+
+    def _stop_locked(self):
+        """内部停止方法（假设已持有锁）"""
+        if self._state == TimerState.IDLE:
+            return
+
+        old_state = self._state
+        self._state = TimerState.STOPPING
+
+        # 唤醒工作线程
+        with self._state_changed:
+            self._state_changed.notify_all()
+
+        self._wakeup_event.set()
+
+    def pause(self):
+        """暂停/恢复"""
+        with self._state_lock:
+            if self._state == TimerState.RUNNING:
+                # 暂停
+                self._state = TimerState.PAUSED
+                self._pause_start_time = time.time()
+                # 唤醒工作线程，让它进入暂停状态
+                with self._state_changed:
+                    self._state_changed.notify_all()
+
+            elif self._state == TimerState.PAUSED:
+                # 恢复
+                self._state = TimerState.RUNNING
+                # 计算暂停时间并调整下次执行时间
+                pause_duration = time.time() - self._pause_start_time
+                self._next_run_time += pause_duration
+                self._pause_accumulated_time += pause_duration
+                # 唤醒工作线程
+                with self._state_changed:
+                    self._state_changed.notify_all()
+                self._wakeup_event.set()
+
+    def stop(self):
+        """停止"""
+        with self._state_lock:
+            if self._state == TimerState.IDLE:
+                return
+
+            self._stop_locked()
+
+            # 获取线程引用
+            thread = self._thread
+            self._thread = None
+
+        # 在锁外等待线程结束
+        if thread and thread.is_alive():
+            thread.join(timeout=2.0)
+
+    def get_state(self) -> str:
+        """获取当前状态"""
+        with self._state_lock:
+            return self._state.value
+
+
+class ReuseTimerOld:
     """可复用定时器"""
 
     def __init__(self, interval: float, func: Callable, is_while=True, daemon=True, *args, **kwargs):

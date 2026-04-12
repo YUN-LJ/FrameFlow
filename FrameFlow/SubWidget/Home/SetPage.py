@@ -1,5 +1,5 @@
 """设置子窗口"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.Home.DesignFile.SetPage import Ui_set_page
 
 

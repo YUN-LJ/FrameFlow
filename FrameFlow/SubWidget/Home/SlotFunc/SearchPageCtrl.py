@@ -1,5 +1,5 @@
 """搜索界面控制文件"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.Home.SlotFunc.WorkFlow import SearchWorkFlow, ThumbWorkFlow
 
 

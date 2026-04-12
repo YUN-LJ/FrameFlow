@@ -2,8 +2,6 @@
 壁纸播放API
 面向对象编程方式
 """
-import pandas as pd
-
 from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import Config
 from SubAPI.WallPaper.Tools import *
@@ -17,18 +15,22 @@ def load_config():
         if value:
             Config.IMAGE_DIR = value.get('image_dir', Config.IMAGE_DIR)
             Config.IMAGE_CHOICE_KEY = value.get('image_choice_key', Config.IMAGE_CHOICE_KEY)
+            Config.IMAGE_CHOICE_TAG = value.get('image_choice_tag', Config.IMAGE_CHOICE_TAG)
             Config.IMAGE_PLAY_MODE = value.get('image_play_mode', Config.IMAGE_PLAY_MODE)
             Config.IMAGE_TIME = value.get('image_time', Config.IMAGE_TIME)
             Config.IMAGE_TEMP_NUM = value.get('image_temp_num', Config.IMAGE_TEMP_NUM)
+            Config.IMAGE_PLAY_SORT = value.get('image_play_sort', Config.IMAGE_PLAY_SORT)
 
 
 def save_config():
     data = {}
     data.update({'image_dir': Config.IMAGE_DIR,
                  'image_choice_key': Config.IMAGE_CHOICE_KEY,
+                 'image_choice_tag': Config.IMAGE_CHOICE_TAG,
                  'image_play_mode': Config.IMAGE_PLAY_MODE,
                  'image_time': Config.IMAGE_TIME,
                  'image_temp_num': Config.IMAGE_TEMP_NUM,
+                 'image_play_sort': Config.IMAGE_PLAY_SORT
                  })
     ConfigData.data().add_values(data, Config.PACK_NAME)
 

@@ -1,10 +1,10 @@
 """
 主页
-View->UI文件
-ViewLayer->中间层负责处理连接View和WorkerLayer
-WorkerLayer->具体的工作层
+各个Page结尾的为子窗口
+SlotFunc内为各窗口控件文件(数据层与显示层分离设计)
+WorkFlow为具体工作流
 """
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.Home.SearchPage import SearchPage
 from SubWidget.Home.DownloadPage import DownloadPage
 from SubWidget.Home.KeyWordPage import KeyWordPage
@@ -43,6 +43,5 @@ class HomeWin(TopWidget):
 
     def closeEvent(self, event):
         super().closeEvent(event)
-        self.key_page.tableWidget.stopUpdate()
         WH.save_config(self.search_page.getPurity(), self.search_page.getCategories())
         WHAPI.stop()

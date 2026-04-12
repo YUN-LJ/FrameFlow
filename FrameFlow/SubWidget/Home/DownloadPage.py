@@ -1,5 +1,5 @@
 """下载子窗口"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.Home.DesignFile.DownloadPage import Ui_DownloadWidget
 
 
@@ -20,8 +20,9 @@ class DownloadPage(QWidget, Ui_DownloadWidget):
         self.bind()
 
     def uiInit(self):
+        self.pushButton_start.setIcon(FIF.PLAY)
         self.pushButton_select_all.setIcon(FIF.CHECKBOX)
-        self.pushButton_delete.setIcon(FIF.CLOSE)
+        self.pushButton_delete.setIcon(FIF.DELETE)
         self.label_save_path_value.setText(WH.Config.SAVE_DIR)
 
     def addDownload(self, image_url: tuple | list):

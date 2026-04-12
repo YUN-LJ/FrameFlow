@@ -1,5 +1,5 @@
 """收藏夹子窗口"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.Home.DesignFile.KeyWordPage import Ui_KeyWordWidget
 from SubWidget.Home.SlotFunc.WorkFlow import SerialWorkFlow
 
@@ -26,6 +26,10 @@ class KeyWordPage(QWidget, Ui_KeyWordWidget):
         self.bind()
 
     def uiInit(self):
+        self.pushButton_add.setIcon(FIF.ADD)
+        self.pushButton_select_all.setIcon(FIF.CHECKBOX)
+        self.pushButton_update.setIcon(FIF.UPDATE)
+        self.pushButton_delete.setIcon(FIF.DELETE)
         self.progressBar.hide()
         self.progress_label.hide()
 
@@ -121,7 +125,7 @@ class KeyWordSlot:
         content = '未选择任何关键词'
         if self.parent.tableWidget.selected_rows:
             load_dialog = MessageBox(
-                '确认下载',
+                '确认删除',
                 f'已选择{len(self.parent.tableWidget.selected_rows)}个',
                 parent=self.top_parent)
             if load_dialog.exec():
@@ -145,10 +149,8 @@ class KeyWordSlot:
         if result is not None and task.params.q not in self.parent.tableWidget.all_rows:
             icon = InfoBarIcon.SUCCESS
             title = '添加成功'
-            content = f'{task.params.q} 已添加到末尾'
+            content = f'{task.params.q} 已添加,并定位到改行'
             self.parent.tableWidget.addKeyWord(result)
-            scrollbar = self.parent.tableWidget.verticalScrollBar()
-            scrollbar.setValue(scrollbar.maximum())
         InfoBar.new(
             icon=icon, title=title, content=content, orient=Qt.Horizontal,
             isClosable=True, position=InfoBarPosition.TOP,

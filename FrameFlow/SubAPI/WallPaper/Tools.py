@@ -77,7 +77,7 @@ class ImageQt:
         self.image = None  # 当前播放的照片
         self.interval = 60000  # 定时器重置桌面间隔
         self.lock = Lock()  # 用于防止背景在创建或重置时与播放照片冲突
-        self.all_widget = {}
+        self.all_widget: dict[str, tuple[WindowDesktop, ImageWidget]] = {}
 
     def clear_all_widgets(self):
         with self.lock:
@@ -94,7 +94,8 @@ class ImageQt:
                 with self.lock:
                     if screen.name() not in self.all_widget:
                         widget = WindowDesktop(screen)
-                        image_widget = ImageWidget(self.image)  # 用于显示图像的类
+                        image = self.image if self.image is None else ImageLoad(self.image)
+                        image_widget = ImageWidget(image)  # 用于显示图像的类
                         widget.addWidget(image_widget)
                         self.all_widget[widget.name] = (widget, image_widget)
             QTimer.singleShot(self.interval, self.createBackground)
@@ -124,14 +125,13 @@ class ImageQt:
                         # 计算屏幕比例与图像比例是否接近,接近则采用拉伸,否则采用填充
                         screen_size = (int(widget.width() * widget.dpi), int(widget.height() * widget.dpi))
                         screen_scale = screen_size[0] / screen_size[1]
-                        mode = Image_Enum.resize_stretch if abs(
-                            screen_scale - image_scale) < 0.2 else Image_Enum.resize_fill
+                        mode = ImageEnum.resize_stretch if abs(
+                            screen_scale - image_scale) < 0.2 else ImageEnum.resize_fill
                         # 重新缩放图像
-                        image_progress = Image_PIL()
-                        image_progress.open_image(image)
-                        image_progress.resize(screen_size, stretch=mode)
-                        self.image = image_progress.get_array
-                        image_widget.set_image(self.image)
+                        image_progress = ImageLoad(image)
+                        ImageProcess(image_progress).resize(screen_size, mode)
+                        self.image = image_progress.get_array()
+                        image_widget.set_image(image_progress)
             except Exception as e:
                 print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.set_wallpaper {e}')
         else:
@@ -152,20 +152,17 @@ class ImageProcessTask:
     def start(self) -> np.ndarray | None:
         try:
             scale = self.screen_size[0] / self.screen_size[1]
-            image = Image_PIL(load_trunc_images=True)
-            if image.open_image(self.image_path):
-                self.image_original = image.get_array
-                if not image.check_w_screen:
-                    # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
-                    w, h = image.get_size
-                    num_2 = abs((w * 2 / h) - scale)
-                    num_3 = abs((w * 3 / h) - scale)
-                    num = 1 if num_2 > num_3 else 2
-                    image.merge(other_half='self', num=num)  # 如果是竖屏照片则横向复制一份
-                image.resize(size=self.screen_size)
-                image.zip(max_size=15)  # 限制图像最大尺寸不超过15MB
-                self.image_process = image.get_array
-                return self.image_process
+            image = ImageLoad(self.image_path)
+            self.image_original = image.get_array()
+            if image.is_vertical:
+                # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
+                num_2 = abs((image.width * 2 / image.height) - scale)
+                num_3 = abs((image.width * 3 / image.height) - scale)
+                num = 1 if num_2 > num_3 else 2
+                ImageProcess(image).merge('self', num)
+            ImageProcess(image).resize(self.screen_size).zip(15)  # 限制图像最大尺寸不超过15MB
+            self.image_process = image.get_array()
+            return self.image_process
         except Exception as e:
             print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
                   f'错误文件名称:{self.image_path}')
@@ -257,6 +254,8 @@ class ImagePlay:
 
     def set_sample(self, value: bool):
         self.sample = value
+        if value != Config.IMAGE_PLAY_SORT:
+            Config.IMAGE_PLAY_SORT = value
 
     def submit_image_process(self):
         """提交图像处理任务"""
@@ -313,13 +312,25 @@ class ImagePlay:
 
 
 class ImageKeyMode:
-    """关键字模式"""
+    """关键字模式,可支持标签,播放数据的添加不需要指定关键词"""
 
     def __init__(self):
         # 播放数据
+        self.use_tags = False
         self.play_data = pd.DataFrame(columns=GlobalValue.image_info_columns).astype(GlobalValue.image_info_dtype)
         self.history_data = ImageHistory()
         self.__lock = Lock()
+
+    def enable_tags_mode(self, value=True):
+        """启用/关闭标签模式"""
+        self.use_tags = value
+
+    def get_play_progress(self) -> tuple:
+        """获取播放进度"""
+        with self.__lock:
+            mask = self.play_data['本地路径'].isin(self.history_data.data()['本地路径'])
+            filter_data = self.play_data[mask]
+            return (filter_data.shape[0], self.play_data.shape[0])
 
     def get_image_play_data(self, n: int = 1, sample: bool = False) -> pd.DataFrame:
         """
@@ -328,6 +339,8 @@ class ImageKeyMode:
         :param sample:启用随机,默认不随机
         """
         with self.__lock:
+            if self.play_data.empty:
+                return self.play_data
             mask = self.play_data['本地路径'].isin(self.history_data.data()['本地路径'])
             filter_data = self.play_data[~mask]
             if filter_data.empty:
@@ -345,6 +358,7 @@ class ImageKeyMode:
             return image_info.iloc[0]
 
     def add_play_data(self, data: pd.DataFrame):
+        data.sort_values('日期', ascending=False, inplace=True)
         with self.__lock:
             self.play_data = pd.concat([self.play_data, data]).drop_duplicates(
                 subset=['本地路径'], keep='last', ignore_index=True)
@@ -352,16 +366,23 @@ class ImageKeyMode:
     def del_play_data(self, key: str = None):
         """
         删除播放数据
-        :param key:关键词
+        :param key:关键词/标签
         """
         with self.__lock:
             if key is not None:
-                mask_bool = ~self.play_data['关键词'].str.contains(
+                column = '标签' if self.use_tags else '关键词'
+                mask_bool = ~self.play_data[column].str.contains(
                     key, case=True, na=False, regex=False)
                 self.play_data = self.play_data[mask_bool].reset_index(drop=True)
             else:
                 self.play_data = pd.DataFrame(columns=GlobalValue.image_info_columns).astype(
                     GlobalValue.image_info_dtype)
+
+    def clear_play_data(self):
+        """清空播放数据"""
+        with self.__lock:
+            self.play_data = pd.DataFrame(columns=GlobalValue.image_info_columns).astype(
+                GlobalValue.image_info_dtype)
 
 
 if __name__ == '__main__':

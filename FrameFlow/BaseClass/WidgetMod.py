@@ -14,7 +14,8 @@ from qfluentwidgets.components.widgets import (
 from qfluentwidgets.components.dialog_box import MessageBoxBase
 from qfluentwidgets.components.navigation import Pivot, SegmentedWidget
 # 自定义组件
-from Fun.GUI_Qt.PySide6Mod import ImageWidget
+from Fun.QtWidget.FWidget import ImageWidget
+from Fun.BaseTools.Image import ImageLoad
 from typing import Callable
 from BaseClass.TaskManage import TaskManage
 from SubAPI import WallHaven as WH
@@ -111,8 +112,7 @@ class GroupBoxCellBase(QGroupBox):
                 padding: 0 8px 0 8px;
                 color: {color};
                 }}
-                """
-                           )
+                """)
 
 
 class GroupBoxCell(GroupBoxCellBase):
@@ -126,11 +126,11 @@ class GroupBoxCell(GroupBoxCellBase):
         self.thumb_url = None  # 略缩图网址
         self.image_url = None  # 图像图网址
         self.image_loading = False  # 图像是否正在加载
-        self.image_widget = ImageWidget()
+        self.image_widget = ImageWidget(parent=self)
         self.layout.addWidget(self.image_widget)
 
     def setImage(self, image):
-        self.image_widget.set_image(image)
+        self.image_widget.set_image(ImageLoad(image))
         self.image = image
 
     def setImageText(self, text: str):
@@ -140,7 +140,7 @@ class GroupBoxCell(GroupBoxCellBase):
         self.image = None  # 当前显示的图像
         self.thumb_url = None  # 略缩图网址
         self.image_url = None  # 图像图网址
-        self.image_widget.set_image(self.image_widget.defaultImage)
+        self.image_widget.set_image(self.image_widget.default_image_load)
 
 
 class ProgressRingButton(PrimaryToolButton):

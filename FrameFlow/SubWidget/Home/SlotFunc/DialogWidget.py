@@ -1,5 +1,5 @@
 """弹窗类"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.Home.SlotFunc import SearchPageCtrl as SPC
 from SubWidget.Home.SlotFunc.WorkFlow import DownloadWorkFlow
 from SubWidget.Home.DesignFile.ImageDialog import Ui_Image
@@ -78,7 +78,7 @@ class ImageDialog(Ui_Image, MessageBoxBase):
     def uiInit(self):
         widget = QWidget(self)
         self.setupUi(widget)
-        self.image_widget = ImageWidget()
+        self.image_widget = ImageWidget(parent=self)
         self.image_widget.setMinimumHeight(0)
         self.horizontalLayout.addWidget(self.image_widget)
         self.viewLayout.addWidget(widget)
@@ -142,9 +142,8 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         # 初始化任务
         if hasattr(self, 'work_flow'):
             self.work_flow.stop()
-        self.work_flow = DownloadWorkFlow(
-            cell.key_word, cell.image_url, self.startSignal,
-            self.progressSignal, self.finishedSignal, False)
+        self.work_flow = DownloadWorkFlow(cell.key_word, cell.image_url, False)
+        self.work_flow.setSignal(self.startSignal, self.progressSignal, self.finishedSignal)
         self.work_flow.start()
 
     def __start(self):
@@ -154,7 +153,7 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         for label in self.scrollAreaWidgetContents.findChildren(QLabel):
             if '_value' in label.objectName():
                 label.setText('')
-        self.image_widget.set_image(self.image_widget.defaultImage)
+        self.image_widget.set_image(self.image_widget.default_image_load)
         self.image_widget.setMinimumHeight(0)
 
     def __progress(self, value: TaskProgress):
@@ -164,7 +163,7 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         if value:
             self.progressBar.hide()
             self.displayTags(self.work_flow.image_data.get_image_info())
-            self.image_widget.set_image(self.work_flow.image_data.get_image())
+            self.image_widget.set_image(ImageLoad(self.work_flow.image_data.get_image()))
             self.image_widget.setMinimumHeight(self.widget.height())
         else:
             self.image_widget.set_text('加载失败')

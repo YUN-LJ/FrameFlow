@@ -6,12 +6,14 @@ start_time: 2025/9/26
 基于python3.12.9
 """
 from ImportFile.ImportPack import *
-from ImportFile.Config import *
+from ImportFile import Config
 
 
 class PySide6GUI(MSFluentWindow):
     """主界面"""
     resizeSignal = Signal(bool)  # 缩放信号
+    keywrodLoadFinishedSignal = Signal()  # 收藏夹数据加载完成
+    imageinfoLoadFinishedSignal = Signal()  # 图像信息数据加载完成
 
     def __init__(self):
         super().__init__()
@@ -35,6 +37,20 @@ class PySide6GUI(MSFluentWindow):
         # 切换至主页
         # self.stackedWidget.setCurrentIndex(0)
         self.stackedWidget.currentChanged.connect(lambda index: AddPage(self.stackedWidget.currentWidget(), index))
+
+        # 数据加载完成提示
+        self.keywrodLoadFinishedSignal.connect(
+            lambda: InfoBar.success(
+                title='数据加载完成', content='收藏夹数据加载完成', orient=Qt.Horizontal,
+                isClosable=True, position=InfoBarPosition.TOP,
+                duration=1500, parent=self))
+        self.imageinfoLoadFinishedSignal.connect(
+            lambda: InfoBar.success(
+                title='数据加载完成', content='图像信息数据加载完成', orient=Qt.Horizontal,
+                isClosable=True, position=InfoBarPosition.TOP,
+                duration=1500, parent=self))
+        ImageInfo.load_callback(lambda _: self.imageinfoLoadFinishedSignal.emit())
+        KeyWord.load_callback(lambda _: self.keywrodLoadFinishedSignal.emit())
 
     def sub_widget(self):
         self.subwidget = {
@@ -103,7 +119,7 @@ class AddPage:
     page_dict = {
         0: HomeWin,
         1: WallPaperWin,
-        2: QWidget,
+        2: SetsWin,
     }
 
     page_object = {}  # 实例化对象
@@ -139,13 +155,16 @@ def start_GUI():
     global app, GUI, tray
     app = QApplication([])
     GUI = PySide6GUI()
+    Config.TOP_WINDOWS = GUI
     # 设置所有QWidget类背景色为浅色
     # GUI.setStyleSheet(DARK)
     # 获取系统主题
     system_theme = darkdetect.theme()  # 返回字符串 'Dark' 或 'Light'
     if system_theme == 'Dark':
+        Config.CURRENT_THEME = 'Dark'
         setTheme(Theme.DARK)
     else:
+        Config.CURRENT_THEME = 'Light'
         setTheme(Theme.LIGHT)
     # 全局主题
     # 只能获取 Windows 和 macOS 的主题色
@@ -155,10 +174,11 @@ def start_GUI():
     # 创建系统托盘
     tray = TrayIcon(GUI)
     tray.quitClicked.connect(GUI.exit_)
-    # 加载子窗口
+    # 加载子窗口,优先加载设置窗口
+    AddPage(GUI.stackedWidget.widget(2), 2)
     for index, pack_name in AddPage.page_dict.items():
         if GUI.fast_run:  # 快速启动,只加载主页和设置页面
-            if pack_name is WallHavenWin or pack_name is SetsWin:
+            if pack_name is HomeWin or pack_name is SetsWin:
                 AddPage(GUI.stackedWidget.widget(index), index)
         else:
             AddPage(GUI.stackedWidget.widget(index), index)

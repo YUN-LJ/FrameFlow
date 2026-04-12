@@ -309,6 +309,7 @@ class ImageInfo(DataBase):
             # 将结果排序
             load_pd.sort_values(by=['关键词', '日期'], ascending=[True, False],
                                 key=self.__smart_key, inplace=True)
+            load_pd.reset_index(drop=True, inplace=True)
         return load_pd
 
     @classmethod
@@ -347,9 +348,8 @@ class KeyWord(DataBase):
         self = cls()
         with self.lock:
             self.set_data(pd.concat(
-                [self.data(), new_data]).drop_duplicates(
-                subset=['关键词'], keep='last', ignore_index=True).sort_values('关键词', key=lambda x: x.str.lower()),
-                          use_lock=False)
+                [self.data(), new_data]).drop_duplicates(subset=['关键词'], keep='last').sort_values(
+                '关键词', key=lambda x: x.str.lower(), ignore_index=True), use_lock=False)
 
     @classmethod
     def del_data(cls, key: str | list):
@@ -359,7 +359,7 @@ class KeyWord(DataBase):
             key = [key]
         with self.lock:
             self.set_data(
-                self.data()[~self.data()['关键词'].isin(key)], use_lock=False)
+                self.data()[~self.data()['关键词'].isin(key)].reset_index(drop=True), use_lock=False)
 
     @classmethod
     def to_excel(cls) -> str | None:
@@ -375,6 +375,9 @@ class KeyWord(DataBase):
         if self.is_loaded():
             load_pd = self.load_pandas(file_path, GlobalValue.key_word_columns, GlobalValue.key_word_dtype)
             load_pd.sort_values('关键词', key=lambda x: x.str.lower(), inplace=True)
+            # 防止excle修改类型
+            load_pd['分级码'].str.zfill(3)
+            load_pd['类别码'].str.zfill(3)
             self.add_data(load_pd)
             return True
         return False
@@ -384,6 +387,7 @@ class KeyWord(DataBase):
         self = cls()
         load_pd = self.load_pandas(self.local_path, GlobalValue.key_word_columns, GlobalValue.key_word_dtype)
         load_pd.sort_values('关键词', key=lambda x: x.str.lower(), inplace=True)
+        load_pd.reset_index(drop=True, inplace=True)
         return load_pd
 
     @classmethod
@@ -460,6 +464,7 @@ class ImageHistory(DataBase):
     def load(cls) -> pd.DataFrame:
         self = cls()
         load_pd = self.load_pandas(self.local_path, GlobalValue.image_history_columns, GlobalValue.image_history_dtype)
+        load_pd.reset_index(drop=True, inplace=True)
         return load_pd
 
     @classmethod

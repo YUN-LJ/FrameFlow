@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'sets.ui'
+## Form generated from reading UI file 'MainWidget.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.9.2
 ##
@@ -15,9 +15,10 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QGridLayout, QLabel, QSizePolicy,
-    QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QGridLayout, QLabel, QScrollArea,
+    QSizePolicy, QVBoxLayout, QWidget)
 
+from Fun.QtWidget.FWidget import TerminalWidget
 from qfluentwidgets.components.widgets import SwitchButton
 
 class Ui_sets(object):
@@ -28,31 +29,39 @@ class Ui_sets(object):
         self.verticalLayout = QVBoxLayout(sets)
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
-        self.verticalLayout.setContentsMargins(0, 0, 0, 10)
+        self.verticalLayout.setContentsMargins(0, 0, 0, 0)
+        self.scrollArea = QScrollArea(sets)
+        self.scrollArea.setObjectName(u"scrollArea")
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollAreaWidgetContents = QWidget()
+        self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 798, 498))
+        self.verticalLayout_2 = QVBoxLayout(self.scrollAreaWidgetContents)
+        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.gridLayout = QGridLayout()
         self.gridLayout.setObjectName(u"gridLayout")
         self.gridLayout.setVerticalSpacing(20)
         self.gridLayout.setContentsMargins(80, 20, 80, -1)
-        self.label_2 = QLabel(sets)
+        self.label_2 = QLabel(self.scrollAreaWidgetContents)
         self.label_2.setObjectName(u"label_2")
         self.label_2.setStyleSheet(u"font: 14pt;")
 
         self.gridLayout.addWidget(self.label_2, 1, 0, 1, 1, Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignTop)
 
-        self.checkBox_2 = SwitchButton(sets)
+        self.checkBox_2 = SwitchButton(self.scrollAreaWidgetContents)
         self.checkBox_2.setObjectName(u"checkBox_2")
         self.checkBox_2.setMinimumSize(QSize(80, 40))
         self.checkBox_2.setMaximumSize(QSize(80, 40))
 
         self.gridLayout.addWidget(self.checkBox_2, 1, 1, 1, 1, Qt.AlignmentFlag.AlignRight)
 
-        self.label = QLabel(sets)
+        self.label = QLabel(self.scrollAreaWidgetContents)
         self.label.setObjectName(u"label")
         self.label.setStyleSheet(u"font: 14pt;")
 
         self.gridLayout.addWidget(self.label, 0, 0, 1, 1, Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignTop)
 
-        self.checkBox = SwitchButton(sets)
+        self.checkBox = SwitchButton(self.scrollAreaWidgetContents)
         self.checkBox.setObjectName(u"checkBox")
         self.checkBox.setMinimumSize(QSize(80, 40))
         self.checkBox.setMaximumSize(QSize(80, 40))
@@ -61,14 +70,18 @@ class Ui_sets(object):
         self.gridLayout.addWidget(self.checkBox, 0, 1, 1, 1, Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignTop)
 
 
-        self.verticalLayout.addLayout(self.gridLayout)
+        self.verticalLayout_2.addLayout(self.gridLayout)
 
-        self.widget_cmd = QWidget(sets)
-        self.widget_cmd.setObjectName(u"widget_cmd")
+        self.widget = TerminalWidget(self.scrollAreaWidgetContents)
+        self.widget.setObjectName(u"widget")
 
-        self.verticalLayout.addWidget(self.widget_cmd)
+        self.verticalLayout_2.addWidget(self.widget)
 
-        self.verticalLayout.setStretch(1, 1)
+        self.verticalLayout_2.setStretch(1, 1)
+        self.scrollArea.setWidget(self.scrollAreaWidgetContents)
+
+        self.verticalLayout.addWidget(self.scrollArea)
+
 
         self.retranslateUi(sets)
 

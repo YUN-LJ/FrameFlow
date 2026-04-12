@@ -1,5 +1,5 @@
 """搜索子窗口"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.Home.SlotFunc import SearchPageCtrl as SPC
 from SubWidget.Home.SlotFunc.DialogWidget import SearchDialog, DelDialog
 from SubWidget.Home.DesignFile.SearchPage import Ui_SearchPage

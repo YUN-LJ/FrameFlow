@@ -1,5 +1,5 @@
 """UI工作流"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
 from typing import Optional
 
 
@@ -51,21 +51,18 @@ class DownloadWorkFlow(Task):
     All_Work_Flow = {}  # 依照url存储了全部实例
     __lock = Lock()
 
-    def __init__(self, key_word, url, start_signal: Signal, progress_signal: Signal, finish_signal: Signal, save=True):
+    def __init__(self, key_word, url, save=True):
         super().__init__(self.__execute, AppCore().getWorkFlowPool, name='DownloadWorkFlow')
         self.clear_callback()  # 清空自带的finish_signal回调
         self.key_word = key_word
         self.url = url
         self.save = save
-        self.start_signal = start_signal
-        self.progress_signal = progress_signal
-        self.finish_signal = finish_signal
         # 下载任务
         self.download_task = WHAPI.download_task(url, key_word)
-        self.download_task.progress_signal.connect(progress_signal.emit)
+        self.download_task.progress_signal.connect(self.progress_signal.emit)
         # 图像信息任务
         self.info_task = WHAPI.image_info_task(self.download_task.image_id, key_word)
-        self.info_task.start_signal.connect(start_signal.emit)
+        self.info_task.start_signal.connect(self.start_signal.emit)
         # 图像数据
         self.image_data = WH.ImageManage.get_image_data(
             self.download_task.image_id, self.download_task.file_type, key_word)
@@ -82,17 +79,30 @@ class DownloadWorkFlow(Task):
             if self.info_task.result() is not None:
                 save_path = self.image_data.generate_save_path(self.info_task.result())
                 # 本地文件存在则不下载只保存图像信息
-                if not file.check_exist(save_path) and self.isRunning:
+                if not File(save_path).exists and self.isRunning:
                     self.download_task.start(1)
                     state = self.image_data.save_image(self.info_task.result()) if self.save else True
                 else:
                     self.image_data.save_image_info(self.info_task.result())
                     state = True
         if self.isRunning:
-            self.finish_signal.emit(state)
             self.isRunning = False
+            self.finish_signal.emit(state)
         with self.__class__.__lock:
             self.__class__.All_Work_Flow.pop(self.url, None)
+
+    def setSignal(self, start_signal: Signal, progress_signal: Signal, finish_signal: Signal, stop_singnal: Signal):
+        """设置信号连接"""
+        self.start_signal.connect(start_signal.emit)
+        self.progress_signal.connect(progress_signal.emit)
+        self.finish_signal.connect(finish_signal.emit)
+        self.stop_signal.connect(stop_singnal.emit)
+
+    def disSignal(self):
+        """断开信号连接"""
+        self.start_signal.disconnect()
+        self.progress_signal.disconnect()
+        self.finish_signal.disconnect()
 
     @classmethod
     def get_work_flow_instance(cls, url: str) -> Optional['DownloadWorkFlow'] | None:
@@ -110,9 +120,9 @@ class DownloadWorkFlow(Task):
 
 class UpdateWorkFlow(Task):
     """更新单个关键词任务流"""
+    TIME_OUT = 120  # 超时时间,两个文件之间的间隔下载时间超过120秒时停止程序
 
-    def __init__(self, key_word, purity, categories,
-                 start_signal: Signal, progress_signal: Signal, finish_signal: Signal):
+    def __init__(self, key_word, purity, categories):
         """
         :param key_word: 关键词
         :param purity:分级
@@ -123,9 +133,6 @@ class UpdateWorkFlow(Task):
         self.key_word = key_word
         self.purity = purity
         self.categories = categories
-        self.start_signal = start_signal
-        self.progress_signal = progress_signal
-        self.finish_signal = finish_signal
         self.local_key_data = None
         self.__lock = Lock()  # 进度计数锁
         self.all_download_work_flow: list[DownloadWorkFlow] = []  # 全部的下载任务工作流
@@ -163,6 +170,20 @@ class UpdateWorkFlow(Task):
         if self.isRunning:
             self.finish_signal.emit(state)
 
+    def setSignal(self, start_signal: Signal, progress_signal: Signal, finish_signal: Signal, stop_signal: Signal):
+        """设置信号连接"""
+        self.start_signal.connect(start_signal.emit)
+        self.progress_signal.connect(progress_signal.emit)
+        self.finish_signal.connect(finish_signal.emit)
+        self.stop_signal.connect(stop_signal.emit)
+
+    def disSignal(self):
+        """断开信号连接"""
+        self.start_signal.disconnect()
+        self.progress_signal.disconnect()
+        self.finish_signal.disconnect()
+        self.stop_signal.disconnect()
+
     def stop(self):
         self.remote_first.stop()
         self.remote_all.stop()
@@ -175,6 +196,7 @@ class UpdateWorkFlow(Task):
         if self.isRunning:
             if value:
                 with self.__lock:
+                    self.start_time = time.time()
                     self.progress.finished += 1
                 self.progress_signal.emit(self.progress)
             else:
@@ -229,11 +251,17 @@ class UpdateWorkFlow(Task):
                 else:
                     time.sleep(0)
         # 等待下载任务完成
+        with self.__lock:
+            self.start_time = time.time()
         while self.isRunning:
             if self.progress.get_progress() == 100:
                 return True
             else:
+                with self.__lock:
+                    if self.start_time + self.__class__.TIME_OUT <= time.time():
+                        break
                 time.sleep(1)
+        self.stop()
         return False
 
 

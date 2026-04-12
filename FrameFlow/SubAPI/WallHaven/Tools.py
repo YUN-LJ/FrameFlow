@@ -254,9 +254,10 @@ class ImageData:
 
     def __load_thumb(self) -> BytesIO:
         """将本地图片转为略缩图加载"""
-        image = Image_PIL(self.image_path)
-        image.resize(Config.THUMB_SIZE)
-        return image.get_BytesIO
+        if File(self.image_path).exists:
+            image = ImageLoad(self.image_path)
+            ImageProcess(image).resize(Config.THUMB_SIZE)
+            return image.get_bytesIO()
 
     def get_thumb(self) -> BytesIO | None:
         """从本地加载略缩图"""
@@ -587,7 +588,8 @@ class KeyWordTask(Task):
         :param use_network:是否使用网络,默认启用
         :param use_cache:是否使用缓存,默认启用
         """
-        self.params = params
+        self.params = params.copy()
+        self.params.page = 1
         self.task_manage = task_manage
         self.use_network = use_network
         self.use_cache = use_cache
@@ -621,17 +623,17 @@ if __name__ == '__main__':
 
     task_manage = TaskManage()
     params = Config.SearchParams()
-    params.q = 'poppachan'
+    params.q = 'Fantasy Factory'
     params.purity = '111'
     params.categories = '001'
-    local_task = SearchTask(params, task_manage, True, False, False)
+    local_task = KeyWordTask(params, task_manage, True, False)
     local_result = local_task.start(0)
-    print(local_result.shape[0])
-    remote_task = SearchTask(params, task_manage, True, True, False)
-    remote_task.progress_signal.connect(lambda value: print(f'\r{value.progress.get_progress()}', end=''))
-    remote_result = remote_task.start(0)
-    print('\n', remote_result.shape[0])
-    print(set(remote_result['id']) - set(local_result['id']))
+    print(local_result)
+    # remote_task = SearchTask(params, task_manage, True, True, False)
+    # remote_task.progress_signal.connect(lambda value: print(f'\r{value.progress.get_progress()}', end=''))
+    # remote_result = remote_task.start(0)
+    # print('\n', remote_result.shape[0])
+    # print(set(remote_result['id']) - set(local_result['id']))
     # info_task = ImageInfoTask('yq8zpl', 'Aleksandra Bodler', task_manage)
     # result = info_task.start(1)
     # download_task = DownloadTask(result.loc[0, '远程路径'], 'Aleksandra Bodler', task_manage)

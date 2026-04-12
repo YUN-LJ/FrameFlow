@@ -8,9 +8,11 @@ from screeninfo import get_monitors
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QThread
 # 自定义库
+from Fun.BaseTools.Image import ImageProcess, ImageEnum, ImageLoad
 from Fun.Norm import file, get, general
-from Fun.Norm.image import Image_PIL, Image_Enum, set_wallpaper_API
-from Fun.GUI_Qt.PySide6Mod import WindowDesktop, ImageWidget
+from Fun.Norm.image import set_wallpaper_API
+from Fun.QtWidget import ImageWidget
+from Fun.GUI_Qt.PySide6Mod import WindowDesktop
 # 基本库
 from BaseClass import (KeyWord, ImageInfo, ImageHistory, ConfigData, GlobalValue,
                        Task, TaskManage, TaskSignal)

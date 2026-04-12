@@ -1,5 +1,5 @@
 """右侧布局"""
-from SubWidget.WallPaper.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.WallPaper.DesignFile.RightWidget import Ui_rightwidget
 
 
@@ -24,7 +24,7 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.checkBox_zoom.setOnText('启用缩放')
         self.checkBox_zoom.setOffText('关闭缩放')
         # 图片显示窗口
-        self.image_widget = ImageWidget()
+        self.image_widget = ImageWidget(parent=self)
         self.horizontalLayout.addWidget(self.image_widget)
 
     def bind(self):
@@ -35,7 +35,7 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.checkBox_zoom.checkedChanged.connect(self.slot.checkBox_zoom)
 
     def setImage(self, image):
-        self.image_widget.set_image(image)
+        self.image_widget.set_image(ImageLoad(image))
 
     def setTags(self, image_info: pd.Series):
         """显示标签"""

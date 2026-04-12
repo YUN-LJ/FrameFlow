@@ -1,136 +1,9 @@
 """下载界面控制文件"""
-from SubWidget.Home.ImportPack import *
+from SubWidget.ImportPack import *
+from ImportFile import Config
 from SubWidget.Home.SlotFunc.WorkFlow import UpdateWorkFlow, SerialWorkFlow
-from typing import Optional
 
 ROW_HEIGHT = 80
-
-
-class Table(GroupBoxTable):
-    """表格数据展示"""
-    __timer_start_signal = Signal()  # 定时器启动信号
-    submit_download_task = Signal(list)  # 提交需要下载的任务,[(关键词,url)]
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        header = GlobalValue.key_word_columns.copy()
-        header.append('更新状态')
-        self.setColumnHeader(header)
-        self.enable_adaptive_row_height = False
-        self.verticalScrollBar().setSingleStep(int(ROW_HEIGHT / 3))
-        self.mouseRightClickedSignal.connect(self.showRoundMenu)
-        # 设置列宽模式
-        self.verticalHeader().setVisible(True)  # 显示左侧行头
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)  # 关键词
-        self.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)  # 最新日期
-        self.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)  # 上次更新
-        self.horizontalHeader().setSectionResizeMode(self.columnCount() - 1, QHeaderView.Stretch)  # 最后一列
-        # header.setSectionResizeMode(QHeaderView.Interactive) # 允许调整用户调整列宽
-
-        self.work_flow = SerialWorkFlow()  # 用于批量更新关键词
-        self.key_word_queue = Queue()  # 待提交的任务
-        self.all_rows: dict[str, Row] = {}  # 全部行数据{关键词:一行数据}
-        self.selected_rows: list[Row] = []  # 被选中的任务
-        self.__timer_isRunning = False
-        self.__timer_start_signal.connect(lambda: QTimer.singleShot(0, self.__submit_task))
-        KeyWord.load_callback(self.addKeyWord)
-
-    def showRoundMenu(self, row, col, pos: QPoint):
-        key_word = self.cellWidget(row, 0).text()
-        menu = RoundMenu(parent=self)
-        # 逐个添加动作，Action 继承自 QAction，接受 FluentIconBase 类型的图标
-        menu.addAction(Action(FIF.SEARCH, '搜索关键词', triggered=lambda: AppCore().getSignal('search').emit(key_word)))
-        menu.addAction(Action(FIF.DELETE, '删除关键词', triggered=lambda: self.delKeyWord([key_word])))
-        # 显示菜单
-        pos.setX(pos.x() + (menu.width() / 2))
-        pos.setY(pos.y() + (menu.height() / 2))
-        menu.exec(pos)
-
-    def searchKey(self, key_word) -> bool:
-        if key_word in self.all_rows:  # 精准搜索
-            row_index, _ = self.getWidgetCoord(self.all_rows[key_word].checkbox, 0)
-            item = self.item(row_index, 1)
-            self.scrollToItem(item, QAbstractItemView.PositionAtTop)
-            return True
-        else:
-            for row in self.all_rows.values():  # 模糊搜索
-                if row.checkbox.text().find(key_word) == 0:
-                    row_index, _ = self.getWidgetCoord(row.checkbox, 0)
-                    item = self.item(row_index, 1)
-                    self.scrollToItem(item, QAbstractItemView.PositionAtTop)
-                    return True
-        return False
-
-    def selectNotUpdateRows(self):
-        """选择未完成更新的行"""
-        for row in self.all_rows.copy().values():
-            if not row.isUpdate:
-                row.checkbox.setChecked(True)
-
-    def selectAllRows(self, value=True):
-        for row in self.all_rows.copy().values():
-            row.checkbox.setChecked(value)
-
-    def addKeyWord(self, key_data: pd.DataFrame):
-        """添加收藏夹数据"""
-        for index, row_data in key_data.iterrows():
-            self.key_word_queue.put(row_data)
-        if not self.__timer_isRunning:
-            self.__timer_start_signal.emit()
-
-    def delKeyWord(self, key_word: list = None):
-        if key_word is None:
-            for row in self.selected_rows:
-                KeyWord.del_data(row.key_word)
-                self.delRow(row.checkbox, column_index=0)
-        else:
-            for key in key_word:
-                KeyWord.del_data(key)
-                self.delRow(self.all_rows[key].checkbox, column_index=0)
-
-    def updateKeyWord(self, value: bool = True):
-        if value:
-            self.work_flow.add_task([row.work_flow for row in self.selected_rows])
-            if not self.work_flow.isRunning:
-                self.work_flow.start()
-        else:
-            self.work_flow.stop()
-
-    def rowCheckBoxSlot(self, checked, value: Optional['Row']):
-        if checked:
-            self.work_flow.add_task(value.work_flow)
-            self.selected_rows.append(value)
-        else:
-            self.work_flow.del_task(value.work_flow)
-            self.selected_rows.remove(value)
-
-    def __submit_task(self):
-        try:
-            self.__timer_isRunning = True
-            row_data: pd.Series = self.key_word_queue.get(timeout=1)
-            row = self.all_rows.get(row_data['关键词'], None)
-            if row is None:
-                row = Row(row_data, self)
-                row.checkbox.stateChanged.connect(
-                    lambda checked, value=row: self.rowCheckBoxSlot(checked, value))
-                self.all_rows[row_data['关键词']] = row
-                self.addRow(row.row_data, height=ROW_HEIGHT)
-                # 防止自动布局显示不全
-                row.checkbox.setMinimumWidth(len(row.key_word) * 15)
-            else:
-                row.setRowData(row_data)
-                row_index, _ = self.getWidgetCoord(row.checkbox)
-                for index in range(1, 7):
-                    item = self.item(row_index, index)
-                    item.setText(row.row_data[index])
-            QTimer.singleShot(10, self.__submit_task)
-        except Empty:
-            self.__timer_isRunning = False
-
-    def stopUpdate(self):
-        for row in self.all_rows.values():
-            row.work_flow.stop()
 
 
 class Row(QObject):
@@ -140,22 +13,22 @@ class Row(QObject):
     finishedSignal = Signal(bool)
     stopSignal = Signal(bool)
 
-    def __init__(self, value: pd.Series, parent: Table = None):
+    def __init__(self, value: pd.Series, parent: 'Table' = None):
         super().__init__(parent)
         self.__parent = parent
         self.isUpdate = False  # 是否已更新
         self.setRowData(value)
+        self.uiInit()
         # 信号连接
         self.startSignal.connect(self.__start)
         self.progressSignal.connect(self.__progress)
         self.finishedSignal.connect(self.__finished)
         self.stopSignal.connect(self.__stop)
         # 工作流
-        self.work_flow = UpdateWorkFlow(
-            self.key_word, self.purity, self.categories,
-            self.startSignal, self.progressSignal, self.finishedSignal)
-        self.work_flow.stop_signal.connect(self.stopSignal.emit)
-        self.uiInit()
+        self.work_flow = self.__parent.table_data.getWorkFlow(self.key_word)
+        self.work_flow.setSignal(self.startSignal, self.progressSignal, self.finishedSignal, self.stopSignal)
+        if self.work_flow.isRunning:
+            self.__start()
 
     @property
     def row_data(self):
@@ -177,6 +50,9 @@ class Row(QObject):
 
     def uiInit(self):
         self.checkbox = CheckBox(text=self.key_word, parent=self.__parent)
+        if self.key_word in self.__parent.selected_rows:
+            self.checkbox.setChecked(True)
+        self.checkbox.stateChanged.connect(self.__checkBoxSlot)
         self.widget = QWidget(self.__parent)
         self.layout_v = QVBoxLayout(self.widget)
         self.layout_h = QHBoxLayout(self.widget)
@@ -195,6 +71,12 @@ class Row(QObject):
         self.layout_v.addWidget(self.label)
         self.layout_h.addWidget(self.progress)
         self.layout_h.addWidget(self.button)
+
+    def __checkBoxSlot(self, checked):
+        if checked:
+            self.__parent.selected_rows.append(self.key_word)
+        else:
+            self.__parent.selected_rows.remove(self.key_word)
 
     def __button_slot(self):
         if self.button._icon == FIF.UPDATE:
@@ -232,7 +114,7 @@ class Row(QObject):
             self.label.setText('更新完成')
             # 更新UI数据
             if self.work_flow.local_key_data is not None:
-                self.__parent.addKeyWord(self.work_flow.local_key_data)
+                self.__parent.ensurerDataConsistency(self.work_flow.local_key_data)
             self.checkbox.setChecked(False)
         else:
             self.label.setText('更新失败')
@@ -246,3 +128,241 @@ class Row(QObject):
     def updateKey(self):
         """更新关键词"""
         self.work_flow.start()
+
+
+class SelectRow(QObject):
+    """关键词选择管理类"""
+    keyAppendSignal = Signal(str)  # 关键词选中信号
+    keyRemoveSignal = Signal(str)  # 关键词取消信号
+
+    def __init__(self, parent: 'Table'):
+        super().__init__()
+        self._items = []  # 内部存储
+        self.__parent = parent
+
+    def append(self, key_word: str, emit: bool = True):
+        """添加关键词"""
+        if key_word not in self._items:
+            self._items.append(key_word)
+            self.__parent.work_flow.add_task(self.__parent.table_data.getWorkFlow(key_word))
+            if emit:
+                self.keyAppendSignal.emit(key_word)
+
+    def remove(self, key_word: str, emit: bool = True):
+        """移除关键词"""
+        if key_word in self._items:
+            self._items.remove(key_word)
+            self.__parent.work_flow.del_task(self.__parent.table_data.getWorkFlow(key_word))
+            if emit:
+                self.keyRemoveSignal.emit(key_word)
+
+    def __contains__(self, key_word: str) -> bool:
+        """支持 in 操作符"""
+        return key_word in self._items
+
+    def __len__(self) -> int:
+        """支持 len() 函数"""
+        return len(self._items)
+
+    def get_items(self) -> list[str]:
+        """获取所有项目（返回副本）"""
+        return self._items.copy()
+
+
+class TableData(QThread):
+    """表格数据层"""
+    finished = Signal()  # 完成信号
+
+    def __init__(self, parent: 'Table'):
+        super().__init__(parent)
+        self.all_work_flow: dict[str, UpdateWorkFlow] = {}
+
+    def getWorkFlow(self, key_word: str) -> UpdateWorkFlow:
+        if key_word in self.all_work_flow:
+            return self.all_work_flow[key_word]
+
+    def createWorkFlow(self, key_word, purity, categories) -> UpdateWorkFlow:
+        """创建/修改已存在工作流的参数"""
+        if key_word in self.all_work_flow:
+            work_flow = self.all_work_flow[key_word]
+            work_flow.params.purity = purity
+            work_flow.params.categories = categories
+        else:
+            work_flow = UpdateWorkFlow(key_word, purity, categories)
+            self.all_work_flow[key_word] = work_flow
+        return work_flow
+
+    def run(self):
+        if KeyWord.is_loaded(1):
+            with KeyWord.lock:
+                df = KeyWord.data()[['关键词', '分级码', '类别码']].values.tolist()
+            for key_word, purity, categories in df:
+                self.createWorkFlow(key_word, purity, categories)
+            self.finished.emit()
+
+
+class Table(TableRow):
+    """表格数据展示"""
+    submit_download_task = Signal(list)  # 提交需要下载的任务,[(关键词,url)]
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        header = GlobalValue.key_word_columns.copy()
+        header.append('更新状态')
+        self.setColumnHeader(header)
+        self.enableResizeRowsToContents(False)
+        self.verticalScrollBar().setSingleStep(int(ROW_HEIGHT / 3))
+        self.mouseRightClickedSignal.connect(self.showRoundMenu)
+        # 设置列宽模式
+        self.verticalHeader().setVisible(True)  # 显示左侧行头
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)  # 关键词
+        self.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)  # 最新日期
+        self.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)  # 上次更新
+        self.horizontalHeader().setSectionResizeMode(self.columnCount() - 1, QHeaderView.Stretch)  # 最后一列
+        # header.setSectionResizeMode(QHeaderView.Interactive) # 允许调整用户调整列宽
+
+        self.work_flow = SerialWorkFlow()  # 用于批量更新关键词
+        self.key_word_queue = Queue()  # 待提交的任务
+        self.all_rows: dict[str, Row] = {}  # 全部行数据{关键词:一行数据}
+        self.selected_rows = SelectRow(self)  # 被选中的任务
+        self.selected_rows.keyAppendSignal.connect(lambda key_word: self.__selectedRowsSlot(key_word, True))
+        self.selected_rows.keyRemoveSignal.connect(lambda key_word: self.__selectedRowsSlot(key_word, False))
+        self.table_data = TableData(self)
+        self.table_data.finished.connect(self.loadVisible)
+        self.table_data.start()
+
+    def __selectedRowsSlot(self, key_word: str, checked: bool):
+        row = self.all_rows.get(key_word, None)
+        if row is not None:
+            row.checkbox.setChecked(checked)
+
+    def loadVisible(self, rows: list = None):
+        """加载当前可见区域单元格"""
+        if not KeyWord.is_loaded():
+            return
+        with KeyWord.lock:
+            data_len = KeyWord.data().shape[0]
+        if self.rowCount() != data_len:
+            self.setRowCount(data_len)
+        rows = self.visibleRow(False) if rows is None else rows
+        for row in rows:
+            with KeyWord.lock:
+                row_data = KeyWord.data().iloc[row].copy(deep=True)
+            # 检查行是否为空
+            checkbox: CheckBox = self.cellWidget(row, 0)
+            if checkbox is None or checkbox.text() != row_data['关键词']:
+                cell = Row(row_data, self)
+                self.all_rows[cell.key_word] = cell
+                self.addRow(row, cell.row_data)
+                self.resizeRowsToContents()
+
+    def ensurerDataConsistency(self, row_data: pd.DataFrame) -> bool:
+        """确保数据一致"""
+        row = self.all_rows[row_data.loc[0, '关键词']]
+        row.setRowData(row_data.iloc[0])
+        row_index, _ = self.getWidgetCoord(row.checkbox, column_index=0)
+        self.changeRowItem(row_index, row.row_data)
+        return True
+
+    def resizeRowsToContents(self):
+        super().resizeRowsToContents()
+        for index_row in range(self.rowCount()):
+            self.setRowHeight(index_row, ROW_HEIGHT)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.loadVisible()
+
+    def showRoundMenu(self, row, col, pos: QPoint):
+        def sub_func():
+            nonlocal key_word
+            if Config.TOP_WINDOWS is not None:
+                load_dialog = MessageBox(
+                    '确认删除',
+                    f'是否删除关键词{key_word}?',
+                    parent=Config.TOP_WINDOWS)
+                if load_dialog.exec():
+                    self.delKeyWord(key_word)
+
+        checkbox = self.cellWidget(row, 0)
+        if checkbox is not None:
+            key_word = checkbox.text()
+            menu = RoundMenu(parent=self)
+            # 逐个添加动作，Action 继承自 QAction，接受 FluentIconBase 类型的图标
+            menu.addAction(
+                Action(FIF.SEARCH, '搜索关键词', triggered=lambda: AppCore().getSignal('search').emit(key_word)))
+            menu.addAction(Action(FIF.DELETE, '删除关键词', triggered=sub_func))
+            # 显示菜单
+            pos.setX(pos.x() + (menu.width() / 3))
+            pos.setY(pos.y() + (menu.height() / 3))
+            menu.exec(pos)
+
+    def searchKey(self, key_word) -> bool:
+        with KeyWord.lock:
+            if key_word in KeyWord.data()['关键词'].values:  # 精准搜索
+                row_index = KeyWord.data()[KeyWord.data()['关键词'] == key_word].index[0]
+                index = self.model().index(row_index, 0)
+                self.scrollTo(index, QAbstractItemView.PositionAtTop)
+                return True
+            else:  # 模糊搜索
+                key_word = key_word.lower()
+                row_index = None
+                # 方法1：分步匹配，优先开头匹配
+                df = KeyWord.data()
+                # 先找以key_word开头的
+                mask_start = df['关键词'].str.contains(f'^{re.escape(key_word)}', regex=True, case=False, na=False)
+                if mask_start.any():
+                    row_index = df[mask_start].index[0]
+                else:
+                    # 如果没有开头匹配，找包含key_word的
+                    mask_contains = df['关键词'].str.contains(re.escape(key_word), regex=True, case=False, na=False)
+                    if mask_contains.any():
+                        row_index = df[mask_contains].index[0]
+                if row_index is not None:
+                    index = self.model().index(row_index, 0)
+                    self.scrollTo(index, QAbstractItemView.PositionAtTop)
+                    return True
+            return False
+
+    def selectAllRows(self, value=True):
+        with KeyWord.lock:
+            df = KeyWord.data()['关键词'].tolist()
+        for key_word in df:
+            if value:
+                self.selected_rows.append(key_word)
+            else:
+                self.selected_rows.remove(key_word)
+
+    def addKeyWord(self, key_data: pd.DataFrame):
+        """添加收藏夹数据"""
+        self.table_data.start()
+        self.table_data.finished.disconnect()
+        self.table_data.finished.connect(lambda key_word=key_data.loc[0, '关键词']: self.searchKey(key_word))
+        self.table_data.finished.connect(self.loadVisible)
+
+    def delKeyWord(self, key_word=None):
+        if key_word is None:
+            for key_word in self.selected_rows.get_items():
+                KeyWord.del_data(key_word)
+                row = self.all_rows.get(key_word, None)
+                if row is not None:
+                    row_index, _ = self.getWidgetCoord(row.checkbox, column_index=0)
+                    # 清除元素
+                    del self.all_rows[key_word]
+                    self.delRow(row_index)
+        else:
+            KeyWord.del_data(key_word)
+            row = self.all_rows.get(key_word, None)
+            if row is not None:
+                row_index, _ = self.getWidgetCoord(row.checkbox, column_index=0)
+                # 清除元素
+                del self.all_rows[key_word]
+                self.delRow(row_index)
+
+    def updateKeyWord(self, value: bool = True):
+        if value:
+            if not self.work_flow.isRunning:
+                self.work_flow.start()
+        else:
+            self.work_flow.stop()

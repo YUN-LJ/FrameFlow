@@ -1,5 +1,5 @@
 """左侧布局"""
-from SubWidget.WallPaper.ImportPack import *
+from SubWidget.ImportPack import *
 from SubWidget.WallPaper.DesignFile.LeftWidget import Ui_leftwidget
 
 
