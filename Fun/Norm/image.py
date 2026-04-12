@@ -83,14 +83,14 @@ class Image_PIL:
     # 是否允许加载截断的图片文件,默认为不允许
     LOAD_TRUNCATED_IMAGES = False
 
-    def __init__(self, image_path: str = None, load_trunc_images: bool = False):
+    def __init__(self, image_path: str | BytesIO | np.ndarray = None, load_trunc_images: bool = False):
         self.__image_path = image_path  # 照片路径
         if load_trunc_images:
             self.LOAD_TRUNCATED_IMAGES = True
         if image_path is not None:
             self.__image = self.open_image(image_path)  # ImageFile.ImageFile对象
 
-    def open_image(self, image_input: str | np.ndarray) -> ImageFile.ImageFile | bool:
+    def open_image(self, image_input: str | BytesIO | np.ndarray) -> ImageFile.ImageFile | bool:
         """
         将图片加载为ImageFile对象
 
@@ -108,6 +108,8 @@ class Image_PIL:
             self.__image_path = image_input
         elif isinstance(image_input, np.ndarray):
             self.__image = Image.fromarray(image_input)
+        elif isinstance(image_input, BytesIO):
+            self.__image = Image.open(image_input)
         return self.__image
 
     @property

@@ -2,6 +2,7 @@
 有关PySide6类的高级封装操作
 """
 import os, numpy as np, cv2
+from PIL import Image
 from io import BytesIO
 
 from PySide6 import QtCore
@@ -237,11 +238,12 @@ class ReMouseWidget(QWidget):
 
 # 系统托盘
 class TrayIcon(QSystemTrayIcon):
+    # showClicked = Signal(bool)  # 显示按钮
+    quitClicked = Signal(bool)  # 退出按钮
 
-    def __init__(self, SetUI, exit_func=None, parent=None):
+    def __init__(self, SetUI, parent=None):
         super(TrayIcon, self).__init__(parent)
         self.ui = SetUI
-        self.exit_func = exit_func
         self.createMenu()
 
     def createMenu(self):
@@ -267,9 +269,7 @@ class TrayIcon(QSystemTrayIcon):
         self.ui.activateWindow()
 
     def quit(self):
-        # QtWidgets.qApp.quit()
-        self.exit_func()
-        os._exit(0)  # 强制退出
+        self.quitClicked.emit(True)
 
     def onIconClicked(self, reason):
         # 鼠标点击icon传递的信号会带有一个整形的值
@@ -293,19 +293,22 @@ class ImageWidget(QWidget):
     disable_zoom_and_drag关闭缩放和拖拽
     showFullScreen全屏显示
     """
-    mouseEnterSignal = Signal(bool)  # 鼠标进入时发送True
-    mouseLeaveSignal = Signal(bool)  # 离开时发送True
-    mousePressSignal = Signal(bool)  # 鼠标按下时发送True,只在启用缩放和拖拽时生效
-    mouseReleaseSignal = Signal(bool)  # 鼠标松开时发送True,只在启用缩放和拖拽时生效
-    mouseDoubleSignal = Signal(bool)  # 鼠标双击时发送True,只在启用缩放和拖拽时生效
-    mouseWheelSignal = Signal(bool)  # 鼠标滚轮触发时发送True,只在启用缩放和拖拽时生效
+    mouseEnterSignal = Signal()  # 鼠标进入时发送
+    mouseLeaveSignal = Signal()  # 离开时发送
+    mousePressSignal = Signal()  # 鼠标按下时发送,只在启用缩放和拖拽时生效
+    mouseReleaseSignal = Signal()  # 鼠标松开时发送,只在启用缩放和拖拽时生效
+    mouseDoubleSignal = Signal()  # 鼠标双击时发送,只在启用缩放和拖拽时生效
+    mouseWheelSignal = Signal()  # 鼠标滚轮触发时发送,只在启用缩放和拖拽时生效
     fullScreenSignal = Signal(bool)  # 进入全屏时发送True,退出全屏时发送Flase
+    defaultImage = np.full((224, 224, 4), fill_value=0, dtype=np.uint8)
 
     def __init__(self, image_input=None):
         super().__init__()
         if image_input is None:
-            image_input = np.full((224, 224, 3), fill_value=70, dtype=np.uint8)
+            # 默认显示四通道全透明图像
+            image_input = self.__class__.defaultImage
         self.image_input = image_input
+        self.display_text = None  # 需要显示的文字
         self.original_pixmap = self._load_image(image_input)
         self.setMinimumSize(50, 50)
 
@@ -506,6 +509,7 @@ class ImageWidget(QWidget):
 
     def set_image(self, image_input) -> bool:
         """设置新图片，如果是相同的图片则跳过更新"""
+        self.display_text = None
         # 检查是否相同
         if self.is_same_image(image_input):
             return False  # 返回False表示没有更新
@@ -517,7 +521,16 @@ class ImageWidget(QWidget):
             self.fullscreen_widget.update()
         return True  # 返回True表示已更新
 
+    def set_text(self, text: str):
+        """显示文字"""
+        self.set_image(self.__class__.defaultImage)
+        self.display_text = text
+
     def paintEvent(self, event: QPaintEvent):
+        if self.display_text:
+            painter = QPainter(self)
+            painter.drawText(self.rect(), Qt.AlignCenter, self.display_text)
+            return
         if self.original_pixmap.isNull():
             painter = QPainter(self)
             painter.drawText(self.rect(), Qt.AlignCenter, "图片加载失败")
@@ -636,7 +649,7 @@ class ImageWidget(QWidget):
                 int(target_x - new_rect.x()),
                 int(target_y - new_rect.y())
             )
-        self.mouseWheelSignal.emit(True)
+        self.mouseWheelSignal.emit()
         self.update()
         event.accept()
 
@@ -662,7 +675,7 @@ class ImageWidget(QWidget):
             self.dragging = True
             self.last_mouse_pos = event.position().toPoint()
             self.setCursor(Qt.ClosedHandCursor)
-            self.mousePressSignal.emit(True)
+            self.mousePressSignal.emit()
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent):
@@ -685,18 +698,18 @@ class ImageWidget(QWidget):
             self.setCursor(Qt.ArrowCursor)
 
     def enterEvent(self, event: QEvent):
-        self.mouseEnterSignal.emit(True)
+        self.mouseEnterSignal.emit()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent):
-        self.mouseLeaveSignal.emit(False)
+        self.mouseLeaveSignal.emit()
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if self.dragging and event.button() == Qt.LeftButton:
             self.dragging = False
             self.setCursor(Qt.ArrowCursor)
-            self.mouseReleaseSignal.emit(False)
+            self.mouseReleaseSignal.emit()
             event.accept()
         else:
             super().mouseReleaseEvent(event)
@@ -705,7 +718,7 @@ class ImageWidget(QWidget):
         """鼠标双击事件：复原图像"""
         if event.button() == Qt.LeftButton:
             self.reset_view()
-            self.mouseDoubleSignal.emit(True)
+            self.mouseDoubleSignal.emit()
             event.accept()
         else:
             super().mouseDoubleClickEvent(event)
@@ -937,7 +950,7 @@ class ImageWidget(QWidget):
 
     def fullscreenMousePressEvent(self, event):
         """全屏窗口的鼠标按下事件（拖动）"""
-        if event.button() == Qt.LeftButton:
+        if event.check_box() == Qt.LeftButton:
             self.fullscreen_dragging = True
             self.fullscreen_last_mouse_pos = event.position().toPoint()
             self.fullscreen_widget.setCursor(Qt.ClosedHandCursor)
@@ -958,14 +971,14 @@ class ImageWidget(QWidget):
 
     def fullscreenMouseReleaseEvent(self, event):
         """全屏窗口的鼠标释放事件"""
-        if event.button() == Qt.LeftButton and self.fullscreen_dragging:
+        if event.check_box() == Qt.LeftButton and self.fullscreen_dragging:
             self.fullscreen_dragging = False
             self.fullscreen_widget.setCursor(Qt.ArrowCursor)
             event.accept()
 
     def fullscreenWindowDoubleClick(self, event):
         """全屏窗口的双击事件"""
-        if event.button() == Qt.LeftButton:
+        if event.check_box() == Qt.LeftButton:
             self.exitFullScreen()
             event.accept()
 
@@ -1111,113 +1124,19 @@ class WindowDesktop(QWidget):
             self.layout.setStretch(index, index)
 
 
-class EasyTableWidget(QTableWidget):
-    """简单的表格类"""
-    delWidgetSignal = Signal(QWidget)  # 有部件被删除时的信号
-    addWidgetSignal = Signal(QWidget)  # 有部件新增时的信号
-    realignSignal = Signal(bool)  # 单元格重新排布时的信号
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.__parent = parent
-        self.__widget_dict = {}  # 存储了每个QWidget类的创建函数
-
-    def getEmptyCoord(self, start_row: int = None, start_col: int = None, create=True) -> tuple[int, int]:
-        """
-        获取首个非空单元格的坐标
-        :param start_row: 从哪一行开始,默认从首行
-        :param start_col: 从那一列开始,默认从首列
-        :param create: 如果当前表格内无非空单元格是否允许创建新的行,默认允许
-        """
-        start_row = 0 if start_row is None else start_row
-        start_col = 0 if start_col is None else start_col
-        max_row = self.rowCount()
-        max_col = self.columnCount()
-        for cur_row in range(start_row, max_row):
-            for cur_col in range(start_col, max_col):
-                if self.cellWidget(cur_row, cur_col) is None:
-                    return cur_row, cur_col
-        self.insertRow(max_row)
-        self.setRowHeight(max_row, 100)
-        return max_row, 0
-
-    def getWidgetCoord(self, widget: QWidget):
-        """获取目标容器坐标"""
-        for target_row in range(self.rowCount()):
-            for target_col in range(self.columnCount()):
-                if self.cellWidget(target_row, target_col) == widget:
-                    return target_row, target_col
-
-    def addWidget(self, widget: QWidget, create_func: callable, emit=True) -> bool:
-        """
-        添加一个QWidget子类
-        :param widget:需要添加的部件
-        :param create_func:创建这个部件的函数,用于表格内位置调整
-        :param emit:是否发射信号
-        """
-        # 获取当前非空单元格位置,如果当前没有非空单元格则创建新的行
-        target_row, target_col = self.getEmptyCoord()
-        self.setCellWidget(target_row, target_col, widget)
-        self.__widget_dict[widget] = create_func
-        if emit:
-            self.addWidgetSignal.emit(widget)
-
-    def delWidget(self, widget: QWidget, deleteLater=True, emit=True):
-        """
-        删除一个QWidget子类
-        :param widget :需要删除的Qwidget类
-        :param deleteLater:彻底清除
-        :param emit:是否发射信号
-        """
-        target_row, target_col = self.getWidgetCoord(widget)  # 获取坐标
-        widget = self.cellWidget(target_row, target_col)
-        self.removeCellWidget(target_row, target_col)
-        if deleteLater:
-            widget.deleteLater()
-        if emit:
-            self.delWidgetSignal.emit(widget)
-
-    def realign(self, start_row: int = None, start_col: int = None):
-        """
-        重新调整当前表格单元格位置
-        :param start_row: 从哪一行开始,默认从首行
-        :param start_col: 从那一列开始,默认从首列
-        """
-        start_row = 0 if start_row is None else start_row
-        start_col = 0 if start_col is None else start_col
-        # 记录全部需要重新调整位置的QWidget
-        widgets = []
-        for cur_row in range(start_row, self.rowCount()):
-            for cur_col in range(start_col, self.columnCount()):
-                widget = self.cellWidget(cur_row, cur_col)
-                if widget is not None:
-                    widgets.append(widget)
-        # 重新创建QWidget类
-        for widget in widgets:
-            create_func = self.__widget_dict.get(widget, None)
-            if create_func is not None:
-                self.delWidget(widget, emit=False)
-                self.addWidget(create_func(), create_func, emit=False)
-        # 清除多余行
-        row, col = self.getEmptyCoord(create=False)
-        if col == 0:
-            self.removeRow(row)
-        self.realignSignal.emit(True)
-
-
 class LeftandRightSplitter(QSplitter):
     """左右滑动容器"""
 
     def __init__(self, layout: QHBoxLayout, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(Qt.Horizontal, *args, **kwargs)
         # 设置初始比例,数字代表宽度像素
         self.setSizes([500, 500])
         # 设置分界线样式
-        self.setStyleSheet(
-            """QSplitter::handle { 
-                            background-color: rgb(220,220,220); 
-                            border: 1px solid rgb(220,220,220); 
-                            margin: 1px;}""")
+        # self.setStyleSheet("""
+        #             QSplitter::handle {
+        #             background-color: rgb(220,220,220);
+        #             border: 1px solid rgb(220,220,220);
+        #             margin: 1px;}""")
         # 实时更新
         # self.setOpaqueResize(False)
         layout.addWidget(self)

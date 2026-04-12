@@ -152,7 +152,7 @@ class INI:
             print(f'没有该节:{section_name}')
             return ''
 
-    def save(self, config):
+    def save(self, config: configparser.RawConfigParser):
         file.ensure_exist(os.path.dirname(self.INI_FILE))
         with open(self.INI_FILE, 'w', encoding='utf-8') as configfile:
             config.write(configfile)

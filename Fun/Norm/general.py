@@ -1,9 +1,342 @@
-"""
-通用函数
-"""
-import sys, time
-import subprocess
-from . import get
+"""通用函数"""
+import win32clipboard, win32con, struct
+import os, sys, time, subprocess
+from io import BytesIO
+from Fun.Norm import get
+import threading
+from threading import Timer
+from typing import Callable, Optional
+from enum import Enum
+
+
+class TimerState(Enum):
+    """定时器状态"""
+    IDLE = "idle"  # 空闲
+    RUNNING = "running"  # 运行中
+    PAUSED = "paused"  # 暂停
+    STOPPING = "stopping"  # 停止中
+
+
+class ReuseTimer:
+    """可复用定时器（线程复用版）"""
+
+    def __init__(self, interval: float, func: Callable, is_while=True, daemon=True, *args, **kwargs):
+        """
+        :param interval:间隔时间
+        :param func:执行函数
+        :param is_while:是否循环执行
+        :param daemon:是否为守护线程,默认为守护线程
+        :param args: 执行函数需要的位置参数
+        :param kwargs: 执行函数需要的关键字参数
+        """
+        self.interval = interval
+        self.func = func
+        self.is_while = is_while
+        self.daemon = daemon
+        self.args = args
+        self.kwargs = kwargs
+
+        # 状态管理
+        self._state = TimerState.IDLE
+        self._state_lock = threading.RLock()
+        self._state_changed = threading.Condition(self._state_lock)
+
+        # 时间控制
+        self._next_run_time: float = 0
+        self._pause_accumulated_time: float = 0  # 累计暂停时间
+        self._pause_start_time: float = 0
+
+        # 线程控制
+        self._thread: Optional[threading.Thread] = None
+        self._wakeup_event = threading.Event()  # 用于唤醒工作线程
+
+    @property
+    def isRunning(self) -> bool:
+        """是否正在运行"""
+        with self._state_lock:
+            return self._state in (TimerState.RUNNING, TimerState.PAUSED)
+
+    @property
+    def isPause(self) -> bool:
+        """是否暂停"""
+        with self._state_lock:
+            return self._state == TimerState.PAUSED
+
+    def set_is_while(self, is_while: bool):
+        with self._state_lock:
+            self.is_while = is_while
+
+    def set_daemon(self, daemon: bool):
+        with self._state_lock:
+            self.daemon = daemon
+
+    def set_interval(self, interval: float):
+        with self._state_lock:
+            self.interval = interval
+            if self._state == TimerState.RUNNING:
+                # 如果正在运行，重新调度
+                self._next_run_time = time.time() + interval
+                self._wakeup_event.set()
+
+    def set_func(self, func: Callable):
+        with self._state_lock:
+            self.func = func
+
+    def _worker(self):
+        """工作线程主循环"""
+        while True:
+            # 等待状态变为非暂停或退出
+            with self._state_changed:
+                # 检查是否需要退出
+                if self._state == TimerState.STOPPING:
+                    break
+
+                # 如果是暂停状态，等待恢复
+                while self._state == TimerState.PAUSED:
+                    self._state_changed.wait()
+                    if self._state == TimerState.STOPPING:
+                        break
+
+                if self._state == TimerState.STOPPING:
+                    break
+
+                # 计算等待时间
+                if self._state == TimerState.RUNNING:
+                    wait_time = max(0, self._next_run_time - time.time())
+                else:
+                    wait_time = None  # 无限等待
+
+                # 等待到达执行时间或状态变化
+                if wait_time is not None:
+                    self._state_changed.wait(wait_time)
+                else:
+                    self._state_changed.wait()
+
+                # 再次检查状态
+                if self._state == TimerState.STOPPING:
+                    break
+
+                if self._state == TimerState.PAUSED:
+                    continue
+
+                # 检查是否到达执行时间
+                current_time = time.time()
+                if self._state == TimerState.RUNNING and current_time >= self._next_run_time:
+                    # 执行任务前，先复制任务信息并释放锁
+                    func = self.func
+                    args = self.args
+                    kwargs = self.kwargs
+                    is_while = self.is_while
+
+                    # 释放锁执行用户函数
+                    self._state_changed.release()
+                    try:
+                        func(*args, **kwargs)
+                    except Exception as e:
+                        print(f"定时器任务执行出错: {e}")
+                    self._state_changed.acquire()
+
+                    # 执行后处理
+                    if self._state == TimerState.RUNNING:
+                        if is_while:
+                            # 设置下次执行时间
+                            self._next_run_time = time.time() + self.interval
+                        else:
+                            # 单次执行，准备退出
+                            self._state = TimerState.STOPPING
+                            break
+
+        # 清理状态
+        with self._state_lock:
+            self._state = TimerState.IDLE
+            self._wakeup_event.clear()
+
+    def start(self, time_out=None):
+        """开始"""
+        with self._state_lock:
+            # 如果已经在运行，先停止
+            if self._state != TimerState.IDLE:
+                self._stop_locked()
+                # 等待线程结束
+                if self._thread and self._thread.is_alive():
+                    self._state_lock.release()
+                    self._thread.join(timeout=2.0)
+                    self._state_lock.acquire()
+
+            # 设置为运行状态
+            self._state = TimerState.RUNNING
+
+            # 计算首次执行时间
+            first_interval = time_out if time_out is not None else self.interval
+            self._next_run_time = time.time() + first_interval
+            self._pause_accumulated_time = 0
+
+            # 创建并启动工作线程
+            self._thread = threading.Thread(target=self._worker, daemon=self.daemon)
+            self._thread.start()
+
+    def _stop_locked(self):
+        """内部停止方法（假设已持有锁）"""
+        if self._state == TimerState.IDLE:
+            return
+
+        old_state = self._state
+        self._state = TimerState.STOPPING
+
+        # 唤醒工作线程
+        with self._state_changed:
+            self._state_changed.notify_all()
+
+        self._wakeup_event.set()
+
+    def pause(self):
+        """暂停/恢复"""
+        with self._state_lock:
+            if self._state == TimerState.RUNNING:
+                # 暂停
+                self._state = TimerState.PAUSED
+                self._pause_start_time = time.time()
+                # 唤醒工作线程，让它进入暂停状态
+                with self._state_changed:
+                    self._state_changed.notify_all()
+
+            elif self._state == TimerState.PAUSED:
+                # 恢复
+                self._state = TimerState.RUNNING
+                # 计算暂停时间并调整下次执行时间
+                pause_duration = time.time() - self._pause_start_time
+                self._next_run_time += pause_duration
+                self._pause_accumulated_time += pause_duration
+                # 唤醒工作线程
+                with self._state_changed:
+                    self._state_changed.notify_all()
+                self._wakeup_event.set()
+
+    def stop(self):
+        """停止"""
+        with self._state_lock:
+            if self._state == TimerState.IDLE:
+                return
+
+            self._stop_locked()
+
+            # 获取线程引用
+            thread = self._thread
+            self._thread = None
+
+        # 在锁外等待线程结束
+        if thread and thread.is_alive():
+            thread.join(timeout=2.0)
+
+    def get_state(self) -> str:
+        """获取当前状态"""
+        with self._state_lock:
+            return self._state.value
+
+
+class ReuseTimerOld:
+    """可复用定时器"""
+
+    def __init__(self, interval: float, func: Callable, is_while=True, daemon=True, *args, **kwargs):
+        """
+        :param interval:间隔时间
+        :param func:执行函数
+        :param is_while:是否循环执行
+        :param daemon:是否为守护线程,默认为守护线程
+        :param args: 执行函数需要的位置参数
+        :param kwargs: 执行函数需要的关键字参数
+        """
+        self.interval = interval  # 间隔时间
+        self.func = func  # 执行函数
+        self.is_while = is_while  # 是否循环执行
+        self.daemon = daemon  # 是否为守护线程
+        self.args = args  # 位置参数
+        self.kwargs = kwargs  # 关键字参数
+        self.isRunning = False  # 是否正在运行
+        self.isPause = False
+        self.__pause_time = time.time()
+        self.__timer: Timer = Timer(interval, self.__func)  # 定时器
+        self.__timer.daemon = daemon
+
+    def set_is_while(self, is_while: bool):
+        self.is_while = is_while
+
+    def set_daemon(self, daemon: bool):
+        self.__timer.daemon = daemon
+
+    def set_interval(self, interval: float):
+        self.interval = interval
+        if self.isRunning:
+            self.stop()
+            self.start()
+
+    def set_func(self, func: Callable):
+        self.func = func
+        if self.isRunning:
+            self.stop()
+            self.start()
+
+    def __func(self):
+        """执行具体函数"""
+        if self.isRunning:
+            self.func(*self.args, **self.kwargs)
+            if self.isRunning and self.is_while:
+                if not self.isPause:
+                    self.__restart_timer()
+                    self.__timer.start()
+                else:
+                    while self.isPause:
+                        time.sleep(0.2)
+                    self.__restart_timer()
+                    self.__timer.start()
+            else:
+                self.stop()
+
+    def __restart_timer(self, interval: float = None):
+        """重置定时器"""
+        if interval is None:
+            interval = self.interval
+        # 定时器只有在start()方法后到等待执行的这段时间is_alive的返回值是True
+        if self.__timer.is_alive():
+            self.__timer.cancel()
+        self.__timer = Timer(interval, self.__func)  # 壁纸播放定时器
+        self.__timer.daemon = self.daemon
+
+    def start(self, time_out=None):
+        """开始"""
+        if self.isRunning:
+            self.stop()
+        self.isRunning = True
+        try:
+            self.__restart_timer(time_out)
+            self.__timer.start()
+        except RuntimeError:
+            self.__restart_timer(time_out)  # 重置定时器
+            self.__timer.start()
+
+    def pause(self):
+        """暂停"""
+        if self.isRunning:
+            if not self.isPause:  # 暂停
+                self.isPause = True
+                if self.__timer.is_alive():
+                    self.__timer.cancel()
+                self.__restart_timer()
+                self.__pause_time = time.time()
+            else:  # 恢复
+                self.isPause = False
+                diff_time = time.time() - self.__pause_time  # 暂停了多久
+                interval = min(abs(self.interval - diff_time), self.interval)
+                self.__restart_timer(interval)
+                self.__timer.start()
+
+    def stop(self):
+        """停止"""
+        if self.isRunning:
+            if self.__timer.is_alive():
+                self.__timer.cancel()
+            self.__restart_timer()
+            self.isRunning = False
 
 
 def add_start_user(name: str, file_path: str) -> bool:
@@ -167,6 +500,60 @@ def check_is_run(title: str, count: int = 1, accurate: bool = True) -> bool:
         return True
     else:
         return False
+
+
+def copy_files_to_clipboard(file_paths):
+    """复制文件到剪贴板"""
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
+
+    # 转换为绝对路径
+    file_paths = [os.path.abspath(p) for p in file_paths if os.path.exists(p)]
+
+    if not file_paths:
+        return
+
+    # 构建 DROPFILES 结构
+    # 文件列表：每个文件路径以 null 结尾，最后双 null 结束
+    paths_bytes = []
+    for path in file_paths:
+        # Windows 使用 UTF-16 LE
+        paths_bytes.append(path.encode('utf-16le'))
+
+    # 计算总大小
+    struct_size = 20  # DROPFILES 结构大小
+    files_size = sum(len(p) + 2 for p in paths_bytes)  # 每个文件加 \0\0
+    total_size = struct_size + files_size + 2  # 最后加 \0\0
+
+    # 构建数据
+    data = bytearray(total_size)
+
+    # DROPFILES 结构
+    struct.pack_into('<I', data, 0, struct_size)  # pFiles
+    struct.pack_into('<I', data, 16, 1)  # fWide = 1 (使用宽字符)
+
+    # 文件列表从偏移 20 开始
+    offset = struct_size
+    for path_bytes in paths_bytes:
+        data[offset:offset + len(path_bytes)] = path_bytes
+        offset += len(path_bytes)
+        data[offset:offset + 2] = b'\0\0'  # UTF-16 null
+        offset += 2
+
+    # 最后的结束符
+    data[offset:offset + 2] = b'\0\0'
+
+    # 写入剪贴板
+    win32clipboard.OpenClipboard()
+    try:
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32con.CF_HDROP, data)
+
+        # 同时设置文本格式（可选）
+        text = '\n'.join(os.path.basename(p) for p in file_paths)
+        win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
+    finally:
+        win32clipboard.CloseClipboard()
 
 
 def check_is_admin() -> bool:
@@ -481,3 +868,7 @@ def char_auto_line_break(text: str, limit_width: int) -> str:
         weight += 21 if '\u4e00' <= char <= '\u9fff' else 7
         text_split.append(char)
     return ''.join(text_split)
+
+
+if __name__ == '__main__':
+    copy_files_simple(r"E:\user_file\Pictures\壁纸\wallhaven\限制级\人物\1kdqy3.jpg")
