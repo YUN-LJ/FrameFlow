@@ -30,7 +30,7 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QScrollArea" name="scrollArea">
+    <widget class="SmoothScrollArea" name="scrollArea">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -147,7 +147,7 @@
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
-          <widget class="QLabel" name="progress_label">
+          <widget class="BodyLabel" name="progress_label">
            <property name="text">
             <string/>
            </property>
@@ -169,7 +169,11 @@
         </layout>
        </item>
        <item>
-        <widget class="Table" name="tableWidget"/>
+        <widget class="Table" name="tableWidget">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -179,6 +183,12 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>SmoothScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qfluentwidgets.components.widgets</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>PrimaryPushButton</class>
    <extends>QPushButton</extends>
    <header>qfluentwidgets.components.widgets</header>
@@ -187,6 +197,11 @@
    <class>Table</class>
    <extends>QTableWidget</extends>
    <header>SubWidget.Home.SlotFunc.KeyPageCtrl</header>
+  </customwidget>
+  <customwidget>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
    <class>SearchLineEdit</class>

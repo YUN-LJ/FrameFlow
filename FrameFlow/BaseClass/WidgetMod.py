@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QTableWidgetIte
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets.components.widgets import (
     TableWidget, CheckBox, TitleLabel, IndeterminateProgressRing,
-    ProgressRing, PrimaryToolButton
+    ProgressRing, PrimaryToolButton, SimpleCardWidget
 )
 from qfluentwidgets.components.dialog_box import MessageBoxBase
 from qfluentwidgets.components.navigation import Pivot, SegmentedWidget
@@ -21,7 +21,7 @@ from BaseClass.TaskManage import TaskManage
 from SubAPI import WallHaven as WH
 
 
-class TopWidget(QWidget):
+class TopWidget(SimpleCardWidget):
     """顶端标签导航"""
     isSegmented = True
 

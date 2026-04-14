@@ -111,12 +111,12 @@ class RightWidgetSlot:
     def pushButton_open(self):
         local_path = self.parent.label_local_path_value.text()
         if local_path:
-            file.open_file_use_explorer(local_path)
+            FileBase(local_path).open_use_explorer()
 
     def pushButton_copy(self):
         local_path = self.parent.label_local_path_value.text()
         if local_path:
-            general.copy_files_to_clipboard(local_path)
+            File(local_path).copy_to_clipboard()
 
     def checkBox_zoom(self, checked):
         if checked:

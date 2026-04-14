@@ -14,7 +14,7 @@ def load_config():
         value = ConfigData.data().get_values(section_name=Config.PACK_NAME)
         if value:
             Config.THREAD_NUM = value.get('num_work', Config.THREAD_NUM)
-            Config.SAVE_DIR = value.get('save_dir', file.get_user_PicturesPath())
+            Config.SAVE_DIR = value.get('save_dir', File.get_user_PicturesPath())
             Config.USE_NETWORK = value.get('use_network', Config.USE_NETWORK)
             Config.SearchParams.default_params['categories'] = value.get(
                 'categories', Config.SearchParams.default_params['categories'])
@@ -42,6 +42,9 @@ def set_api_key(api_key, check=True) -> bool:
 
 
 def set_proxies_url(url, check=True) -> bool:
+    if not url:
+        Config.PROXIES_URL = url
+        return True
     if check:
         if not check_connect(url):
             return False
@@ -118,7 +121,7 @@ def del_image_file(image_id: list) -> Task | None:
         nonlocal task, del_info, mask
         try:
             for index, row in del_info.iterrows():
-                file.del_file(row['本地路径'])
+                FileBase(row['本地路径']).delete()
                 task.progress.finished += 1
                 task.progress_signal.emit(task.progress)
             with ImageInfo.lock:

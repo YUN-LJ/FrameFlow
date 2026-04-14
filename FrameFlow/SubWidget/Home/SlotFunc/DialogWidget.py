@@ -15,11 +15,6 @@ class SearchDialog(LoadDialog):
         super().__init__(parent=top_parent)
         self.parent = parent
         self.top_parent = top_parent
-        # 连接信号
-        self.parent.tableWidget_image.startSignal.connect(self.searchStart)
-        self.parent.tableWidget_image.progressSignal.connect(self.searchProgress)
-        self.parent.tableWidget_image.finishedSignal.connect(self.searchFinished)
-        self.close()
 
     def searchStart(self, task: WH.SearchTask):
         """搜索开始"""
@@ -51,7 +46,7 @@ class SearchDialog(LoadDialog):
             self.parent.spinBox.setMaximum(result['总页数'].values[0])
         else:
             self.parent.label_page_info.setText('')
-            self.parent.search_dialog.setText('搜索失败!')
+            self.setText('搜索失败!')
         QTimer.singleShot(500, self.accept)
 
 
@@ -76,7 +71,7 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         self.loadImage(self.current_cell)
 
     def uiInit(self):
-        widget = QWidget(self)
+        widget = SimpleCardWidget(self)
         self.setupUi(widget)
         self.image_widget = ImageWidget(parent=self)
         self.image_widget.setMinimumHeight(0)
@@ -85,6 +80,8 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         self.pushButton_full.setIcon(FIF.FIT_PAGE)
         self.pushButton_copy.setIcon(FIF.COPY)
         self.resizeSize()
+        # 所有子控件继承样式
+        widget.setStyleSheet("""ImageDialog, ImageDialog * {background-color: transparent;}""")
 
     def bind(self):
         """绑定事件"""
@@ -192,8 +189,8 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         """与主窗口保持缩放"""
         self.widget.setMinimumWidth(self.top_parent.width() * 0.8)
         self.widget.setMinimumHeight(self.top_parent.height() * 0.8)
-        text = general.char_auto_line_break(self.label_local_path_value.text().replace('\n', ''),
-                                            self.widget.width() * 0.6)
+        text = Str.char_auto_line_break(self.label_local_path_value.text().replace('\n', ''),
+                                        self.widget.width() * 0.6)
         self.label_local_path_value.setText(text)
 
     def clear_layout(self, layout):
@@ -222,7 +219,6 @@ class DelDialog(LoadDialog):
         self.startSignal.connect(self.__start)
         self.progressSignal.connect(self.__progress)
         self.finishedSignal.connect(self.__finished)
-        self.close()
 
     def __start(self):
         self.yesButton.hide()

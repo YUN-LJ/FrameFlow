@@ -1,9 +1,9 @@
 """全局常量"""
 import os
-from Fun.Norm import get
+from Fun.BaseTools import Get
 
 # 程序路径配置
-run_dir = get.run_dir()
+run_dir = Get.run_dir()
 config_dir = os.path.join(run_dir, 'config')
 # 数据文件路径配置
 image_cache_dir = os.path.join(config_dir, 'image_cache')

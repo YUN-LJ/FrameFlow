@@ -15,11 +15,11 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QLabel,
-    QLineEdit, QScrollArea, QSizePolicy, QSpacerItem,
-    QSpinBox, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QLineEdit,
+    QSizePolicy, QSpacerItem, QSpinBox, QVBoxLayout,
+    QWidget)
 
-from qfluentwidgets.components.widgets import (ComboBox, PrimaryPushButton)
+from qfluentwidgets.components.widgets import (ComboBox, PrimaryPushButton, SmoothScrollArea, SubtitleLabel)
 
 class Ui_set_page(object):
     def setupUi(self, set_page):
@@ -30,7 +30,7 @@ class Ui_set_page(object):
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.scrollArea = QScrollArea(set_page)
+        self.scrollArea = SmoothScrollArea(set_page)
         self.scrollArea.setObjectName(u"scrollArea")
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
@@ -89,7 +89,7 @@ class Ui_set_page(object):
 
         self.gridLayout.addWidget(self.pushButton_proxy, 2, 3, 1, 1)
 
-        self.label_api = QLabel(self.scrollAreaWidgetContents)
+        self.label_api = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label_api.setObjectName(u"label_api")
         self.label_api.setStyleSheet(u"font: 14pt \"Microsoft YaHei UI\";")
 
@@ -101,7 +101,7 @@ class Ui_set_page(object):
 
         self.gridLayout.addWidget(self.lineEdit_api, 3, 2, 1, 1, Qt.AlignmentFlag.AlignRight)
 
-        self.label_proxy = QLabel(self.scrollAreaWidgetContents)
+        self.label_proxy = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label_proxy.setObjectName(u"label_proxy")
         self.label_proxy.setStyleSheet(u"font: 14pt \"Microsoft YaHei UI\";")
 
@@ -125,13 +125,13 @@ class Ui_set_page(object):
 
         self.gridLayout.addWidget(self.pushButton_input, 5, 3, 1, 1)
 
-        self.label_history = QLabel(self.scrollAreaWidgetContents)
+        self.label_history = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label_history.setObjectName(u"label_history")
         self.label_history.setStyleSheet(u"font: 14pt \"Microsoft YaHei UI\";")
 
         self.gridLayout.addWidget(self.label_history, 7, 0, 1, 1)
 
-        self.label_thread_num = QLabel(self.scrollAreaWidgetContents)
+        self.label_thread_num = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label_thread_num.setObjectName(u"label_thread_num")
         self.label_thread_num.setStyleSheet(u"font: 14pt \"Microsoft YaHei UI\";")
 
@@ -149,13 +149,13 @@ class Ui_set_page(object):
 
         self.gridLayout.addWidget(self.comboBox_input, 5, 2, 1, 1, Qt.AlignmentFlag.AlignRight)
 
-        self.label_output = QLabel(self.scrollAreaWidgetContents)
+        self.label_output = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label_output.setObjectName(u"label_output")
         self.label_output.setStyleSheet(u"font: 14pt \"Microsoft YaHei UI\";")
 
         self.gridLayout.addWidget(self.label_output, 4, 0, 1, 1)
 
-        self.label_input = QLabel(self.scrollAreaWidgetContents)
+        self.label_input = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label_input.setObjectName(u"label_input")
         self.label_input.setStyleSheet(u"font: 14pt \"Microsoft YaHei UI\";")
 

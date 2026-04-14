@@ -7,7 +7,7 @@ from io import BytesIO
 
 from PySide6 import QtCore
 
-from Fun.Norm import get
+from Fun.BaseTools import Get
 import win32gui, win32con
 from screeninfo import get_monitors
 
@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 
-def get_exist_dir(caption: str = '选择文件夹', dir_path: str = get.run_dir()) -> str:
+def get_exist_dir(caption: str = '选择文件夹', dir_path: str = Get.run_dir()) -> str:
     """
     用于选择单个目录,外部调用时需要用lambda :方法
 
@@ -37,7 +37,7 @@ def get_exist_dir(caption: str = '选择文件夹', dir_path: str = get.run_dir(
     return dir
 
 
-def get_exist_files(caption: str = '', dir_path: str = get.run_dir(), ext=None) -> list[str]:
+def get_exist_files(caption: str = '', dir_path: str = Get.run_dir(), ext=None) -> list[str]:
     """
     用于选择单个文件,外部调用时需要用lambda :方法
     :param caption:窗口标题
@@ -159,7 +159,7 @@ class ReMouseWidget(QWidget):
     # 重写了鼠标响应事件
     def __init__(self, ):
         # 继承QWidget父对象
-        super(ReMouseWidget, self).__init__()
+        super().__init__()
         # 鼠标相对窗口的位置(x,y)
         self.__startPos = None
         # 鼠标移动的距离(x,y)
@@ -242,7 +242,7 @@ class TrayIcon(QSystemTrayIcon):
     quitClicked = Signal(bool)  # 退出按钮
 
     def __init__(self, SetUI, parent=None):
-        super(TrayIcon, self).__init__(parent)
+        super().__init__(parent)
         self.ui = SetUI
         self.createMenu()
 

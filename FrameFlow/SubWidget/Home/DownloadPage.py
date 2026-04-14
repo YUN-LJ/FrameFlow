@@ -10,12 +10,6 @@ class DownloadPage(QWidget, Ui_DownloadWidget):
         self.__parent = parent
         self.setupUi(self)
         self.slot = DownloadSlot(self, self.__parent)
-        # 所有子控件继承样式
-        self.setStyleSheet("""
-                    DownloadPage, DownloadPage * {
-                        background-color: transparent;
-                    }
-                """)
         self.uiInit()
         self.bind()
 
@@ -24,6 +18,8 @@ class DownloadPage(QWidget, Ui_DownloadWidget):
         self.pushButton_select_all.setIcon(FIF.CHECKBOX)
         self.pushButton_delete.setIcon(FIF.DELETE)
         self.label_save_path_value.setText(WH.Config.SAVE_DIR)
+        # 所有子控件继承样式
+        self.setStyleSheet("DownloadPage, DownloadPage * {background-color: transparent;}")
 
     def addDownload(self, image_url: tuple | list):
         """
@@ -49,7 +45,7 @@ class DownloadSlot:
 
     def label_save_path_value(self):
         save_dir = WH.Config.SAVE_DIR
-        file.open_file_use_explorer(save_dir)
+        FileBase(save_dir).open_use_explorer()
 
     def pushButton_set_save_path(self):
         save_dir = get_exist_dir('选择保存目录', WH.Config.SAVE_DIR)

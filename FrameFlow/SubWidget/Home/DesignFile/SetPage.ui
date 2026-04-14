@@ -30,7 +30,7 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QScrollArea" name="scrollArea">
+    <widget class="SmoothScrollArea" name="scrollArea">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -169,7 +169,7 @@
           </widget>
          </item>
          <item row="3" column="0">
-          <widget class="QLabel" name="label_api">
+          <widget class="SubtitleLabel" name="label_api">
            <property name="styleSheet">
             <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -192,7 +192,7 @@
           </widget>
          </item>
          <item row="2" column="0">
-          <widget class="QLabel" name="label_proxy">
+          <widget class="SubtitleLabel" name="label_proxy">
            <property name="styleSheet">
             <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -241,7 +241,7 @@
           </widget>
          </item>
          <item row="7" column="0">
-          <widget class="QLabel" name="label_history">
+          <widget class="SubtitleLabel" name="label_history">
            <property name="styleSheet">
             <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -251,7 +251,7 @@
           </widget>
          </item>
          <item row="0" column="0">
-          <widget class="QLabel" name="label_thread_num">
+          <widget class="SubtitleLabel" name="label_thread_num">
            <property name="styleSheet">
             <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -294,7 +294,7 @@
           </widget>
          </item>
          <item row="4" column="0">
-          <widget class="QLabel" name="label_output">
+          <widget class="SubtitleLabel" name="label_output">
            <property name="styleSheet">
             <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -304,7 +304,7 @@
           </widget>
          </item>
          <item row="5" column="0">
-          <widget class="QLabel" name="label_input">
+          <widget class="SubtitleLabel" name="label_input">
            <property name="styleSheet">
             <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -323,8 +323,19 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>SmoothScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qfluentwidgets.components.widgets</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>PrimaryPushButton</class>
    <extends>QPushButton</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>SubtitleLabel</class>
+   <extends>QLabel</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>

@@ -17,7 +17,7 @@ def load_bytesIO(target_path: str) -> BytesIO:
     加载文件
     :param target_path:目标路径
     """
-    if file.check_exist(target_path):
+    if FileBase(target_path).exists:
         with open(target_path, 'rb') as f:
             return BytesIO(f.read())
 
@@ -28,9 +28,9 @@ def save_bytesIO(save_path: str, target_file: BytesIO):
     :param save_path: 保存路径
     :param target_file: 目标数据
     """
-    file.ensure_exist(os.path.dirname(save_path))
+    FileBase(FileBase(save_path).dir_name).ensure_exists()
     if isinstance(target_file, BytesIO):
-        if not file.check_exist(save_path):
+        if not FileBase(save_path).exists:
             with open(save_path, 'wb') as f:
                 f.write(target_file.getvalue())
 
@@ -75,7 +75,7 @@ class RequestAPI:
                     response = requests.get(url, stream=True,  # 允许流式获取
                                             **kwargs)
                 except Exception:
-                    print(f'连接超时{self.task.name},正在重试... {get.now_time()}')
+                    print(f'连接超时{self.task.name},正在重试... {Time.now_time()}')
                     time.sleep(self.__class__.Sleep_Time)
                     break
                 self.status_code = response.status_code
@@ -174,13 +174,13 @@ class ImageData:
 
     def del_image(self) -> bool:
         """删除本地文件"""
-        if file.check_exist(self.image_path):
+        if FileBase(self.image_path).exists:
             with ImageInfo.lock:
                 mask = ImageInfo.data()['id'] != self.image_id
                 ImageInfo.del_data(mask, use_lock=False)
             self.get_image()
             self.get_image_info()
-            file.del_file(self.image_path)
+            FileBase(self.image_path).delete()
             return True
         return False
 
@@ -188,18 +188,18 @@ class ImageData:
         """将图片复制到剪切板中"""
         if self.get_image():
             if self.isExist:
-                general.copy_files_to_clipboard(self.image_path)
+                FileBase(self.image_path).copy_to_clipboard()
             else:
-                if not file.check_exist(self.image_cache_path):
+                if not FileBase(self.image_cache_path).exists:
                     save_bytesIO(self.image_cache_path, self.image_bytesio)
-                general.copy_files_to_clipboard(self.image_cache_path)
+                FileBase(self.image_path).copy_to_clipboard()
             return True
         return False
 
     def generate_save_path(self, image_info: pd.DataFrame) -> str:
         """可以是搜索数据也可以是图像信息数据"""
         image_dir = os.path.join(Config.SAVE_DIR, image_info['分级'].values[0], image_info['类别'].values[0])
-        file.ensure_exist(image_dir)
+        FileBase(image_dir).ensure_exists()
         image_path = os.path.join(image_dir, image_info['id'].values[0] + image_info['文件扩展名'].values[0])
         return image_path
 
@@ -215,7 +215,7 @@ class ImageData:
         """保存图像文件"""
         image_path = self.generate_save_path(image_info)
         self.save_image_info(image_info)
-        if cover or not file.check_exist(image_path):
+        if cover or not FileBase(image_path).exists:
             image_data = self.get_image().getvalue()
             if image_data:
                 with open(image_path, 'wb') as f:
@@ -230,8 +230,13 @@ class ImageData:
             data = ImageInfo.data()[ImageInfo.data()['id'] == self.image_id].copy(deep=True)
         if not data.empty:
             if data['本地路径'].values[0] != '':
-                self.image_path = data['本地路径'].values[0]
-                self.isExist = True
+                image_path = data['本地路径'].values[0]
+                if FileBase(image_path).exists:
+                    self.image_path = image_path
+                    self.isExist = True
+                else:
+                    self.image_path = None
+                    self.isExist = False
             return data
         else:
             self.image_path = None
@@ -254,7 +259,7 @@ class ImageData:
 
     def __load_thumb(self) -> BytesIO:
         """将本地图片转为略缩图加载"""
-        if File(self.image_path).exists:
+        if FileBase(self.image_path).exists:
             image = ImageLoad(self.image_path)
             ImageProcess(image).resize(Config.THUMB_SIZE)
             return image.get_bytesIO()
@@ -265,7 +270,7 @@ class ImageData:
             if self.thumb_bytesio is not None:
                 self.thumb_load_time = time.time()
                 return self.thumb_bytesio
-            elif file.check_exist(self.thumb_cache_path):
+            elif FileBase(self.thumb_cache_path).exists:
                 task = Task(lambda value=self.thumb_cache_path: load_bytesIO(value), self.__work_pool)
                 self.thumb_bytesio = task.start(0)
                 self.thumb_load_time = time.time()
@@ -296,7 +301,7 @@ class ImageManage:
             return
         self._initialized = True
         self.__load_image_pool = TaskManage(2)  # 用于处理本地图片
-        self.__clear_timer = general.ReuseTimer(
+        self.__clear_timer = ReuseTimer(
             interval=self.__class__.clear_time, func=self.__clear_bytesIO)
         self.__clear_timer.start()
 
@@ -606,7 +611,7 @@ class KeyWordTask(Task):
                     result.loc[0, '总页数'],
                     result.loc[0, '总数'],
                     result.loc[0, '日期'],
-                    pd.to_datetime(get.now_time("%Y-%m-%d %H:%M:%S")),
+                    pd.to_datetime(Time.now_time("%Y-%m-%d %H:%M:%S")),
                     self.params.categories,
                     self.params.purity
                 ]], columns=GlobalValue.key_word_columns

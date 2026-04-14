@@ -1,18 +1,12 @@
 # 声明对外接口
-__all__ = ['file', 'get', 'general', 'ini',
-           'image', 'clipp_cv2', 'ThreadSafe']  # 明确导出的成员
+__all__ = ['clipp_cv2']  # 明确导出的成员
 
 import importlib
 
 # 模块名与模块路径的映射字典（仅需模块名即可，因为都是同级模块）
 _MODULE_MAP = {
-    'file': '.file',
-    'get': '.get',
     'general': '.general',
-    'ini': '.ini',
-    'image': '.image',
     'clipp_cv2': '.clipp_cv2',
-    'ThreadSafe': '.ThreadSafe',
 }
 
 

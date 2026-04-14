@@ -79,7 +79,7 @@ class DownloadWorkFlow(Task):
             if self.info_task.result() is not None:
                 save_path = self.image_data.generate_save_path(self.info_task.result())
                 # 本地文件存在则不下载只保存图像信息
-                if not File(save_path).exists and self.isRunning:
+                if not FileBase(save_path).exists and self.isRunning:
                     self.download_task.start(1)
                     state = self.image_data.save_image(self.info_task.result()) if self.save else True
                 else:
@@ -91,12 +91,14 @@ class DownloadWorkFlow(Task):
         with self.__class__.__lock:
             self.__class__.All_Work_Flow.pop(self.url, None)
 
-    def setSignal(self, start_signal: Signal, progress_signal: Signal, finish_signal: Signal, stop_singnal: Signal):
+    def setSignal(self, start_signal: Signal, progress_signal: Signal,
+                  finish_signal: Signal, stop_singnal: Signal = None):
         """设置信号连接"""
         self.start_signal.connect(start_signal.emit)
         self.progress_signal.connect(progress_signal.emit)
         self.finish_signal.connect(finish_signal.emit)
-        self.stop_signal.connect(stop_singnal.emit)
+        if stop_singnal is not None:
+            self.stop_signal.connect(stop_singnal.emit)
 
     def disSignal(self):
         """断开信号连接"""

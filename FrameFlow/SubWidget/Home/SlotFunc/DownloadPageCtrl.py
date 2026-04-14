@@ -21,7 +21,7 @@ class Row(QObject):
         self.startSignal.connect(self.__start)
         self.progressSignal.connect(self.__progress)
         self.finishedSignal.connect(self.__finished)
-        self.startSignal.connect(self.__stop)
+        self.stopSignal.connect(self.__stop)
         # 工作流
         self.work_flow = work_flow
         self.work_flow.setSignal(self.startSignal, self.progressSignal, self.finishedSignal, self.stopSignal)

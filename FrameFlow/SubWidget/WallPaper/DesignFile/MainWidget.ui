@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>500</height>
+    <width>798</width>
+    <height>529</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -30,7 +30,13 @@
     <number>10</number>
    </property>
    <item>
-    <widget class="QScrollArea" name="scrollArea_options">
+    <widget class="SmoothScrollArea" name="scrollArea_options">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>0</height>
+      </size>
+     </property>
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -39,221 +45,111 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>798</width>
-        <height>110</height>
+        <width>796</width>
+        <height>58</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_2">
        <item>
-        <layout class="QGridLayout" name="gridLayout">
-         <item row="3" column="1">
-          <layout class="QHBoxLayout" name="horizontalLayout_4">
-           <item>
-            <widget class="QLabel" name="label_mode">
-             <property name="styleSheet">
-              <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
-             </property>
-             <property name="text">
-              <string>播放模式:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="ComboBox" name="comboBox_mode">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>40</height>
-              </size>
-             </property>
-             <item>
-              <property name="text">
-               <string>用户模式</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>收藏夹模式</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>视频模式</string>
-              </property>
-             </item>
-            </widget>
-           </item>
-           <item>
-            <widget class="SwitchButton" name="checkBox_use_tag">
-             <property name="text">
-              <string>使用关键词</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="horizontalSpacer">
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_order">
-             <property name="styleSheet">
-              <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
-             </property>
-             <property name="text">
-              <string>播放顺序:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="ComboBox" name="comboBox">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>40</height>
-              </size>
-             </property>
-             <item>
-              <property name="text">
-               <string>日期</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>随机</string>
-              </property>
-             </item>
-            </widget>
-           </item>
-           <item>
-            <spacer name="horizontalSpacer_2">
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <widget class="QLabel" name="label">
-             <property name="styleSheet">
-              <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
-             </property>
-             <property name="text">
-              <string>播放间隔:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="SpinBox" name="spinBox_time">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>40</height>
-              </size>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>600</number>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item row="1" column="1">
-          <layout class="QHBoxLayout" name="horizontalLayout_3">
-           <item>
-            <widget class="QLabel" name="label_progress">
-             <property name="styleSheet">
-              <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="SearchLineEdit" name="lineEdit_search">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>40</height>
-              </size>
-             </property>
-             <property name="placeholderText">
-              <string>输入关键词或首字母可进行定位/选择条件</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="PrimaryPushButton" name="pushButton_select">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>40</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>条件选择</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="PrimaryPushButton" name="pushButton_cancel_select">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>40</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>取消选择</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item row="1" column="0">
-          <widget class="PrimaryPushButton" name="pushButton_play">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>40</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>播放</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="PrimaryPushButton" name="pushButton_set">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>40</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>设置</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <widget class="PrimaryToolButton" name="pushButton_play">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="PrimaryToolButton" name="pushButton_set">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="BodyLabel" name="label_progress">
+         <property name="styleSheet">
+          <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="SearchLineEdit" name="lineEdit_search">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="placeholderText">
+          <string>输入关键词或首字母可进行定位/选择条件</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="PrimaryPushButton" name="pushButton_select">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>选择</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="PrimaryPushButton" name="pushButton_cancel_select">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>取消</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="BodyLabel" name="label_3">
+         <property name="styleSheet">
+          <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
+         </property>
+         <property name="text">
+          <string>播放间隔:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="SpinBox" name="spinBox_time">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>600</number>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -266,18 +162,19 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>SmoothScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qfluentwidgets.components.widgets</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>PrimaryPushButton</class>
    <extends>QPushButton</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>ComboBox</class>
-   <extends>QComboBox</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
-   <class>SpinBox</class>
-   <extends>QSpinBox</extends>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
@@ -286,8 +183,13 @@
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>SwitchButton</class>
-   <extends>QCheckBox</extends>
+   <class>SpinBox</class>
+   <extends>QSpinBox</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>PrimaryToolButton</class>
+   <extends>QPushButton</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
  </customwidgets>

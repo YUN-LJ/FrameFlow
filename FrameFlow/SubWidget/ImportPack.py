@@ -7,7 +7,7 @@ from typing import Callable
 from threading import Lock, Thread
 # Qt库
 from PySide6.QtCore import QTimer, Signal, QEvent, QPoint, QThread, QObject
-from PySide6.QtGui import QShortcut, QKeySequence, Qt, QGuiApplication
+from PySide6.QtGui import QShortcut, QKeySequence, Qt, QGuiApplication, QPalette, QColor
 from PySide6.QtWidgets import (QWidget, QLabel, QScrollArea, QHeaderView,
                                QApplication, QCheckBox, QProgressBar, QTableWidgetItem,
                                QVBoxLayout, QHBoxLayout, QAbstractItemView)
@@ -16,14 +16,15 @@ from qfluentwidgets import FluentIcon as FIF, Action
 from qfluentwidgets.components.dialog_box import MessageBoxBase, MessageBox
 from qfluentwidgets.components.widgets import (
     PrimaryToolButton, TransparentPushButton, ProgressRing, CheckBox, RoundMenu,
-    InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition  # 气泡消息
+    InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition,  # 气泡消息
+    SimpleCardWidget, ScrollArea, SmoothScrollArea
 )
 # 功能库
-from Fun.QtWidget import ImageWidget, TableCell, TableRow
-from Fun.BaseTools import Get, File
+from Fun.QtWidget import ImageWidget, TableCell, TableRow,get_exist_dir,get_exist_files
+from Fun.BaseTools.File import FileBase
+from Fun.BaseTools import Get, File, Str, Tools
 from Fun.BaseTools.Image import ImageLoad
-from Fun.GUI_Qt.PySide6Mod import get_exist_dir, get_exist_files, LeftandRightSplitter
-from Fun.Norm import general, ThreadSafe, file, get
+from Fun.GUI_Qt.PySide6Mod import LeftandRightSplitter
 from BaseClass import (GlobalValue, TaskManage,
                        Task, TaskProgress, TaskSignal,
                        ImageInfo, KeyWord, SearchData, ConfigData)

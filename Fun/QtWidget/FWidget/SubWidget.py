@@ -1,4 +1,4 @@
-"""自定义Qt部件"""
+"""子窗口部件"""
 import os, numpy as np
 from io import BytesIO
 import win32gui, win32con
@@ -18,6 +18,9 @@ from PySide6.QtWidgets import (
     QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QSystemTrayIcon, QMenu, QApplication, QTableWidget, QSplitter
 )
+# 风格组件
+from qfluentwidgets import Action, FluentIcon as FIF
+from qfluentwidgets.components.widgets import SystemTrayMenu
 
 
 class ImageWidget(QWidget):
@@ -511,7 +514,139 @@ class ImageWidget(QWidget):
         return super().eventFilter(obj, event)
 
 
-class TerminalWidget(QWidget):
+class WindowDesktop(QWidget):
+    """
+    用于创建Window系统下的桌面层级窗口
+    addWidget方法可以添加自定义的QWidget子类
+    """
+    main_dpi = None  # 主屏幕的DPI
+
+    def __init__(self, screen: QScreen):
+        super().__init__()
+        # 实例属性
+        self.name = screen.name()
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)  # 移除所有边距（上、右、下、左）
+        # 获取屏幕分辨率,初始化完成后会变成以屏幕左上角为准的x,y 宽高以主屏幕缩放为准
+        # 排除任务栏时用 availableGeometry,不排除时用geometry
+        self.rect = screen.availableGeometry()
+        self.dpi: float = None  # 所在屏幕的DPI
+        # 计算DPI
+        for monitor in get_monitors():
+            # 计算所在屏幕的DPI
+            if monitor.name == self.name or (monitor.x == self.rect.x() and monitor.y == self.rect.y()):
+                self.dpi = round(monitor.width / screen.geometry().width(), 2)
+            # 计算主屏幕DPI
+            if self.main_dpi is None and monitor.x == 0 and monitor.y == 0:
+                for i in QApplication.screens():
+                    rect = i.geometry()
+                    if rect.x() == 0 and rect.y() == 0:  # 主屏幕
+                        self.main_dpi = round(monitor.width / rect.width(), 2)
+        # 初始化widget
+        self.uiIinit()  # 窗口初始化
+        self.embedWidget()  # 嵌入WorkerW
+        self.show()  # 显示窗口
+        # 调试信息
+        # self.addWidget(QLabel(
+        #     text=f'设备名称:{self.name}\n'
+        #          f'窗口坐标:(x:{self.rect.x()} y:{self.rect.y()} w:{self.rect.width()} h:{self.rect.height()})\n'
+        #          f'DPI:{self.dpi} 主屏幕DPI:{self.main_dpi}')
+        # )
+
+    def uiIinit(self):
+        """窗口初始化"""
+        # 将相对主屏幕坐标换算为相对左上角坐标
+        offset, normalized_rects = self.get_normalized_screen_geometries()
+        self.rect.setRect(normalized_rects[self.name].x(),
+                          normalized_rects[self.name].y(),
+                          int(self.rect.width() * self.dpi / self.main_dpi),
+                          int(self.rect.height() * self.dpi / self.main_dpi))
+        # 窗口属性:极简配置,强制显示在背景
+        self.setWindowFlags(
+            Qt.FramelessWindowHint | Qt.Tool |  # 工具窗口，不占任务栏
+            Qt.WindowStaysOnBottomHint)  # 强制最底层
+        # 设置窗口尺寸需要以主屏幕DPI来计算
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setFixedSize(self.rect.width(), self.rect.height())
+
+    def embedWidget(self) -> tuple[str, QWidget]:
+        """嵌入窗口"""
+        # 获取桌面 WorkerW 窗口（替代 Progman，避免层级遮挡）
+        # WorkerW 是 Windows 真正的桌面背景窗口，比 Progman 更稳定
+        self.progman_hwnd = win32gui.FindWindow("Progman", None)
+        win32gui.SendMessageTimeout(self.progman_hwnd, 0x052C, 0, 0, win32con.SMTO_NORMAL, 1000)
+        self.workerw_hwnd = None
+
+        # 枚举所有 WorkerW 窗口，找到带 SHELLDLL_DefView 子窗口的父窗口（背景窗口）
+        def enum_windows(hwnd, param):
+            if win32gui.IsWindowVisible(hwnd) and win32gui.FindWindowEx(hwnd, None, "SHELLDLL_DefView", None):
+                self.workerw_hwnd = win32gui.FindWindowEx(None, hwnd, "WorkerW", None)
+            return True
+
+        win32gui.EnumWindows(enum_windows, None)
+        # 绑定到 WorkerW（真正的背景窗口，无遮挡）
+        if self.workerw_hwnd:
+            win32gui.SetParent(int(self.winId()), self.workerw_hwnd)
+            # 配置窗口属性:窗口显示在最底层(图标在上方)
+            win32gui.SetWindowPos(
+                int(self.winId()),  # 窗口句柄
+                win32con.HWND_BOTTOM,  # 将窗口置于 Z 序的底部
+                self.rect.x(), self.rect.y(), 0, 0,  # 窗口坐标(x,y,w,h),坐标左上角屏幕为原点
+                # win32con.SWP_NOMOVE |  # 忽略x, y坐标
+                win32con.SWP_NOSIZE |  # 忽略w,h坐标
+                win32con.SWP_SHOWWINDOW |  # 显示窗口
+                win32con.SWP_NOACTIVATE  # 不将窗口激活（不使其获得焦点）
+            )
+        else:
+            raise ValueError(f'{__name__}.{self.__class__.__name__}.embedWidget 未找到WorkerW')
+
+    @staticmethod
+    def get_normalized_screen_geometries() -> tuple[QPoint, dict[str:QRect]]:
+        """
+        获取归一化的屏幕几何信息,原点在所有屏幕的最左上角
+
+        Returns:
+            Tuple[QPoint, List[QRect]]:
+                - 第一个元素是全局偏移量（最左上角的点）
+                - 第二个元素是调整后的屏幕矩形列表
+        """
+        screens = QApplication.screens()
+
+        if not screens:
+            return QPoint(0, 0), []
+
+        # 计算最小x和最小y
+        min_x = 0
+        min_y = 0
+
+        for screen in screens:
+            rect = screen.geometry()
+            min_x = min(min_x, rect.x())
+            min_y = min(min_y, rect.y())
+
+        # 创建偏移量
+        offset = QPoint(min_x, min_y)
+
+        # 转换每个屏幕的坐标
+        normalized_rects = {}
+        for screen in screens:
+            original_rect = screen.geometry()
+            adjusted_top_left = original_rect.topLeft() - offset
+            normalized_rects.update({screen.name(): QRect(adjusted_top_left, original_rect.size())})
+
+        return offset, normalized_rects
+
+    def getWidgetCount(self) -> int:
+        """获取布局内控件数量"""
+        return self.layout.count()
+
+    def addWidget(self, widget: QWidget):
+        self.layout.addWidget(widget)
+        for index in range(self.layout.count()):
+            self.layout.setStretch(index, index)
+
+
+class EmbeddedPythonTerminal(QWidget):
     """嵌入python启动器终端"""
 
     def __init__(self, parent=None):
@@ -542,8 +677,36 @@ class TerminalWidget(QWidget):
         super().closeEvent(event)  # 继续执行 Qt 窗口的关闭逻辑
 
 
-if __name__ == '__main__':
-    app = QApplication([])
-    ex = TerminalWidget()
-    ex.show()
-    app.exec()
+class TrayIcon(QSystemTrayIcon):
+    showClicked = Signal()  # 显示按钮
+    quitClicked = Signal()  # 退出按钮
+
+    def __init__(self, parent: QWidget = None):
+        self.__parent = parent
+        super().__init__(parent)
+        self.__uiInit()
+        self.createMenu()
+
+    def __uiInit(self):
+        windows_ico = self.__parent.windowIcon()
+        if not windows_ico:
+            windows_ico = QIcon(':/qfluentwidgets/images/logo.png')
+        self.setIcon(windows_ico)
+
+    def createMenu(self):
+        self.menu = SystemTrayMenu(parent=self.__parent)
+        self.menu.addActions([
+            Action(FIF.HOME, '显示', triggered=lambda _: self.showClicked.emit()),
+            Action(FIF.POWER_BUTTON, '退出', triggered=lambda _: self.quitClicked.emit()),
+        ])
+        self.setContextMenu(self.menu)
+        # 把鼠标点击图标的信号和槽连接
+        # self.activated.connect(self.onIconClicked)
+
+    def addAction(self, action: Action):
+        """添加新控件"""
+        self.menu.addAction(action)
+
+    # def onIconClicked(self, reason):
+    # 鼠标点击icon传递的信号会带有一个整形的值
+    # 1是表示单击右键，2是双击左键，3是单击左键，4是用鼠标中键点击

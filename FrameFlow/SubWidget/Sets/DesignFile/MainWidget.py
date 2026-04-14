@@ -15,11 +15,11 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QGridLayout, QLabel, QScrollArea,
-    QSizePolicy, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QGridLayout, QSizePolicy, QVBoxLayout,
+    QWidget)
 
-from Fun.QtWidget.FWidget import TerminalWidget
-from qfluentwidgets.components.widgets import SwitchButton
+from Fun.QtWidget.FWidget import EmbeddedPythonTerminal
+from qfluentwidgets.components.widgets import (SmoothScrollArea, SubtitleLabel, SwitchButton)
 
 class Ui_sets(object):
     def setupUi(self, sets):
@@ -30,7 +30,7 @@ class Ui_sets(object):
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.scrollArea = QScrollArea(sets)
+        self.scrollArea = SmoothScrollArea(sets)
         self.scrollArea.setObjectName(u"scrollArea")
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
@@ -42,7 +42,7 @@ class Ui_sets(object):
         self.gridLayout.setObjectName(u"gridLayout")
         self.gridLayout.setVerticalSpacing(20)
         self.gridLayout.setContentsMargins(80, 20, 80, -1)
-        self.label_2 = QLabel(self.scrollAreaWidgetContents)
+        self.label_2 = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label_2.setObjectName(u"label_2")
         self.label_2.setStyleSheet(u"font: 14pt;")
 
@@ -55,7 +55,7 @@ class Ui_sets(object):
 
         self.gridLayout.addWidget(self.checkBox_2, 1, 1, 1, 1, Qt.AlignmentFlag.AlignRight)
 
-        self.label = QLabel(self.scrollAreaWidgetContents)
+        self.label = SubtitleLabel(self.scrollAreaWidgetContents)
         self.label.setObjectName(u"label")
         self.label.setStyleSheet(u"font: 14pt;")
 
@@ -72,7 +72,7 @@ class Ui_sets(object):
 
         self.verticalLayout_2.addLayout(self.gridLayout)
 
-        self.widget = TerminalWidget(self.scrollAreaWidgetContents)
+        self.widget = EmbeddedPythonTerminal(self.scrollAreaWidgetContents)
         self.widget.setObjectName(u"widget")
 
         self.verticalLayout_2.addWidget(self.widget)
