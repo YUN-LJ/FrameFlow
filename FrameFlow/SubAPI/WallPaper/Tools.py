@@ -1,4 +1,6 @@
 """壁纸播放工具类"""
+import pandas as pd
+
 from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import Config
 from SubAPI.WallHaven.Config import CATEGORY_DICT, PURITY_DICT
@@ -210,7 +212,7 @@ class ImageProcessManage:
         while self.isRunning:
             try:
                 image_path = self.task_queue.get(timeout=1)
-                if file.check_exist(image_path):
+                if FileBase(image_path).exists:
                     task = ImageProcessTask(image_path)
                     result = task.start()
                     if result is not None:
@@ -248,8 +250,8 @@ class ImagePlay:
         self.image_key_mode = image_key_mode  # 关键词模式数据管理类
         self.image_qt = ImageQt()  # 壁纸Qt接口管理类
         self.image_process_manage = ImageProcessManage()  # 图像处理进程管理器
-        self.play_timer = general.ReuseTimer(Config.IMAGE_TIME, self.set_wallpaper)
-        self.submit_timer = general.ReuseTimer(0, self.submit_image_process)
+        self.play_timer = ReuseTimer(Config.IMAGE_TIME, self.set_wallpaper)
+        self.submit_timer = ReuseTimer(0, self.submit_image_process)
 
     def set_sample(self, value: bool):
         self.sample = value
@@ -324,12 +326,30 @@ class ImageKeyMode:
         """启用/关闭标签模式"""
         self.use_tags = value
 
+    def get_filter_data(self) -> pd.DataFrame:
+        """获取筛选后的总数据,当筛选后为空时返回play_data"""
+        mask_categories = pd.Series([True] * len(self.play_data), index=self.play_data.index)
+        mask_purity = pd.Series([True] * len(self.play_data), index=self.play_data.index)
+
+        if Config.IMAGE_CHOICE_CATEGORIES:
+            mask_categories = self.play_data['类别'].isin(Config.IMAGE_CHOICE_CATEGORIES)
+
+        if Config.IMAGE_CHOICE_PURITY:
+            mask_purity = self.play_data['分级'].isin(Config.IMAGE_CHOICE_PURITY)
+
+        total_data = self.play_data[mask_categories & mask_purity]
+        if total_data.empty:
+            total_data = self.play_data
+        return total_data
+
     def get_play_progress(self) -> tuple:
         """获取播放进度"""
         with self.__lock:
-            mask = self.play_data['本地路径'].isin(self.history_data.data()['本地路径'])
-            filter_data = self.play_data[mask]
-            return (filter_data.shape[0], self.play_data.shape[0])
+            total_data = self.get_filter_data()
+            mask = total_data['本地路径'].isin(self.history_data.data()['本地路径'])
+            filter_data = total_data[mask]
+
+            return (filter_data.shape[0], total_data.shape[0])
 
     def get_image_play_data(self, n: int = 1, sample: bool = False) -> pd.DataFrame:
         """
@@ -340,32 +360,15 @@ class ImageKeyMode:
         with self.__lock:
             if self.play_data.empty:
                 return self.play_data
-
-            filter_data = self.play_data.copy()
-
-            mask_history = ~filter_data['本地路径'].isin(self.history_data.data()['本地路径'])
-            filter_data = filter_data[mask_history]
-
+            # 获取筛选后的总数据
+            total_data = self.get_filter_data()
+            # 去除掉已经播放的
+            mask_history = ~total_data['本地路径'].isin(self.history_data.data()['本地路径'])
+            filter_data = total_data[mask_history]
+            # 如果为空则删除播放历史重新循环
             if filter_data.empty:
                 self.history_data.clear()
-                filter_data = self.play_data.copy()
-
-            if Config.IMAGE_CHOICE_CATEGORIES:
-                mask_categories = filter_data['类别'].isin(Config.IMAGE_CHOICE_CATEGORIES)
-                filter_data = filter_data[mask_categories]
-
-            if Config.IMAGE_CHOICE_PURITY:
-                mask_purity = filter_data['分级'].isin(Config.IMAGE_CHOICE_PURITY)
-                filter_data = filter_data[mask_purity]
-
-            if filter_data.empty:
-                filter_data = self.play_data.copy()
-                mask_history = ~filter_data['本地路径'].isin(self.history_data.data()['本地路径'])
-                filter_data = filter_data[mask_history]
-                if filter_data.empty:
-                    self.history_data.clear()
-                    filter_data = self.play_data.copy()
-
+                filter_data = total_data
             data = filter_data.sample(n=n) if sample else filter_data.head(n)
             self.history_data.add_data(data)
             return data

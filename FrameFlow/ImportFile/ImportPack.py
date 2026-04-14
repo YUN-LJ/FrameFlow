@@ -15,5 +15,6 @@ from qfluentwidgets.components.widgets import InfoBar, InfoBarPosition  # 气泡
 # 自定义库
 from Fun.QtWidget import LazyLoadMS
 from Fun.QtWidget import TrayIcon
-from Fun.Norm import general, get, file
+from Fun.BaseTools.File import FileBase
+from Fun.BaseTools import Terminal, Get
 from BaseClass import DataManage, GlobalValue, AppCore, ImageInfo, KeyWord

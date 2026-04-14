@@ -24,10 +24,10 @@ class Cell(GroupBoxCell):
         self.button = PrimaryToolButton(FIF.VIEW)
         self.button.clicked.connect(self.viewImage)
         self.button_copy = PrimaryToolButton(FIF.COPY)
-        self.button_copy.clicked.connect(lambda _: general.copy_files_to_clipboard(self.image_local_path))
+        self.button_copy.clicked.connect(lambda _: File(self.image_local_path).copy_to_clipboard())
         self.button_copy.hide()
         self.button_open = PrimaryToolButton(FIF.FOLDER)
-        self.button_open.clicked.connect(lambda _: file.open_file_use_explorer(self.image_local_path))
+        self.button_open.clicked.connect(lambda _: FileBase(self.image_local_path).open_use_explorer())
         self.button_open.hide()
         self.button_open.setFixedSize(30, 30)
         self.button_copy.setFixedSize(30, 30)
@@ -54,7 +54,7 @@ class Cell(GroupBoxCell):
         self.image_local_path = os.path.join(
             os.path.realpath(WH.Config.SAVE_DIR), search_info['分级'], search_info['类别'],
             search_info['id'] + search_info['文件扩展名'])
-        if file.check_exist(self.image_local_path):
+        if FileBase(self.image_local_path).exists:
             self.button_copy.show()
             self.button_open.show()
         else:

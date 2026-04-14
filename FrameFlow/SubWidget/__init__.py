@@ -18,14 +18,13 @@ class FrameFlowWin(LazyLoadMS):
         """
         Config.TOP_WINDOWS = self
         self.sub_widget_list = [
-            ('主页', FIF.HOME, HomeWin),
-            ('壁纸播放', FIF.PHOTO, WallPaperWin),
-            ('设置', FIF.SETTING, SetsWin)
+            ('主页', FIF.HOME, HomeWin, False),
+            ('壁纸播放', FIF.PHOTO, WallPaperWin, False),
+            ('设置', FIF.SETTING, SetsWin, True)
         ]
         self.initTheme()
         # 初始化
-        super().__init__(self.sub_widget_list[:2], lazy, ':/icons/ico_main.png')
-        self.addWidget(self.sub_widget_list[-1], True)
+        super().__init__(self.sub_widget_list, lazy, ':/icons/ico_main.png')
         self.setWindowTitle('FrameFlow-画框')
         self.bind()
 
@@ -80,7 +79,7 @@ class FrameFlowWin(LazyLoadMS):
         Config.APP.exit()
 
     def restart(self, *argv):
-        general.cmd_admin_run(f'{get.run_file()} {' '.join(argv)}')
+        Terminal.admin_run(f'{Get.run_file()} {' '.join(argv)}')
         self.exit_()
 
     def show(self):

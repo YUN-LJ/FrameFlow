@@ -45,7 +45,7 @@ class DownloadSlot:
 
     def label_save_path_value(self):
         save_dir = WH.Config.SAVE_DIR
-        file.open_file_use_explorer(save_dir)
+        FileBase(save_dir).open_use_explorer()
 
     def pushButton_set_save_path(self):
         save_dir = get_exist_dir('选择保存目录', WH.Config.SAVE_DIR)

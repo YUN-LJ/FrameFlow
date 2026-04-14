@@ -15,7 +15,8 @@ import threading
 from threading import Lock
 from BaseClass.TaskManage import Task, TaskManage, TaskSignal
 from BaseClass import GlobalValue
-from Fun.Norm import file, general, get
+from Fun.BaseTools import File, Get, Time
+from Fun.BaseTools.Time import ReuseTimer
 
 
 class DataManage:
@@ -42,7 +43,7 @@ class DataManage:
         self.isRunning = True  # 是否正在运行
         self.__task_manage = TaskManage(2)
         self.isAutoSave = False  # 是否正在自动保存
-        self.timer = general.ReuseTimer(60, self.__auto_save, daemon=True)
+        self.timer = ReuseTimer(60, self.__auto_save, daemon=True)
         self.timer.start()
         # 实例化全部的DataBase子类
         for data_subclass in DataBase.__subclasses__():
@@ -87,7 +88,7 @@ class DataManage:
         self.timer.stop()
         while self.isAutoSave:  # 等待自动保存线程完成
             time.sleep(0.2)
-        print(f'{self.__class__.__name__}.stop 正在保存全部数据 时间:{get.now_time()}')
+        print(f'{self.__class__.__name__}.stop 正在保存全部数据 时间:{Time.now_time()}')
         # 保存全部数据
         for name, data in self.__class__.data_object.items():
             data.save()
@@ -164,8 +165,8 @@ class DataBase:
     @classmethod
     def load_pandas(cls, file_path, columns, dtpye=None) -> pd.DataFrame:
         load_pd = pd.DataFrame(columns=columns)
-        if file.check_exist(file_path):
-            extension = file.get_file_extension(file_path)
+        if File.check_exist(file_path):
+            extension = File.FileBase(file_path).extension
             func = cls.pd_load_func.get(extension, None)
             if func is not None:
                 load_pd = func(file_path)
@@ -177,7 +178,7 @@ class DataBase:
     def save_pandas(file_path: str, df: pd.DataFrame) -> bool:
         """保存pandas表格"""
         extension = os.path.splitext(file_path)[1]
-        file.ensure_exist(os.path.dirname(file_path))
+        File.FileBase(os.path.dirname(file_path)).ensure_exists()
         if extension == '.xlsx':
             df.to_excel(file_path, index=False)
         elif extension == '.csv':
@@ -304,7 +305,7 @@ class ImageInfo(DataBase):
             # reset_index->删除索引
             load_pd = load_pd[~(load_pd == '').any(axis=1)].reset_index(drop=True)  # 删除有''的行
             # 检查本地路径的文件是否存在,将不存在的路径改为''
-            mask = pd.Series(file.check_exist(load_pd['本地路径']))
+            mask = pd.Series(File.check_exist(load_pd['本地路径']))
             load_pd.loc[~mask, '本地路径'] = ''
             # 将结果排序
             load_pd.sort_values(by=['关键词', '日期'], ascending=[True, False],
@@ -493,13 +494,13 @@ class ConfigData(DataBase):
         super().__init__(GlobalValue.config_path)
 
     @classmethod
-    def data(cls) -> file.EasyConfig:
+    def data(cls) -> File.EasyConfig:
         return super(ConfigData, cls()).data
 
     @classmethod
-    def load(cls) -> file.EasyConfig:
+    def load(cls) -> File.EasyConfig:
         self = cls()
-        config = file.EasyConfig(self.local_path)
+        config = File.EasyConfig(self.local_path)
         config.load_config()
         return config
 

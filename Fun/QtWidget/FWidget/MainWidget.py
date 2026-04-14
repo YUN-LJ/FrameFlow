@@ -12,7 +12,7 @@ class LazyLoadMS(MSFluentWindow):
 
     def __init__(self, widget_list: list[tuple] = None, lazy=True, windows_icon: str = None):
         """
-        :param widget_list:传入列表参数,每个元素的值为(名称,图标,子窗口类名)
+        :param widget_list:传入列表参数,每个元素的值为(名称,图标,子窗口类名,是否置于底层)
         :param lazy:是否启用懒加载,默认启用
         :param windows_icon:窗口图标
         """
@@ -23,8 +23,8 @@ class LazyLoadMS(MSFluentWindow):
         # 加载子窗口
         self.load_sub_widget = LoadSubWidget(self)
         # 添加窗口
-        for name, icon, widget in widget_list:
-            self.addWidget((name, icon, widget))
+        for name, icon, widget, bottom in widget_list:
+            self.addWidget((name, icon, widget), bottom)
         # 连接页面切换
         self.stackedWidget.currentChanged.connect(self.pageChange)
         # 如果不是懒加载,则直接加载所有子窗口
@@ -32,10 +32,10 @@ class LazyLoadMS(MSFluentWindow):
             # 创建启动页面
             splashScreen = SplashScreen(self.windowIcon(), self)
             splashScreen.setIconSize(QSize(102, 102))
+            loop = QEventLoop(self)
             # 在创建其他子页面前先显示主界面
             self.show()
-            loop = QEventLoop(self)
-            for i in range(len(widget_list)):
+            for i in range(len(widget_list), -1, -1):
                 self.load_sub_widget.pageChange(i)
             QTimer.singleShot(1000, loop.quit)
             loop.exec()

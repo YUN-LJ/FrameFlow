@@ -5,6 +5,9 @@ author:LJ
 start_time: 2025/9/26
 基于python3.12.9
 """
+from Fun.BaseTools.Terminal import hide_python_terminal
+
+hide_python_terminal()
 from ImportFile.ImportPack import *
 from ImportFile import Config
 from SubWidget import FrameFlowWin
@@ -43,8 +46,8 @@ def create_tray_icon():
 def create_main_window():
     """创建主窗口"""
     main_window = FrameFlowWin(False)
-    main_window.pageChange(2)  # 提前加载设置页面,快速隐藏启动窗口
-    QTimer.singleShot(0, lambda: main_window.pageChange(0))  # 延迟加载主页
+    # main_window.pageChange(2)  # 提前加载设置页面,快速隐藏启动窗口
+    # QTimer.singleShot(0, lambda: main_window.pageChange(0))  # 延迟加载主页
 
 
 def start_GUI():
@@ -61,7 +64,7 @@ def start_GUI():
 
 
 if __name__ == '__main__':
-    file.del_file(GlobalValue.image_cache_dir)
+    FileBase(GlobalValue.image_cache_dir).delete()
     start_GUI()
     AppCore().stopWorkFlow()
     DataManage.stop()

@@ -79,7 +79,7 @@ class DownloadWorkFlow(Task):
             if self.info_task.result() is not None:
                 save_path = self.image_data.generate_save_path(self.info_task.result())
                 # 本地文件存在则不下载只保存图像信息
-                if not File(save_path).exists and self.isRunning:
+                if not FileBase(save_path).exists and self.isRunning:
                     self.download_task.start(1)
                     state = self.image_data.save_image(self.info_task.result()) if self.save else True
                 else:

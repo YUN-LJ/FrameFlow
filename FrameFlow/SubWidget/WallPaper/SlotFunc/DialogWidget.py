@@ -22,9 +22,9 @@ class SetDialog(Ui_Sets, MessageBoxBase):
         # 所有子控件继承样式
         widget.setStyleSheet("""SetDialog, SetDialog * {background-color: transparent;}""")
 
+        self.hideCancelButton()
         self.setupUi(widget)
         self.viewLayout.addWidget(widget)
-        self.viewLayout.setContentsMargins(0, 0, 0, 0)
 
         self.checkBox_use_tag.setOnText('使用标签')
         self.checkBox_use_tag.setOffText('使用关键词')

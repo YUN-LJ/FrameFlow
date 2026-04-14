@@ -15,9 +15,6 @@ class SearchPage(QWidget, Ui_SearchPage):
         self.setupUi(self)
         AppCore().addSignal('search', self.searchSignal)
         self.slot = SearchSlot(self, self.__parent)  # 槽函数
-        # 弹窗
-        self.search_dialog = SearchDialog(self, self.__parent)
-        self.del_dialog = DelDialog(self, self.__parent)
         self.uiInit()
         self.bind()
 
@@ -41,6 +38,10 @@ class SearchPage(QWidget, Ui_SearchPage):
 
     def bind(self):
         """信号连接"""
+        # 连接信号
+        self.tableWidget_image.startSignal.connect(self.slot.searchStart)
+        self.tableWidget_image.progressSignal.connect(self.slot.searchProgress)
+        self.tableWidget_image.finishedSignal.connect(self.slot.searchFinished)
         self.searchSignal.connect(self.slot.searchSiganl)
         self.lineEdit.searchSignal.connect(self.slot.lineEdit)
         self.lineEdit.returnPressed.connect(self.slot.lineEdit)
@@ -87,11 +88,11 @@ class SearchPage(QWidget, Ui_SearchPage):
                 event.type() == QEvent.MouseButtonPress and
                 event.button() == Qt.MouseButton.RightButton):
             # 创建弹出窗口
-            popup = QWidget(self)
+            popup = SimpleCardWidget(self)
             popup.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
             popup.setWindowOpacity(0.8)  # 0.0完全透明，1.0不透明
             # 创建滚动区域
-            scroll = QScrollArea()
+            scroll = SmoothScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             scroll.setFixedWidth(self.lineEdit.width())  # 与输入框同宽
@@ -117,13 +118,6 @@ class SearchPage(QWidget, Ui_SearchPage):
             popup.show()
         return super().eventFilter(obj, event)
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        if self.search_dialog.isVisible():
-            self.search_dialog.close()
-        if self.del_dialog.isVisible():
-            self.del_dialog.close()
-
 
 class SearchSlot:
     """槽函数类"""
@@ -131,6 +125,24 @@ class SearchSlot:
     def __init__(self, parent: SearchPage, top_parent):
         self.parent = parent
         self.top_parent = top_parent
+        # 弹窗
+        self.search_dialog: SearchDialog = None
+
+    def searchStart(self, task: WH.SearchTask):
+        """搜索开始"""
+        self.search_dialog = SearchDialog(self.parent, self.top_parent)
+        self.search_dialog.searchStart(task)
+
+    def searchProgress(self, task: WH.SearchTask):
+        """搜索进度"""
+        if self.search_dialog is not None:
+            self.search_dialog.searchProgress(task)
+
+    def searchFinished(self, task: WH.SearchTask):
+        """搜索完成"""
+        if self.search_dialog is not None:
+            self.search_dialog.searchFinished(task)
+            self.search_dialog = None
 
     def searchSiganl(self, text):
         AppCore().getSignal('Home_switchPage').emit(self.parent)
@@ -221,7 +233,8 @@ class SearchSlot:
                 '确认删除',
                 f'已选择{len(select_image)}张',
                 parent=self.top_parent)
-            if load_dialog.exec() and self.parent.del_dialog.delImage(select_image):
+            del_dialog = DelDialog(self.parent, self.top_parent)
+            if load_dialog.exec() and del_dialog.delImage(select_image):
                 icon = InfoBarIcon.SUCCESS
                 title = '删除成功'
                 content = f'成功删除:{len(select_image)}张'

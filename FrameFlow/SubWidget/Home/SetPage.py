@@ -53,7 +53,10 @@ class SetSlot:
         if WH.set_proxies_url(proxies):
             ico = InfoBarIcon.SUCCESS
             title = '设置成功'
-            content = f'已成功设置代理服务器{WH.Config.PROXIES}'
+            if not WH.Config.PROXIES_URL:
+                content = f'已取消代理服务器'
+            else:
+                content = f'已成功设置代理服务器{WH.Config.PROXIES}'
         if self.parent.isVisible():
             InfoBar.new(
                 icon=ico, title=title, content=content,
@@ -93,7 +96,7 @@ class SetSlot:
                 isClosable=True, position=InfoBarPosition.TOP,
                 duration=1000, parent=self.top_parent)
         if save_path:
-            file.open_file_use_explorer(save_path)
+            FileBase(save_path).open_use_explorer()
 
     def pushButton_input(self):
         icon = InfoBarIcon.ERROR

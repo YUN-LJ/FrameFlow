@@ -122,7 +122,7 @@
         </layout>
        </item>
        <item>
-        <widget class="TerminalWidget" name="widget" native="true"/>
+        <widget class="EmbeddedPythonTerminal" name="widget" native="true"/>
        </item>
       </layout>
      </widget>
@@ -148,7 +148,7 @@
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>TerminalWidget</class>
+   <class>EmbeddedPythonTerminal</class>
    <extends>QWidget</extends>
    <header>Fun.QtWidget.FWidget</header>
    <container>1</container>

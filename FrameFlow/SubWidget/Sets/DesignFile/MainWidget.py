@@ -18,7 +18,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
 from PySide6.QtWidgets import (QApplication, QGridLayout, QSizePolicy, QVBoxLayout,
     QWidget)
 
-from Fun.QtWidget.FWidget import TerminalWidget
+from Fun.QtWidget.FWidget import EmbeddedPythonTerminal
 from qfluentwidgets.components.widgets import (SmoothScrollArea, SubtitleLabel, SwitchButton)
 
 class Ui_sets(object):
@@ -72,7 +72,7 @@ class Ui_sets(object):
 
         self.verticalLayout_2.addLayout(self.gridLayout)
 
-        self.widget = TerminalWidget(self.scrollAreaWidgetContents)
+        self.widget = EmbeddedPythonTerminal(self.scrollAreaWidgetContents)
         self.widget.setObjectName(u"widget")
 
         self.verticalLayout_2.addWidget(self.widget)

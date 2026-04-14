@@ -171,7 +171,7 @@ class KeyTable(TableCell):
 
     def loadVisible(self, rows: list = None):
         """加载当前可见区域单元格"""
-        if not KeyWord.is_loaded():
+        if not self.work_flow.isFinished:
             return
         with KeyWord.lock:
             data_len = KeyWord.data().shape[0]

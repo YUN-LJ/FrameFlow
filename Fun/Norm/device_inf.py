@@ -1,8 +1,7 @@
 """
 系统操作
 """
-
-from Fun.Norm import get
+from Fun.BaseTools import Time
 
 from Fun.GUI_Qt import PlotCv2Mod
 
@@ -233,7 +232,7 @@ class HardMonitor:
         del self.__ycpu_load[0]
         del self.__ygpu_load[0]
         # 获取最新值
-        self.__xlable.append(get.now_time('%H:%M:%S'))
+        self.__xlable.append(Time.now_time('%H:%M:%S'))
         self.__ycpu_temp.append(self.get_TEMP(only_cpu=True, avg=True))  # cpu温度
         self.__ygpu_temp.append(self.get_TEMP(only_gpu=True, avg=True))  # gpu温度
         self.__ycpu_load.append(self.get_LOAD(only_cpu=True, stat=True))  # cpu负载
