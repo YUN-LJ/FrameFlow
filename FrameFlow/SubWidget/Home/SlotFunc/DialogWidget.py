@@ -76,7 +76,7 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         self.loadImage(self.current_cell)
 
     def uiInit(self):
-        widget = QWidget(self)
+        widget = SimpleCardWidget(self)
         self.setupUi(widget)
         self.image_widget = ImageWidget(parent=self)
         self.image_widget.setMinimumHeight(0)
@@ -85,6 +85,8 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         self.pushButton_full.setIcon(FIF.FIT_PAGE)
         self.pushButton_copy.setIcon(FIF.COPY)
         self.resizeSize()
+        # 所有子控件继承样式
+        widget.setStyleSheet("""ImageDialog, ImageDialog * {background-color: transparent;}""")
 
     def bind(self):
         """绑定事件"""

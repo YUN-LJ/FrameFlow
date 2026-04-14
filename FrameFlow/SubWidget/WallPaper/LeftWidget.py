@@ -9,3 +9,4 @@ class LeftWidget(Ui_leftwidget, QWidget):
         super().__init__()
         self.__parent = parent
         self.setupUi(self)
+        self.stackedWidget.setCurrentIndex(WP.Config.IMAGE_PLAY_MODE)

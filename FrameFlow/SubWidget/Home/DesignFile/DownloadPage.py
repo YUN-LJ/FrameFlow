@@ -15,12 +15,11 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QLabel,
-    QScrollArea, QSizePolicy, QSpacerItem, QTableWidgetItem,
-    QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QSizePolicy,
+    QSpacerItem, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from SubWidget.Home.SlotFunc.DownloadPageCtrl import Table
-from qfluentwidgets.components.widgets import (PrimaryPushButton, TransparentPushButton)
+from qfluentwidgets.components.widgets import (BodyLabel, PrimaryPushButton, SmoothScrollArea, TransparentPushButton)
 
 class Ui_DownloadWidget(object):
     def setupUi(self, DownloadWidget):
@@ -31,7 +30,7 @@ class Ui_DownloadWidget(object):
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.scrollArea = QScrollArea(DownloadWidget)
+        self.scrollArea = SmoothScrollArea(DownloadWidget)
         self.scrollArea.setObjectName(u"scrollArea")
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
@@ -46,7 +45,7 @@ class Ui_DownloadWidget(object):
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName(u"horizontalLayout")
-        self.label_save_path = QLabel(self.scrollAreaWidgetContents)
+        self.label_save_path = BodyLabel(self.scrollAreaWidgetContents)
         self.label_save_path.setObjectName(u"label_save_path")
         self.label_save_path.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 

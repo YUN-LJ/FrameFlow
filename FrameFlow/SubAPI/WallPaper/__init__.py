@@ -16,6 +16,8 @@ def load_config():
             Config.IMAGE_DIR = value.get('image_dir', Config.IMAGE_DIR)
             Config.IMAGE_CHOICE_KEY = value.get('image_choice_key', Config.IMAGE_CHOICE_KEY)
             Config.IMAGE_CHOICE_TAG = value.get('image_choice_tag', Config.IMAGE_CHOICE_TAG)
+            Config.IMAGE_CHOICE_CATEGORIES = value.get('image_choice_categories', Config.IMAGE_CHOICE_CATEGORIES)
+            Config.IMAGE_CHOICE_PURITY = value.get('image_choice_purity', Config.IMAGE_CHOICE_PURITY)
             Config.IMAGE_PLAY_MODE = value.get('image_play_mode', Config.IMAGE_PLAY_MODE)
             Config.IMAGE_TIME = value.get('image_time', Config.IMAGE_TIME)
             Config.IMAGE_TEMP_NUM = value.get('image_temp_num', Config.IMAGE_TEMP_NUM)
@@ -27,6 +29,8 @@ def save_config():
     data.update({'image_dir': Config.IMAGE_DIR,
                  'image_choice_key': Config.IMAGE_CHOICE_KEY,
                  'image_choice_tag': Config.IMAGE_CHOICE_TAG,
+                 'image_choice_categories': Config.IMAGE_CHOICE_CATEGORIES,
+                 'image_choice_purity': Config.IMAGE_CHOICE_PURITY,
                  'image_play_mode': Config.IMAGE_PLAY_MODE,
                  'image_time': Config.IMAGE_TIME,
                  'image_temp_num': Config.IMAGE_TEMP_NUM,
@@ -72,6 +76,60 @@ class WallPaperAPI:
                 Config.IMAGE_CHOICE_KEY.remove(key)
             self.image_key_mode.del_play_data(key)
             return True
+
+    def select_categories(self, categories: list | str):
+        """
+        选择类别筛选(使用中文名称)
+        :param categories: 类别列表或单个类别，可选值: '常规', '动漫', '人物'
+        """
+        if isinstance(categories, str):
+            categories = [categories]
+        valid_categories = ['常规', '动漫', '人物']
+        for cat in categories:
+            if cat in valid_categories and cat not in Config.IMAGE_CHOICE_CATEGORIES:
+                Config.IMAGE_CHOICE_CATEGORIES.append(cat)
+
+    def deselect_categories(self, categories: list | str):
+        """
+        取消选择类别筛选
+        :param categories: 类别列表或单个类别
+        """
+        if isinstance(categories, str):
+            categories = [categories]
+        for cat in categories:
+            if cat in Config.IMAGE_CHOICE_CATEGORIES:
+                Config.IMAGE_CHOICE_CATEGORIES.remove(cat)
+
+    def clear_categories(self):
+        """清空类别筛选"""
+        Config.IMAGE_CHOICE_CATEGORIES.clear()
+
+    def select_purity(self, purity: list | str):
+        """
+        选择分级筛选(使用中文名称)
+        :param purity: 分级列表或单个分级，可选值: '正常级', '粗略级', '限制级'
+        """
+        if isinstance(purity, str):
+            purity = [purity]
+        valid_purity = ['正常级', '粗略级', '限制级']
+        for pur in purity:
+            if pur in valid_purity and pur not in Config.IMAGE_CHOICE_PURITY:
+                Config.IMAGE_CHOICE_PURITY.append(pur)
+
+    def deselect_purity(self, purity: list | str):
+        """
+        取消选择分级筛选
+        :param purity: 分级列表或单个分级
+        """
+        if isinstance(purity, str):
+            purity = [purity]
+        for pur in purity:
+            if pur in Config.IMAGE_CHOICE_PURITY:
+                Config.IMAGE_CHOICE_PURITY.remove(pur)
+
+    def clear_purity(self):
+        """清空分级筛选"""
+        Config.IMAGE_CHOICE_PURITY.clear()
 
     def set_sample(self, value: bool):
         self.image_play.set_sample(value)

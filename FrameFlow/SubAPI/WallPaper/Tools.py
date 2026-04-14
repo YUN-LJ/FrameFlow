@@ -1,8 +1,7 @@
 """壁纸播放工具类"""
-import pandas as pd
-
 from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import Config
+from SubAPI.WallHaven.Config import CATEGORY_DICT, PURITY_DICT
 
 
 def get_screen_size(scaling_factor=1.0):
@@ -262,7 +261,7 @@ class ImagePlay:
         image_data = None
         if Config.IMAGE_PLAY_MODE == Config.IMAGE_KEY_MODE:
             image_data = self.image_key_mode.get_image_play_data(sample=self.sample)
-        if image_data['本地路径'].tolist():
+        if image_data is not None and image_data['本地路径'].tolist():
             self.image_process_manage.submit_image_path(image_data['本地路径'].tolist())
         else:
             if not self.play_timer.isPause:
@@ -341,13 +340,33 @@ class ImageKeyMode:
         with self.__lock:
             if self.play_data.empty:
                 return self.play_data
-            mask = self.play_data['本地路径'].isin(self.history_data.data()['本地路径'])
-            filter_data = self.play_data[~mask]
+
+            filter_data = self.play_data.copy()
+
+            mask_history = ~filter_data['本地路径'].isin(self.history_data.data()['本地路径'])
+            filter_data = filter_data[mask_history]
+
             if filter_data.empty:
                 self.history_data.clear()
-                data = self.play_data.sample(n=n) if sample else self.play_data.head(n)
-            else:
-                data = filter_data.sample(n=n) if sample else filter_data.head(n)
+                filter_data = self.play_data.copy()
+
+            if Config.IMAGE_CHOICE_CATEGORIES:
+                mask_categories = filter_data['类别'].isin(Config.IMAGE_CHOICE_CATEGORIES)
+                filter_data = filter_data[mask_categories]
+
+            if Config.IMAGE_CHOICE_PURITY:
+                mask_purity = filter_data['分级'].isin(Config.IMAGE_CHOICE_PURITY)
+                filter_data = filter_data[mask_purity]
+
+            if filter_data.empty:
+                filter_data = self.play_data.copy()
+                mask_history = ~filter_data['本地路径'].isin(self.history_data.data()['本地路径'])
+                filter_data = filter_data[mask_history]
+                if filter_data.empty:
+                    self.history_data.clear()
+                    filter_data = self.play_data.copy()
+
+            data = filter_data.sample(n=n) if sample else filter_data.head(n)
             self.history_data.add_data(data)
             return data
 

@@ -7,10 +7,13 @@ class WaitInfoLoadWorkFlow(QThread):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.parent = parent
 
     def run(self):
         while self.isRunning():
             if KeyWord.is_loaded() and ImageInfo.is_loaded():
+                for key_word in WP.Config.IMAGE_CHOICE_KEY:
+                    self.parent.selected_cells.append(key_word)
                 self.finished.emit()
                 break
             time.sleep(1)

@@ -8,13 +8,12 @@ from SubWidget.Sets.DesignFile.MainWidget import Ui_sets
 
 class SetsWin(QWidget, Ui_sets):
     def __init__(self, parent=None):
-        self.__parent = self if parent is None else parent
+        self.__parent = parent
         super().__init__(self.__parent)
         self.setupUi(self)
         self.title = File(Get.run_file())
         self.__initUI()
         self.__bind()
-        self.setStyleSheet("""SetsWin, SetsWin * {background-color: transparent;}""")
 
     def __initUI(self):
         self.checkBox.setOffText("关闭")
@@ -25,6 +24,7 @@ class SetsWin(QWidget, Ui_sets):
         if general.check_is_start(self.title.name_base, 'user'):
             self.checkBox.setChecked(True)
         self.widget.embedTerminal()
+        self.setStyleSheet("""SetsWin, SetsWin * {background-color: transparent;}""")
 
     def __bind(self):
         self.checkBox.checkedChanged.connect(self.__checkBox)
@@ -49,3 +49,10 @@ class SetsWin(QWidget, Ui_sets):
     def closeEvent(self, event):
         self.widget.close()
         super().closeEvent(event)
+
+
+if __name__ == '__main__':
+    app = QApplication([])
+    win = SetsWin()
+    win.show()
+    app.exec()

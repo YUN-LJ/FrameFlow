@@ -1,4 +1,4 @@
-"""自定义Qt部件"""
+"""子窗口部件"""
 import os, numpy as np
 from io import BytesIO
 import win32gui, win32con
@@ -18,6 +18,9 @@ from PySide6.QtWidgets import (
     QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QSystemTrayIcon, QMenu, QApplication, QTableWidget, QSplitter
 )
+# 风格组件
+from qfluentwidgets import Action, FluentIcon as FIF
+from qfluentwidgets.components.widgets import SystemTrayMenu
 
 
 class ImageWidget(QWidget):
@@ -542,8 +545,36 @@ class TerminalWidget(QWidget):
         super().closeEvent(event)  # 继续执行 Qt 窗口的关闭逻辑
 
 
-if __name__ == '__main__':
-    app = QApplication([])
-    ex = TerminalWidget()
-    ex.show()
-    app.exec()
+class TrayIcon(QSystemTrayIcon):
+    showClicked = Signal()  # 显示按钮
+    quitClicked = Signal()  # 退出按钮
+
+    def __init__(self, parent: QWidget = None):
+        self.__parent = parent
+        super().__init__(parent)
+        self.__uiInit()
+        self.createMenu()
+
+    def __uiInit(self):
+        windows_ico = self.__parent.windowIcon()
+        if not windows_ico:
+            windows_ico = QIcon(':/qfluentwidgets/images/logo.png')
+        self.setIcon(windows_ico)
+
+    def createMenu(self):
+        self.menu = SystemTrayMenu(parent=self.__parent)
+        self.menu.addActions([
+            Action(FIF.HOME, '显示', triggered=lambda _: self.showClicked.emit()),
+            Action(FIF.POWER_BUTTON, '退出', triggered=lambda _: self.quitClicked.emit()),
+        ])
+        self.setContextMenu(self.menu)
+        # 把鼠标点击图标的信号和槽连接
+        # self.activated.connect(self.onIconClicked)
+
+    def addAction(self, action: Action):
+        """添加新控件"""
+        self.menu.addAction(action)
+
+    # def onIconClicked(self, reason):
+    # 鼠标点击icon传递的信号会带有一个整形的值
+    # 1是表示单击右键，2是双击左键，3是单击左键，4是用鼠标中键点击

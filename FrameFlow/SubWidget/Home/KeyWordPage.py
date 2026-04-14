@@ -16,12 +16,6 @@ class KeyWordPage(QWidget, Ui_KeyWordWidget):
         self.__parent = parent
         self.slot = KeyWordSlot(self, self.__parent)
         self.setupUi(self)
-        # 所有子控件继承样式
-        self.setStyleSheet("""
-                            KeyWordPage, KeyWordPage * {
-                                background-color: transparent;
-                            }
-                            """)
         self.uiInit()
         self.bind()
 
@@ -32,6 +26,8 @@ class KeyWordPage(QWidget, Ui_KeyWordWidget):
         self.pushButton_delete.setIcon(FIF.DELETE)
         self.progressBar.hide()
         self.progress_label.hide()
+        # 所有子控件继承样式
+        self.setStyleSheet("KeyWordPage, KeyWordPage * {background-color: transparent;}")
 
     def bind(self):
         self.startUpdateSignal.connect(self.__startUpdate)

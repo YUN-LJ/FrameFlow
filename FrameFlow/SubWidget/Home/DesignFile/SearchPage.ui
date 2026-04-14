@@ -30,7 +30,7 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QScrollArea" name="scrollArea">
+    <widget class="SmoothScrollArea" name="scrollArea">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -118,9 +118,6 @@
              </item>
              <item row="1" column="0">
               <widget class="CheckBox" name="checkBox_sfw">
-               <property name="styleSheet">
-                <string notr="true">color: rgb(0, 255, 0);</string>
-               </property>
                <property name="text">
                 <string>正常级</string>
                </property>
@@ -128,9 +125,6 @@
              </item>
              <item row="1" column="1">
               <widget class="CheckBox" name="checkBox_sketchy">
-               <property name="styleSheet">
-                <string notr="true">color: rgb(255, 255, 0);</string>
-               </property>
                <property name="text">
                 <string>粗略级</string>
                </property>
@@ -138,9 +132,6 @@
              </item>
              <item row="1" column="2">
               <widget class="CheckBox" name="checkBox_nsfw">
-               <property name="styleSheet">
-                <string notr="true">color: rgb(170, 0, 0);</string>
-               </property>
                <property name="text">
                 <string>限制级</string>
                </property>
@@ -300,6 +291,17 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>SwitchButton</class>
+   <extends>QCheckBox</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>SmoothScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qfluentwidgets.components.widgets</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>PrimaryPushButton</class>
    <extends>QPushButton</extends>
    <header>qfluentwidgets.components.widgets</header>
@@ -316,11 +318,6 @@
   </customwidget>
   <customwidget>
    <class>CheckBox</class>
-   <extends>QCheckBox</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
-   <class>SwitchButton</class>
    <extends>QCheckBox</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>

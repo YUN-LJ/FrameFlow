@@ -91,12 +91,14 @@ class DownloadWorkFlow(Task):
         with self.__class__.__lock:
             self.__class__.All_Work_Flow.pop(self.url, None)
 
-    def setSignal(self, start_signal: Signal, progress_signal: Signal, finish_signal: Signal, stop_singnal: Signal):
+    def setSignal(self, start_signal: Signal, progress_signal: Signal,
+                  finish_signal: Signal, stop_singnal: Signal = None):
         """设置信号连接"""
         self.start_signal.connect(start_signal.emit)
         self.progress_signal.connect(progress_signal.emit)
         self.finish_signal.connect(finish_signal.emit)
-        self.stop_signal.connect(stop_singnal.emit)
+        if stop_singnal is not None:
+            self.stop_signal.connect(stop_singnal.emit)
 
     def disSignal(self):
         """断开信号连接"""

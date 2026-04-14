@@ -148,7 +148,7 @@ class KeyTable(TableCell):
         qconfig.themeChanged.connect(self.themeChange)
         # 实例属性
         self.all_cells: dict[str, Cell] = {}  # 全部单元格
-        self.selected_cells = SelectCell(WP.Config.IMAGE_CHOICE_KEY)  # 被选中的单元格
+        self.selected_cells = SelectCell()  # 被选中的单元格
         self.selected_cells.keyAppendSignal.connect(lambda key_word: self.__selectedCellsSlot(key_word, True))
         self.selected_cells.keyRemoveSignal.connect(lambda key_word: self.__selectedCellsSlot(key_word, False))
         self.work_flow = WaitInfoLoadWorkFlow(self)
@@ -156,7 +156,7 @@ class KeyTable(TableCell):
         self.work_flow.start()
 
     def __selectedCellsSlot(self, key_word: str, checked: bool):
-        row = self.all_rows.get(key_word, None)
+        row = self.all_cells.get(key_word, None)
         if row is not None:
             row.checkBox.setChecked(checked)
 
@@ -207,6 +207,8 @@ class KeyTable(TableCell):
             FIF.SEARCH, '搜索关键词', triggered=lambda: AppCore().getSignal('search').emit(cell.key_word)))
         menu.addAction(Action(FIF.UPDATE, '重新略缩图', triggered=cell.resetLoadThumb))
         # 显示菜单
+        pos.setX(pos.x() + (menu.width() / 4))
+        # pos.setY(pos.y() + (menu.height() / 4))
         menu.exec(pos)
 
     def searchKey(self, key_word: str) -> bool:

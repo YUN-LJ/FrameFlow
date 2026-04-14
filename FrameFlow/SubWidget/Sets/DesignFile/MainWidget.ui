@@ -30,7 +30,7 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QScrollArea" name="scrollArea">
+    <widget class="SmoothScrollArea" name="scrollArea">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -59,7 +59,7 @@
           <number>20</number>
          </property>
          <item row="1" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop">
-          <widget class="QLabel" name="label_2">
+          <widget class="SubtitleLabel" name="label_2">
            <property name="styleSheet">
             <string notr="true">font: 14pt;</string>
            </property>
@@ -88,7 +88,7 @@
           </widget>
          </item>
          <item row="0" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop">
-          <widget class="QLabel" name="label">
+          <widget class="SubtitleLabel" name="label">
            <property name="styleSheet">
             <string notr="true">font: 14pt;</string>
            </property>
@@ -131,6 +131,17 @@
   </layout>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>SmoothScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qfluentwidgets.components.widgets</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>SubtitleLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
   <customwidget>
    <class>SwitchButton</class>
    <extends>QCheckBox</extends>

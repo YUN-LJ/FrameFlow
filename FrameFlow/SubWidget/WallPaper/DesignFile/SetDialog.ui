@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Sets</class>
+ <widget class="QWidget" name="Sets">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <layout class="QGridLayout" name="gridLayout">
+     <property name="leftMargin">
+      <number>10</number>
+     </property>
+     <property name="topMargin">
+      <number>10</number>
+     </property>
+     <property name="rightMargin">
+      <number>10</number>
+     </property>
+     <property name="bottomMargin">
+      <number>10</number>
+     </property>
+     <property name="spacing">
+      <number>10</number>
+     </property>
+     <item row="0" column="1">
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="CheckBox" name="checkBox_general">
+         <property name="text">
+          <string>常规</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="CheckBox" name="checkBox_anime">
+         <property name="text">
+          <string>动漫</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="CheckBox" name="checkBox_people">
+         <property name="text">
+          <string>人物</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item row="0" column="0" alignment="Qt::AlignmentFlag::AlignHCenter">
+      <widget class="SubtitleLabel" name="label">
+       <property name="styleSheet">
+        <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
+       </property>
+       <property name="text">
+        <string>类别选择</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="ComboBox" name="comboBox">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>40</height>
+        </size>
+       </property>
+       <item>
+        <property name="text">
+         <string>日期</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>随机</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item row="1" column="0" alignment="Qt::AlignmentFlag::AlignHCenter">
+      <widget class="SubtitleLabel" name="label_2">
+       <property name="styleSheet">
+        <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
+       </property>
+       <property name="text">
+        <string>分级选择</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0" alignment="Qt::AlignmentFlag::AlignHCenter">
+      <widget class="SubtitleLabel" name="label_order">
+       <property name="styleSheet">
+        <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
+       </property>
+       <property name="text">
+        <string>播放顺序</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="ComboBox" name="comboBox_mode">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>40</height>
+        </size>
+       </property>
+       <item>
+        <property name="text">
+         <string>用户模式</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>收藏夹模式</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>视频模式</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="CheckBox" name="checkBox_sfw">
+         <property name="text">
+          <string>正常级</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="CheckBox" name="checkBox_sketchy">
+         <property name="text">
+          <string>粗略级</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="CheckBox" name="checkBox_nsfw">
+         <property name="text">
+          <string>限制级</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item row="2" column="0" alignment="Qt::AlignmentFlag::AlignHCenter">
+      <widget class="SubtitleLabel" name="label_mode">
+       <property name="styleSheet">
+        <string notr="true">font: 14pt &quot;Microsoft YaHei UI&quot;;</string>
+       </property>
+       <property name="text">
+        <string>播放模式</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0">
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="4" column="1" alignment="Qt::AlignmentFlag::AlignHCenter">
+      <widget class="SwitchButton" name="checkBox_use_tag">
+       <property name="text">
+        <string>使用关键词</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>SubtitleLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>SwitchButton</class>
+   <extends>QCheckBox</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>CheckBox</class>
+   <extends>QCheckBox</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>ComboBox</class>
+   <extends>QComboBox</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

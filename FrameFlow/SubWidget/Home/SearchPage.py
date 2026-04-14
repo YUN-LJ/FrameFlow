@@ -18,8 +18,6 @@ class SearchPage(QWidget, Ui_SearchPage):
         # 弹窗
         self.search_dialog = SearchDialog(self, self.__parent)
         self.del_dialog = DelDialog(self, self.__parent)
-        # 所有子控件继承样式
-        self.setStyleSheet("""SearchPage, SearchPage * {background-color: transparent;}""")
         self.uiInit()
         self.bind()
 
@@ -35,6 +33,11 @@ class SearchPage(QWidget, Ui_SearchPage):
         self.checkBox_use_tags.setOnText('检索标签')
         self.checkBoxsCategories = [self.checkBox_general, self.checkBox_anime, self.checkBox_people]
         self.checkBoxsPurity = [self.checkBox_sfw, self.checkBox_sketchy, self.checkBox_nsfw]
+
+        # 所有子控件继承样式
+        self.setStyleSheet("""SearchPage, SearchPage * {background-color: transparent;}""")
+        for checkBox, color in zip(self.checkBoxsPurity, [QColor(0, 255, 0), QColor(255, 255, 0), QColor(170, 0, 0)]):
+            checkBox.setTextColor(color, color)
 
     def bind(self):
         """信号连接"""
@@ -113,6 +116,13 @@ class SearchPage(QWidget, Ui_SearchPage):
             popup.move(pos)
             popup.show()
         return super().eventFilter(obj, event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.search_dialog.isVisible():
+            self.search_dialog.close()
+        if self.del_dialog.isVisible():
+            self.del_dialog.close()
 
 
 class SearchSlot:

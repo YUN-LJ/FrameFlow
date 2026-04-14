@@ -15,11 +15,11 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QHeaderView, QScrollArea, QSizePolicy,
-    QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout,
-    QWidget)
+from PySide6.QtWidgets import (QApplication, QHeaderView, QSizePolicy, QStackedWidget,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from SubWidget.WallPaper.SlotFunc.KeyWordModeCtrl import KeyTable
+from qfluentwidgets.components.widgets import SmoothScrollArea
 
 class Ui_leftwidget(object):
     def setupUi(self, leftwidget):
@@ -31,7 +31,7 @@ class Ui_leftwidget(object):
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.scrollArea = QScrollArea(leftwidget)
+        self.scrollArea = SmoothScrollArea(leftwidget)
         self.scrollArea.setObjectName(u"scrollArea")
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()

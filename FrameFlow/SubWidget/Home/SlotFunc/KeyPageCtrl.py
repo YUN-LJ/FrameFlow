@@ -294,8 +294,8 @@ class Table(TableRow):
                 Action(FIF.SEARCH, '搜索关键词', triggered=lambda: AppCore().getSignal('search').emit(key_word)))
             menu.addAction(Action(FIF.DELETE, '删除关键词', triggered=sub_func))
             # 显示菜单
-            pos.setX(pos.x() + (menu.width() / 3))
-            pos.setY(pos.y() + (menu.height() / 3))
+            pos.setX(pos.x() + (menu.width() / 4))
+            pos.setY(pos.y() + (menu.height() / 4))
             menu.exec(pos)
 
     def searchKey(self, key_word) -> bool:

@@ -30,7 +30,7 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QScrollArea" name="scrollArea">
+    <widget class="SmoothScrollArea" name="scrollArea">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -144,7 +144,7 @@
        <item>
         <layout class="QGridLayout" name="gridLayout_info">
          <item row="5" column="1">
-          <widget class="QLabel" name="label_local_path_value">
+          <widget class="BodyLabel" name="label_local_path_value">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -157,7 +157,7 @@
           </widget>
          </item>
          <item row="2" column="1">
-          <widget class="QLabel" name="label_purity_value">
+          <widget class="BodyLabel" name="label_purity_value">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -170,7 +170,7 @@
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QLabel" name="label_category_value">
+          <widget class="BodyLabel" name="label_category_value">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -183,7 +183,7 @@
           </widget>
          </item>
          <item row="4" column="1">
-          <widget class="QLabel" name="label_file_size_value">
+          <widget class="BodyLabel" name="label_file_size_value">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -196,7 +196,7 @@
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QLabel" name="label_id_value">
+          <widget class="BodyLabel" name="label_id_value">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -209,7 +209,7 @@
           </widget>
          </item>
          <item row="5" column="0">
-          <widget class="QLabel" name="label_local_path">
+          <widget class="BodyLabel" name="label_local_path">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -219,7 +219,7 @@
           </widget>
          </item>
          <item row="6" column="1">
-          <widget class="QLabel" name="label_remote_path_value">
+          <widget class="BodyLabel" name="label_remote_path_value">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -232,7 +232,7 @@
           </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QLabel" name="label_category">
+          <widget class="BodyLabel" name="label_category">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -242,7 +242,7 @@
           </widget>
          </item>
          <item row="3" column="1">
-          <widget class="QLabel" name="label_data_value">
+          <widget class="BodyLabel" name="label_data_value">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -255,7 +255,7 @@
           </widget>
          </item>
          <item row="4" column="0">
-          <widget class="QLabel" name="label_file_size">
+          <widget class="BodyLabel" name="label_file_size">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -265,7 +265,7 @@
           </widget>
          </item>
          <item row="0" column="0">
-          <widget class="QLabel" name="label_id">
+          <widget class="BodyLabel" name="label_id">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -288,7 +288,7 @@
           </spacer>
          </item>
          <item row="6" column="0">
-          <widget class="QLabel" name="label_remote_path">
+          <widget class="BodyLabel" name="label_remote_path">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -298,7 +298,7 @@
           </widget>
          </item>
          <item row="3" column="0">
-          <widget class="QLabel" name="label_data">
+          <widget class="BodyLabel" name="label_data">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -308,7 +308,7 @@
           </widget>
          </item>
          <item row="2" column="0">
-          <widget class="QLabel" name="label_purity">
+          <widget class="BodyLabel" name="label_purity">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -318,7 +318,7 @@
           </widget>
          </item>
          <item row="7" column="0">
-          <widget class="QLabel" name="label_tags">
+          <widget class="BodyLabel" name="label_tags">
            <property name="styleSheet">
             <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
            </property>
@@ -340,8 +340,19 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>SmoothScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qfluentwidgets.components.widgets</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>PrimaryPushButton</class>
    <extends>QPushButton</extends>
+   <header>qfluentwidgets.components.widgets</header>
+  </customwidget>
+  <customwidget>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>

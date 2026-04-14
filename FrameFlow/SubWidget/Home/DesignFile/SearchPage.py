@@ -16,11 +16,12 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QHeaderView,
-    QLabel, QScrollArea, QSizePolicy, QSpacerItem,
-    QSpinBox, QTableWidgetItem, QVBoxLayout, QWidget)
+    QLabel, QSizePolicy, QSpacerItem, QSpinBox,
+    QTableWidgetItem, QVBoxLayout, QWidget)
 
 from SubWidget.Home.SlotFunc.SearchPageCtrl import Table
-from qfluentwidgets.components.widgets import (CheckBox, PrimaryPushButton, SearchLineEdit, SwitchButton)
+from qfluentwidgets.components.widgets import (CheckBox, PrimaryPushButton, SearchLineEdit, SmoothScrollArea,
+    SwitchButton)
 
 class Ui_SearchPage(object):
     def setupUi(self, SearchPage):
@@ -31,7 +32,7 @@ class Ui_SearchPage(object):
         self.verticalLayout_2.setSpacing(0)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
-        self.scrollArea = QScrollArea(SearchPage)
+        self.scrollArea = SmoothScrollArea(SearchPage)
         self.scrollArea.setObjectName(u"scrollArea")
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
@@ -68,19 +69,16 @@ class Ui_SearchPage(object):
 
         self.checkBox_sfw = CheckBox(self.scrollAreaWidgetContents)
         self.checkBox_sfw.setObjectName(u"checkBox_sfw")
-        self.checkBox_sfw.setStyleSheet(u"color: rgb(0, 255, 0);")
 
         self.gridLayout.addWidget(self.checkBox_sfw, 1, 0, 1, 1)
 
         self.checkBox_sketchy = CheckBox(self.scrollAreaWidgetContents)
         self.checkBox_sketchy.setObjectName(u"checkBox_sketchy")
-        self.checkBox_sketchy.setStyleSheet(u"color: rgb(255, 255, 0);")
 
         self.gridLayout.addWidget(self.checkBox_sketchy, 1, 1, 1, 1)
 
         self.checkBox_nsfw = CheckBox(self.scrollAreaWidgetContents)
         self.checkBox_nsfw.setObjectName(u"checkBox_nsfw")
-        self.checkBox_nsfw.setStyleSheet(u"color: rgb(170, 0, 0);")
 
         self.gridLayout.addWidget(self.checkBox_nsfw, 1, 2, 1, 1)
 

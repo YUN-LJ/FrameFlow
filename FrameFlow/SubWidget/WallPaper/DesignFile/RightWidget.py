@@ -16,10 +16,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QGridLayout, QGroupBox, QHBoxLayout,
-    QLabel, QScrollArea, QSizePolicy, QSpacerItem,
-    QVBoxLayout, QWidget)
+    QSizePolicy, QSpacerItem, QVBoxLayout, QWidget)
 
-from qfluentwidgets.components.widgets import (PrimaryToolButton, SwitchButton)
+from qfluentwidgets.components.widgets import (BodyLabel, PrimaryToolButton, SmoothScrollArea, SwitchButton)
 
 class Ui_rightwidget(object):
     def setupUi(self, rightwidget):
@@ -30,7 +29,7 @@ class Ui_rightwidget(object):
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.scrollArea = QScrollArea(rightwidget)
+        self.scrollArea = SmoothScrollArea(rightwidget)
         self.scrollArea.setObjectName(u"scrollArea")
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
@@ -102,74 +101,74 @@ class Ui_rightwidget(object):
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
         self.gridLayout_info = QGridLayout()
         self.gridLayout_info.setObjectName(u"gridLayout_info")
-        self.label_local_path_value = QLabel(self.groupBox_info)
+        self.label_local_path_value = BodyLabel(self.groupBox_info)
         self.label_local_path_value.setObjectName(u"label_local_path_value")
         self.label_local_path_value.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
         self.label_local_path_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard|Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.gridLayout_info.addWidget(self.label_local_path_value, 5, 1, 1, 1)
 
-        self.label_purity_value = QLabel(self.groupBox_info)
+        self.label_purity_value = BodyLabel(self.groupBox_info)
         self.label_purity_value.setObjectName(u"label_purity_value")
         self.label_purity_value.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
         self.label_purity_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard|Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.gridLayout_info.addWidget(self.label_purity_value, 2, 1, 1, 1)
 
-        self.label_category_value = QLabel(self.groupBox_info)
+        self.label_category_value = BodyLabel(self.groupBox_info)
         self.label_category_value.setObjectName(u"label_category_value")
         self.label_category_value.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
         self.label_category_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard|Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.gridLayout_info.addWidget(self.label_category_value, 1, 1, 1, 1)
 
-        self.label_file_size_value = QLabel(self.groupBox_info)
+        self.label_file_size_value = BodyLabel(self.groupBox_info)
         self.label_file_size_value.setObjectName(u"label_file_size_value")
         self.label_file_size_value.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
         self.label_file_size_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard|Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.gridLayout_info.addWidget(self.label_file_size_value, 4, 1, 1, 1)
 
-        self.label_id_value = QLabel(self.groupBox_info)
+        self.label_id_value = BodyLabel(self.groupBox_info)
         self.label_id_value.setObjectName(u"label_id_value")
         self.label_id_value.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
         self.label_id_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard|Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.gridLayout_info.addWidget(self.label_id_value, 0, 1, 1, 1)
 
-        self.label_local_path = QLabel(self.groupBox_info)
+        self.label_local_path = BodyLabel(self.groupBox_info)
         self.label_local_path.setObjectName(u"label_local_path")
         self.label_local_path.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
         self.gridLayout_info.addWidget(self.label_local_path, 5, 0, 1, 1)
 
-        self.label_remote_path_value = QLabel(self.groupBox_info)
+        self.label_remote_path_value = BodyLabel(self.groupBox_info)
         self.label_remote_path_value.setObjectName(u"label_remote_path_value")
         self.label_remote_path_value.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
         self.label_remote_path_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard|Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.gridLayout_info.addWidget(self.label_remote_path_value, 6, 1, 1, 1)
 
-        self.label_category = QLabel(self.groupBox_info)
+        self.label_category = BodyLabel(self.groupBox_info)
         self.label_category.setObjectName(u"label_category")
         self.label_category.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
         self.gridLayout_info.addWidget(self.label_category, 1, 0, 1, 1)
 
-        self.label_data_value = QLabel(self.groupBox_info)
+        self.label_data_value = BodyLabel(self.groupBox_info)
         self.label_data_value.setObjectName(u"label_data_value")
         self.label_data_value.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
         self.label_data_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard|Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.gridLayout_info.addWidget(self.label_data_value, 3, 1, 1, 1)
 
-        self.label_file_size = QLabel(self.groupBox_info)
+        self.label_file_size = BodyLabel(self.groupBox_info)
         self.label_file_size.setObjectName(u"label_file_size")
         self.label_file_size.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
         self.gridLayout_info.addWidget(self.label_file_size, 4, 0, 1, 1)
 
-        self.label_id = QLabel(self.groupBox_info)
+        self.label_id = BodyLabel(self.groupBox_info)
         self.label_id.setObjectName(u"label_id")
         self.label_id.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
@@ -179,25 +178,25 @@ class Ui_rightwidget(object):
 
         self.gridLayout_info.addItem(self.horizontalSpacer_2, 0, 2, 1, 1)
 
-        self.label_remote_path = QLabel(self.groupBox_info)
+        self.label_remote_path = BodyLabel(self.groupBox_info)
         self.label_remote_path.setObjectName(u"label_remote_path")
         self.label_remote_path.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
         self.gridLayout_info.addWidget(self.label_remote_path, 6, 0, 1, 1)
 
-        self.label_data = QLabel(self.groupBox_info)
+        self.label_data = BodyLabel(self.groupBox_info)
         self.label_data.setObjectName(u"label_data")
         self.label_data.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
         self.gridLayout_info.addWidget(self.label_data, 3, 0, 1, 1)
 
-        self.label_purity = QLabel(self.groupBox_info)
+        self.label_purity = BodyLabel(self.groupBox_info)
         self.label_purity.setObjectName(u"label_purity")
         self.label_purity.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
         self.gridLayout_info.addWidget(self.label_purity, 2, 0, 1, 1)
 
-        self.label_tags = QLabel(self.groupBox_info)
+        self.label_tags = BodyLabel(self.groupBox_info)
         self.label_tags.setObjectName(u"label_tags")
         self.label_tags.setStyleSheet(u"font: 12pt \"Microsoft YaHei UI\";")
 
