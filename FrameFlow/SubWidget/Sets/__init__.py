@@ -2,6 +2,7 @@
 设置窗口
 """
 from qfluentwidgets import setTheme, Theme
+from ImportFile import Config
 from SubWidget.ImportPack import *
 from SubWidget.Sets.DesignFile.MainWidget import Ui_sets
 
@@ -20,15 +21,28 @@ class SetsWin(QWidget, Ui_sets):
         self.checkBox.setOnText("开启")
         self.checkBox_2.setOffText('浅色')
         self.checkBox_2.setOnText('深色')
+        self.checkBox_show.setOffText('关闭')
+        self.checkBox_show.setOnText('显示')
         # 检查是否开机自启动
         if Tools.check_is_start(self.title.name_base, 'user'):
             self.checkBox.setChecked(True)
-        self.widget.embedTerminal()
         self.setStyleSheet("""SetsWin, SetsWin * {background-color: transparent;}""")
 
     def __bind(self):
         self.checkBox.checkedChanged.connect(self.__checkBox)
         self.checkBox_2.checkedChanged.connect(self.__checkBox_2)
+        self.checkBox_show.checkedChanged.connect(self.__checkBox_show)
+        self.cmd_timer = QTimer()
+        self.cmd_timer.timeout.connect(self.__cmd_timer)
+        self.cmd_timer.start(1000)
+
+    def __cmd_timer(self):
+        """定时检查命令行窗口"""
+        capture_python_terminal: CapturePythonTerminal = Config.CAPTURE_PYTHON_TERMINAL
+        text = ''.join(capture_python_terminal.get_output())
+        if self.textEdit.toPlainText() != text:
+            self.textEdit.clear()
+            self.textEdit.append_ansi_text(text)
 
     def __checkBox(self, checked):
         """开启/关闭开机自启动"""
@@ -46,9 +60,12 @@ class SetsWin(QWidget, Ui_sets):
         else:
             setTheme(Theme.DARK)
 
-    def closeEvent(self, event):
-        self.widget.close()
-        super().closeEvent(event)
+    def __checkBox_show(self, checked):
+        """切换显示/隐藏"""
+        if checked:
+            Terminal.show_python_terminal()
+        else:
+            Terminal.hide_python_terminal()
 
 
 if __name__ == '__main__':

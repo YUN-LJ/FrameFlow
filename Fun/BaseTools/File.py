@@ -1,14 +1,13 @@
 """文件处理包"""
-import configparser
 import os
 import re
-
 import cv2
 import struct
 import shutil
 import win32con
 import subprocess
 import numpy as np
+import configparser
 import win32clipboard
 from typing import Optional
 from io import BytesIO
