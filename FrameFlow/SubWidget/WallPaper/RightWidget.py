@@ -116,7 +116,7 @@ class RightWidgetSlot:
     def pushButton_copy(self):
         local_path = self.parent.label_local_path_value.text()
         if local_path:
-            File(local_path).copy_to_clipboard()
+            FileBase(local_path).copy_to_clipboard()
 
     def checkBox_zoom(self, checked):
         if checked:

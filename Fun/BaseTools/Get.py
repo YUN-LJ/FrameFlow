@@ -27,7 +27,7 @@ def python_cmd_hwnd() -> int:
     return ctypes.windll.kernel32.GetConsoleWindow()
 
 
-def find_hwnd(target_inf: str | int, class_name: list[str] = None, accurate: bool = True) -> int:
+def find_hwnd(target_inf: str | int, class_name: list[str] = None, accurate: bool = True) -> int | None:
     """
     查找窗口句柄
 
@@ -37,6 +37,7 @@ def find_hwnd(target_inf: str | int, class_name: list[str] = None, accurate: boo
     :param accurate:是否开启精确查找bool
     :return :窗口句柄hwnd
     """
+    import win32process, win32gui
     # 主线程PID
     pid_main = os.getpid()
 
@@ -73,7 +74,7 @@ def find_hwnd(target_inf: str | int, class_name: list[str] = None, accurate: boo
     win32gui.EnumWindows(callback, target_inf)
 
     if hwnd_list == []:  # 没有匹配到窗口
-        return False
+        return None
     else:
         hwnd = hwnd_list[-1]
     return hwnd

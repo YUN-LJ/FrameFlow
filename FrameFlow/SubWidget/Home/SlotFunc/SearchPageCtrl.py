@@ -24,7 +24,7 @@ class Cell(GroupBoxCell):
         self.button = PrimaryToolButton(FIF.VIEW)
         self.button.clicked.connect(self.viewImage)
         self.button_copy = PrimaryToolButton(FIF.COPY)
-        self.button_copy.clicked.connect(lambda _: File(self.image_local_path).copy_to_clipboard())
+        self.button_copy.clicked.connect(lambda _: FileBase(self.image_local_path).copy_to_clipboard())
         self.button_copy.hide()
         self.button_open = PrimaryToolButton(FIF.FOLDER)
         self.button_open.clicked.connect(lambda _: FileBase(self.image_local_path).open_use_explorer())

@@ -1,10 +1,71 @@
+"""Qt组件包"""
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # 模块
+    from . import FCell, FTabel
+    # FWidget 模块中的类
+    from .FWidget import ImageWidget, LazyLoadMS, TrayIcon, EmbeddedWindows, EmbeddedPythonTerminal, \
+        WindowDesktop, LeftandRightSplitter, TerminalWidget, AcondaWidget, AnsiTextEdit
+    # FCell 模块中的类
+    from .FCell import ImageCellBase, ImageCell
+    # FTabel 模块中的类
+    from .FTabel import TableBase, TableCell, TableRow
+
+# 声明对外接口
+__all__ = [
+    # 模块
+    'FCell', 'FTabel',
+    # FWidget 模块中的类
+    'ImageWidget', 'LazyLoadMS', 'TrayIcon', 'EmbeddedWindows', 'EmbeddedPythonTerminal',
+    'WindowDesktop', 'LeftandRightSplitter', 'TerminalWidget', 'AcondaWidget', 'AnsiTextEdit',
+    # FCell 模块中的类
+    'ImageCellBase', 'ImageCell',
+    # FTabel 模块中的类
+    'TableBase', 'TableCell', 'TableRow',
+]
+
+import importlib
 from PySide6.QtWidgets import QFileDialog
 from Fun.BaseTools import Get
-from Fun.QtWidget.FWidget import ImageWidget, LazyLoadMS, TrayIcon
-from Fun.QtWidget.FTabel import TableCell, TableRow, TableBase
 
-__all__ = ['ImageWidget', 'LazyLoadMS', 'TrayIcon',
-           'TableCell', 'TableRow', 'TableBase']
+# 模块名与模块路径的映射字典
+_MODULE_MAP = {
+    # 模块直接导入
+    'FCell': '.FCell',
+    'FTabel': '.FTabel',
+    # FWidget 模块中的类
+    'ImageWidget': '.FWidget',
+    'LazyLoadMS': '.FWidget',
+    'TrayIcon': '.FWidget',
+    'EmbeddedWindows': '.FWidget',
+    'EmbeddedPythonTerminal': '.FWidget',
+    'WindowDesktop': '.FWidget',
+    'LeftandRightSplitter': '.FWidget',
+    'TerminalWidget': '.FWidget',
+    'AcondaWidget': '.FWidget',
+    'AnsiTextEdit': '.FWidget',
+    # FCell 模块中的类
+    'ImageCellBase': '.FCell',
+    'ImageCell': '.FCell',
+    # FTabel 模块中的类
+    'TableBase': '.FTabel',
+    'TableCell': '.FTabel',
+    'TableRow': '.FTabel',
+}
+
+
+def __getattr__(name):
+    """延迟导入内部模块或类"""
+    if name not in __all__:
+        raise AttributeError(f"模块 'Fun.QtWidget' 没有属性 '{name}'")
+    try:
+        # 使用importlib动态导入模块
+        module = importlib.import_module(f'{_MODULE_MAP[name]}', package=__name__)
+        return getattr(module, name)  # 从模块中获取指定的类或对象
+    except ImportError as e:
+        raise e
+    raise AttributeError(f"无法导入模块 'Fun.QtWidget.{name}'")
 
 
 def get_exist_dir(caption: str = '选择文件夹', dir_path: str = Get.run_dir()) -> str:

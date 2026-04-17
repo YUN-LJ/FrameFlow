@@ -1,13 +1,12 @@
 # 声明对外接口
-__all__ = ['GUI_Qt', 'Norm','AutoGUI']  # 明确导出的成员
+__all__ = ['BaseTools', 'QtWidget']  # 明确导出的成员
 
 import importlib
 
 # 模块名与模块路径的映射字典（仅需模块名即可，因为都是同级模块）
 _MODULE_MAP = {
-    'GUI_Qt': '.GUI_Qt',
-    'Norm': '.Norm',
-    'AutoGUI': '.AutoGUI',
+    'BaseTools': '.BaseTools',
+    'QtWidget': '.BaseTools',
 }
 
 
@@ -24,3 +23,9 @@ def __getattr__(name):
         raise e
 
     raise AttributeError(f"无法导入模块 'Fun.{name}'")
+
+
+if __name__ == '__main__':
+    from Fun import BaseTools
+
+    print(BaseTools)

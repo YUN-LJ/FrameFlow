@@ -58,13 +58,13 @@
          <property name="verticalSpacing">
           <number>20</number>
          </property>
-         <item row="1" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop">
-          <widget class="SubtitleLabel" name="label_2">
+         <item row="0" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop">
+          <widget class="SubtitleLabel" name="label">
            <property name="styleSheet">
             <string notr="true">font: 14pt;</string>
            </property>
            <property name="text">
-            <string>主题</string>
+            <string>开机自启动</string>
            </property>
           </widget>
          </item>
@@ -84,16 +84,6 @@
            </property>
            <property name="text">
             <string>浅色</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop">
-          <widget class="SubtitleLabel" name="label">
-           <property name="styleSheet">
-            <string notr="true">font: 14pt;</string>
-           </property>
-           <property name="text">
-            <string>开机自启动</string>
            </property>
           </widget>
          </item>
@@ -119,10 +109,55 @@
            </property>
           </widget>
          </item>
+         <item row="1" column="0" alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop">
+          <widget class="SubtitleLabel" name="label_2">
+           <property name="styleSheet">
+            <string notr="true">font: 14pt;</string>
+           </property>
+           <property name="text">
+            <string>主题</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0" alignment="Qt::AlignmentFlag::AlignLeft">
+          <widget class="QLabel" name="label_3">
+           <property name="styleSheet">
+            <string notr="true">font: 14pt;</string>
+           </property>
+           <property name="text">
+            <string>显示控制台</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1" alignment="Qt::AlignmentFlag::AlignRight">
+          <widget class="SwitchButton" name="checkBox_show">
+           <property name="minimumSize">
+            <size>
+             <width>80</width>
+             <height>40</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>80</width>
+             <height>40</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>关闭</string>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item>
-        <widget class="EmbeddedPythonTerminal" name="widget" native="true"/>
+        <widget class="QWidget" name="widget" native="true">
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <widget class="AnsiTextEdit" name="textEdit"/>
+          </item>
+         </layout>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -148,10 +183,9 @@
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>EmbeddedPythonTerminal</class>
-   <extends>QWidget</extends>
-   <header>Fun.QtWidget.FWidget</header>
-   <container>1</container>
+   <class>AnsiTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header>Fun.QtWidget</header>
   </customwidget>
  </customwidgets>
  <resources/>

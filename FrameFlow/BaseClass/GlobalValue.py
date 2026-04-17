@@ -6,6 +6,7 @@ from Fun.BaseTools import Get
 run_dir = Get.run_dir()
 config_dir = os.path.join(run_dir, 'config')
 # 数据文件路径配置
+log_path = os.path.join(config_dir, 'log.txt')
 image_cache_dir = os.path.join(config_dir, 'image_cache')
 image_info_path = os.path.join(config_dir, 'image_info.feather')
 key_word_path = os.path.join(config_dir, 'key_word.feather')

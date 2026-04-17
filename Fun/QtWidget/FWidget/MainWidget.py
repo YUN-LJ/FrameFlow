@@ -16,6 +16,9 @@ class LazyLoadMS(MSFluentWindow):
         :param lazy:是否启用懒加载,默认启用
         :param windows_icon:窗口图标
         """
+        self.widget_list = widget_list
+        self.lazy = lazy
+        self.fast_show = True
         super().__init__()
         windows_icon = ':/qfluentwidgets/images/logo.png' if windows_icon is None else windows_icon
         self.setWindowIcon(QIcon(windows_icon))
@@ -27,20 +30,6 @@ class LazyLoadMS(MSFluentWindow):
             self.addWidget((name, icon, widget), bottom)
         # 连接页面切换
         self.stackedWidget.currentChanged.connect(self.pageChange)
-        # 如果不是懒加载,则直接加载所有子窗口
-        if not lazy:
-            # 创建启动页面
-            splashScreen = SplashScreen(self.windowIcon(), self)
-            splashScreen.setIconSize(QSize(102, 102))
-            loop = QEventLoop(self)
-            # 在创建其他子页面前先显示主界面
-            self.show()
-            for i in range(len(widget_list), -1, -1):
-                self.load_sub_widget.pageChange(i)
-            QTimer.singleShot(1000, loop.quit)
-            loop.exec()
-            # 隐藏启动页面
-            splashScreen.finish()
 
     def addWidget(self, widget: tuple[str, QIcon, QWidget], bottom=False):
         """
@@ -59,6 +48,36 @@ class LazyLoadMS(MSFluentWindow):
     def getWidget(self, index) -> 'SubWidgetBase':
         """获取子窗口,索引值与传入的列表顺序一致"""
         return self.stackedWidget.widget(index)
+
+    def notLazyLoad(self, is_show: bool = True):
+        """
+        非懒加载,带启动动画的加载
+        :param is_show:是否显示
+        """
+        # 如果不是懒加载,则直接加载所有子窗口
+        if not self.lazy and self.fast_show:
+            # 创建启动页面
+            splashScreen = SplashScreen(self.windowIcon(), self)
+            splashScreen.setIconSize(QSize(102, 102))
+            loop = QEventLoop(self)
+            # 在创建其他子页面前先显示主界面
+            if is_show:
+                super().show()
+            for i in range(len(self.widget_list), -1, -1):
+                self.load_sub_widget.pageChange(i)
+            QTimer.singleShot(1000, loop.quit)
+            loop.exec()
+            # 隐藏启动页面
+            splashScreen.finish()
+            self.fast_show = False
+
+    def show(self):
+        """显示窗口"""
+        # 如果不是懒加载,则直接加载所有子窗口
+        if not self.lazy and self.fast_show:
+            self.lazyLoad()
+        else:
+            super().show()
 
 
 class SubWidgetBase(SimpleCardWidget):
