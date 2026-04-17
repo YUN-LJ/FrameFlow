@@ -23,6 +23,7 @@ class SetsWin(QWidget, Ui_sets):
         self.checkBox_2.setOnText('深色')
         self.checkBox_show.setOffText('关闭')
         self.checkBox_show.setOnText('显示')
+        self.textEdit.set_font_size(12)
         # 检查是否开机自启动
         if Tools.check_is_start(self.title.name_base, 'user'):
             self.checkBox.setChecked(True)

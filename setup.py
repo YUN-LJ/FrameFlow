@@ -32,6 +32,12 @@ setup(
 
         # NTP时间同步
         "ntplib>=0.4.0",
+
+        # 终端模拟
+        "pywinpty>=3.0.3",
+
+        # ANSI转HTML
+        "ansi2html>=1.9.0",
     ],
 
     # 可选依赖（按需安装）

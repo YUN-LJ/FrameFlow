@@ -18,10 +18,10 @@ from PySide6.QtGui import (QWindow, QIcon, QShortcut, QScreen, QFont, QColor,
                            QWheelEvent, QMouseEvent)
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
-    QSystemTrayIcon, QApplication, QSplitter
+    QSystemTrayIcon, QApplication, QSplitter, QTextEdit
 )
 # 风格组件
-from qfluentwidgets import Action, FluentIcon as FIF
+from qfluentwidgets import Action, FluentIcon as FIF, Theme, setTheme
 from qfluentwidgets.components.widgets import SystemTrayMenu, TextEdit, LineEdit
 
 
@@ -71,9 +71,10 @@ class AnsiTextEdit(TextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
-        self.setLineWrapMode(TextEdit.NoWrap)
+        self.setLineWrapMode(QTextEdit.NoWrap)
         # 设置等宽字体以更好地显示终端输出
-        font = QFont("Consolas", 10)
+        self.font_size = 10
+        font = QFont("Consolas", self.font_size)
         font.setStyleHint(QFont.Monospace)
         self.setFont(font)
         # 当前样式状态
@@ -84,6 +85,47 @@ class AnsiTextEdit(TextEdit):
         self.current_underline = False
         # ANSI解析正则表达式
         self.ansi_pattern = re.compile(r'\x1b\[([0-9;]*)m')
+
+    def set_font_size(self, size: int):
+        """
+        设置字体大小
+        
+        :param size: 字体大小(磅值)
+        """
+        if size <= 0:
+            return
+
+        self.font_size = size
+        font = self.font()
+        font.setPointSize(size)
+        self.setFont(font)
+
+    def get_font_size(self) -> int:
+        """
+        获取当前字体大小
+        
+        :return: 字体大小(磅值)
+        """
+        return self.font_size
+
+    def increase_font_size(self, step=1):
+        """
+        增大字体
+        
+        :param step: 增大的步长
+        """
+        new_size = self.font_size + step
+        self.set_font_size(new_size)
+
+    def decrease_font_size(self, step=1):
+        """
+        减小字体
+        
+        :param step: 减小的步长
+        """
+        new_size = self.font_size - step
+        if new_size > 0:
+            self.set_font_size(new_size)
 
     def append_ansi_text(self, text: str):
         """
@@ -1072,10 +1114,13 @@ class AcondaWidget(TerminalWidget):
         self.sendCommand(f'{self.conda_path} {name}')
         self.activate_name = name
 
-# if __name__ == '__main__':
-#     app = QApplication([])
-#     conda_path = r'E:\code\miniconda3\Scripts\activate.bat'
-#     window = AcondaWidget(conda_path, 'AutoWallpaper')
-#     # window = TerminalWidget(terminal_type='python')
-#     window.show()
-#     app.exec()
+
+if __name__ == '__main__':
+    app = QApplication([])
+    setTheme(Theme.DARK)
+    conda_path = r'E:\code\miniconda3\Scripts\activate.bat'
+    window = AcondaWidget(conda_path, 'AutoWallpaper')
+    window.output_edit.set_font_size(14)
+    # window = TerminalWidget(terminal_type='python')
+    window.show()
+    app.exec()
