@@ -1,6 +1,6 @@
 """壁纸播放工具类"""
+import numpy as np
 import pandas as pd
-
 from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import Config
 from SubAPI.WallHaven.Config import CATEGORY_DICT, PURITY_DICT
@@ -112,7 +112,7 @@ class ImageQt:
             self.isRunning = False
             self.clear_all_widgets()
 
-    def set_wallpaper(self, image: np.ndarray):
+    def set_wallpaper(self, image: np.ndarray | BytesIO):
         """
         设置壁纸
         :param image:图像
@@ -120,6 +120,8 @@ class ImageQt:
         if self.isRunning:
             try:
                 with self.lock:
+                    image = ImageLoad(image)
+                    self.image = image.get_bytesIO()
                     image_w, image_h = image.shape[:2]
                     image_scale = image_w / image_h
                     for widget, image_widget in self.all_widget.values():
@@ -129,10 +131,8 @@ class ImageQt:
                         mode = ImageEnum.resize_stretch if abs(
                             screen_scale - image_scale) < 0.2 else ImageEnum.resize_fill
                         # 重新缩放图像
-                        image_progress = ImageLoad(image)
-                        ImageProcess(image_progress).resize(screen_size, mode)
-                        self.image = image_progress.get_array()
-                        image_widget.set_image(image_progress)
+                        ImageProcess(image).resize(screen_size, mode)
+                        image_widget.set_image(image)
             except Exception as e:
                 print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.set_wallpaper {e}')
         else:
@@ -145,16 +145,17 @@ class ImageProcessTask:
     def __init__(self, image_path: str):
         self.image_id = os.path.basename(image_path).split('.')[0]
         self.image_path = image_path
+        self.image_format = FileBase(image_path).extension
         self.image_info: pd.Series = None  # 图像信息
-        self.image_process: np.ndarray = None  # 处理后的图片
-        self.image_original: np.ndarray = None  # 原图
+        self.image_process: BytesIO = None  # 处理后的图片
+        self.image_original: BytesIO = None  # 原图
         self.screen_size = get_screen_size()
 
     def start(self) -> np.ndarray | None:
         try:
             scale = self.screen_size[0] / self.screen_size[1]
             image = ImageLoad(self.image_path)
-            self.image_original = image.get_array()
+            self.image_original = image.get_bytesIO(self.image_format)
             if image.is_vertical:
                 # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
                 num_2 = abs((image.width * 2 / image.height) - scale)
@@ -162,7 +163,9 @@ class ImageProcessTask:
                 num = 1 if num_2 > num_3 else 2
                 ImageProcess(image).merge('self', num)
             ImageProcess(image).resize(self.screen_size).zip(15)  # 限制图像最大尺寸不超过15MB
-            self.image_process = image.get_array()
+            self.image_process = image.get_bytesIO(self.image_format)
+            del image
+            gc.collect()
             return self.image_process
         except Exception as e:
             print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
@@ -172,15 +175,22 @@ class ImageProcessTask:
 class ImageProcessManage:
     """图像处理管理类"""
 
-    def __init__(self, image_temp_num: int = Config.IMAGE_TEMP_NUM):
+    def __init__(self, image_temp_num: int = Config.IMAGE_TEMP_NUM, use_process: bool = False):
         """
         :param image_temp_num:图片缓冲数量
+        :param use_process:使用独立进程处理,默认使用线程
         """
         self.isRunning = False  # 是否正在运行
         self.image_temp_num = image_temp_num
-        self.task_queue = Queue(1)  # 任务队列,队列中存放图像路径
-        self.result_queue = Queue(self.image_temp_num - 1)  # 缓冲队列,队列中存放ImageProcessTask类型
-        self.process = Process(target=self._execute, name='ImageProcess')
+        self.use_process = use_process
+        if use_process:
+            self.process = Process(target=self._execute, name='ImageProcess')
+            self.task_queue = QueueMul(1)  # 任务队列,队列中存放图像路径
+            self.result_queue = QueueMul(self.image_temp_num - 1)  # 缓冲队列,队列中存放ImageProcessTask类型
+        else:
+            self.process = Thread(target=self._execute, name='ImageProcess', daemon=True)
+            self.task_queue = QueueThread(1)  # 任务队列,队列中存放图像路径
+            self.result_queue = QueueThread(self.image_temp_num - 1)  # 缓冲队列,队列中存放ImageProcessTask类型
 
     def submit_image_path(self, image_paths: list | str):
         """
@@ -216,7 +226,12 @@ class ImageProcessManage:
                     task = ImageProcessTask(image_path)
                     result = task.start()
                     if result is not None:
-                        self.result_queue.put(task)
+                        while self.isRunning:
+                            try:
+                                self.result_queue.put(task, timeout=1)
+                                break
+                            except Full:
+                                pass
             except Empty:
                 pass
 
@@ -231,11 +246,15 @@ class ImageProcessManage:
         if self.isRunning:
             self.isRunning = False
             try:
-                self.process.kill()  # 退出进程
+                if self.use_process:
+                    self.process.kill()  # 退出进程
             except Exception as e:
                 print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.stop: {e}')
             finally:
-                self.process = Process(target=self._execute, name='ImageProcess')
+                if self.use_process:
+                    self.process = Process(target=self._execute, name='ImageProcess')
+                else:
+                    self.process = Thread(target=self._execute, name='ImageProcess', daemon=True)
 
 
 class ImagePlay:
@@ -243,7 +262,7 @@ class ImagePlay:
 
     def __init__(self, image_key_mode: 'ImageKeyMode'):
         self.isRunning = False
-        self.sample = False
+        self.sample = bool(Config.IMAGE_PLAY_SORT)
         self.start_signal = TaskSignal()
         self.pause_signal = TaskSignal()
         self.play_image_signal = TaskSignal()  # 当前播放的图片,发送ImageProcessTask类
@@ -256,7 +275,7 @@ class ImagePlay:
     def set_sample(self, value: bool):
         self.sample = value
         if value != Config.IMAGE_PLAY_SORT:
-            Config.IMAGE_PLAY_SORT = value
+            Config.IMAGE_PLAY_SORT = int(value)
 
     def submit_image_process(self):
         """提交图像处理任务"""
@@ -306,6 +325,7 @@ class ImagePlay:
 
     def stop(self):
         if self.isRunning:
+            self.isRunning = False
             self.image_qt.stop()
             self.submit_timer.stop()
             self.play_timer.stop()

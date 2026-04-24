@@ -150,6 +150,11 @@ class WallPaperAPI:
 
     def start(self):
         self.image_play.start()
+        print(f"当前播放模式:{Config.IMAGE_PLAY_MODE}\n"
+              f"当前播放时间:{Config.IMAGE_TIME}\n"
+              f"当前播放顺序:{Config.IMAGE_PLAY_SORT}\n"
+              f"当前播放分级:{Config.IMAGE_CHOICE_PURITY}\n"
+              f"当前播放分类:{Config.IMAGE_CHOICE_CATEGORIES}")
 
     def pause(self):
         self.image_play.pause()

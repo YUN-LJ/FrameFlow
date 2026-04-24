@@ -12,6 +12,10 @@ if TYPE_CHECKING:
     from .Time import ReuseTimer
     # Terminal 模块中的类
     from .Terminal import CreateTerminal, CapturePythonTerminal
+    # TaskManage 模块中的类
+    from .TaskClass import TaskManageBase, TaskManage, Task, TaskProgress, TaskSignal
+    # AsynHTTP 模块中的类
+    from .AsyncHTTP import AsyncManage, AsyncJson, AsyncChunkDownloader
 
 # 声明对外接口
 __all__ = [
@@ -24,7 +28,11 @@ __all__ = [
     # Time 模块中的类
     'ReuseTimer',
     # Terminal 模块中的类
-    'CreateTerminal', 'CapturePythonTerminal'
+    'CreateTerminal', 'CapturePythonTerminal',
+    # TaskManage 模块中的类
+    'TaskManage', 'Task', 'TaskProgress', 'TaskSignal', 'TaskManageBase',
+    # AsynHTTP 模块中的类
+    'AsyncManage', 'AsyncJson', 'AsyncChunkDownloader'
 ]
 
 import importlib
@@ -52,6 +60,16 @@ _MODULE_MAP = {
     # Terminal 模块中的类
     'CreateTerminal': '.Terminal',
     'CapturePythonTerminal': '.Terminal',
+    # TaskManage 模块中的类
+    'TaskManage': '.TaskClass',
+    'Task': '.TaskClass',
+    'TaskProgress': '.TaskClass',
+    'TaskSignal': '.TaskClass',
+    'TaskManageBase': '.TaskClass',
+    # AsynHTTP 模块中的类
+    'AsyncManage': '.AsyncHTTP',
+    'AsyncJson': '.AsyncHTTP',
+    'AsyncChunkDownloader': '.AsyncHTTP',
 }
 
 

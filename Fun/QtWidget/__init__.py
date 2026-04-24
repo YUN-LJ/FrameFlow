@@ -99,3 +99,41 @@ def get_exist_files(caption: str = '', dir_path: str = Get.run_dir(), ext=None) 
                                            ext  # 选择格式
                                            )
     return file
+
+
+from qfluentwidgets.components.widgets import (
+    InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition,  # 气泡消息
+)
+from PySide6.QtCore import Qt
+
+
+# 气泡提示装饰器,被装饰函数需要返回bool,content,parent
+def info_bar_decorator(func):
+    def wrapper(*args, **kwargs):
+        # 调用被装饰的函数，并获取返回值
+        result, content, parent = func(*args, **kwargs)
+        icon = InfoBarIcon.SUCCESS if result else InfoBarIcon.ERROR
+        title = '成功' if result else '失败'
+        InfoBar.new(
+            icon=icon, title=title, content=content, orient=Qt.Horizontal,
+            isClosable=True, position=InfoBarPosition.TOP,
+            duration=1500, parent=parent)
+        return result, title, content  # 必须返回被装饰函数的结果
+
+    return wrapper  # 返回包装后的函数
+
+
+# 信息提示装饰器,被装饰函数需要返回bool,content,target,parent
+def teaching_tip_decorator(func):
+    def wrapper(*args, **kwargs):
+        # 调用被装饰的函数，并获取返回值
+        result, content, target, parent = func(*args, **kwargs)
+        icon = InfoBarIcon.SUCCESS if result else InfoBarIcon.ERROR
+        title = '成功' if result else '失败'
+        TeachingTip.create(
+            target=target, icon=icon, title=title, content=content,
+            isClosable=True, duration=1500, parent=parent,
+            tailPosition=TeachingTipTailPosition.BOTTOM)
+        return result, title, content, target, parent  # 必须返回被装饰函数的结果
+
+    return wrapper  # 返回包装后的函数

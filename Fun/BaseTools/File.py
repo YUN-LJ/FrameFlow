@@ -355,7 +355,7 @@ class EasyConfig:
     """
     便捷的存储配置文件
     该类在存储数据时会自动存储数据类型并在读取时转为python数据类型
-    目前支持的数据类型:int、float、str、list、bool
+    目前支持的数据类型:int、float、str、list、bool,NoneType
     """
 
     def __init__(self, config_file: str = None, cur_section=None):
@@ -386,7 +386,7 @@ class EasyConfig:
                 value_dict = {}
                 for key, value in config.items(section):
                     # 匹配规则去AI上查,()为只保留的匹配内容
-                    if value.find('type=<class ') != 0:
+                    if value.find('type=<class') != 0:
                         value_type = re.findall(r" type=<class '(\w*)'>$", value)[0]
                         value = re.findall(r"(.*) type=<class '\w*'>$", value)[0]
                         if value_type == 'list':
@@ -397,6 +397,8 @@ class EasyConfig:
                             value = int(value)
                         elif value_type == 'float':
                             value = float(value)
+                        elif value_type == 'NoneType':
+                            value = None
                         value_dict[key] = value
                 self.config_data[section] = value_dict
             return True
@@ -473,7 +475,7 @@ class EasyConfig:
         获取ini文件的全部节
         返回所有节列表,没有内容时返回[]
         """
-        return list[self.config_data.keys()]
+        return list(self.config_data.keys())
 
     def get_values(self, value_name: str = None, section_name: str = None) -> dict | list | str | float | int:
         """
@@ -497,9 +499,11 @@ class EasyConfig:
                 config.add_section(section)
                 for key, value in value.items():
                     value_type = type(value)
-                    if value_type in [int, float, list, str, bool]:
+                    if value_type in [int, float, list, str, bool, type(None)]:
                         if value_type == list:
                             value = ';'.join(value) if value else ''
+                        elif value_type == type(None):
+                            value = 'None'
                         value = f'{value} type={value_type}'
                         config.set(section, key, value)
             with open(self.config_file, 'w', encoding='utf-8') as f:

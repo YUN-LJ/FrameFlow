@@ -1,7 +1,6 @@
 """工具类"""
 from SubAPI.WallHaven.ImportPack import *
 from SubAPI.WallHaven import Config
-from typing import Optional
 
 
 def add_search_history(key_word: str):
@@ -33,6 +32,116 @@ def save_bytesIO(save_path: str, target_file: BytesIO):
         if not FileBase(save_path).exists:
             with open(save_path, 'wb') as f:
                 f.write(target_file.getvalue())
+
+
+class AsyncAPI:
+    """
+    异步请求API,
+    一个实例在使用了get发放后内部的请求任务则会被固定
+    即response_task每个实例只创建一次
+    """
+    async_manager = None  # 搜索异步池
+    retry_count = 3  # 最大重试次数,连接达到限制不计入重试次数
+
+    def __init__(self, task: Task, url: str, params: dict = None):
+        # 初始化异步池
+        if self.__class__.async_manager is None:
+            proxies = f'http://{Config.PROXIES_URL}' if Config.PROXIES_URL else None
+            self.__class__.async_manager = AsyncManage(proxies=proxies)
+        self.task = task
+        self.url = url
+        self.params = params
+        self.headers = Config.HEADERS if Config.API_KEY else None
+        self.proxies = f'http://{Config.PROXIES_URL}' if Config.PROXIES_URL else None
+        self.response_task: AsyncJson | AsyncChunkDownloader = None  # 内部请求
+
+    @classmethod
+    def set_proxies(cls, proxies):
+        """
+        :param proxies:如：http://127.0.0.1:8080
+        """
+        if cls.async_manager is not None:
+            cls.stop()
+        cls.async_manager = AsyncManage(proxies=proxies)
+
+    def get_search_data(self) -> pd.DataFrame | None:
+        """获取json数据"""
+        retry_count = 0
+        if self.response_task is None:
+            self.response_task = AsyncJson(self.url, self.__class__.async_manager, self.params, self.headers,
+                                           self.proxies)
+        while self.task.isRunning and retry_count < self.__class__.retry_count:
+            data = self.response_task.start(0)
+            if data: break
+            if self.response_task.status_code == 429:
+                print(f'{self.task.name} 请求达到限制,正在重试... {Time.now_time()}')
+                time.sleep(3)
+                continue
+            elif self.response_task.status_code == 404:
+                print(f'{self.task.name} 请求连接失败,正在重试... {Time.now_time()}')
+                retry_count += 1
+                time.sleep(1)
+                continue
+            else:
+                return None
+        if not data: return None
+        meta = data['meta']
+        results = data['data']
+        if not results: return None
+        # 处理搜索数据
+        data = [[result['id'],  # id
+                 self.params['q'],  # 关键词
+                 Config.CATEGORY_DICT[result['category']],  # 分类
+                 Config.PURITY_DICT[result['purity']],  # 分级
+                 int(result['file_size']),  # 大小
+                 Config.TYPE_DICT[result['file_type']],  # 扩张名
+                 int(result['dimension_x']),  # 长
+                 int(result['dimension_y']),  # 宽
+                 float(result['ratio']),  # 比例
+                 int(result['views']),  # 预览量
+                 int(result['favorites']),  # 收藏量
+                 result['path'],  # 远程路径
+                 result['thumbs']["original"],  # 略缩图_原
+                 result['thumbs']["large"],  # 略缩图_大
+                 result['thumbs']["small"],  # 略缩图_小
+                 pd.to_datetime(result['created_at']),  # 日期
+                 int(meta['current_page']),  # 当前页码
+                 int(meta['last_page']),  # 总页数
+                 int(meta['total']),  # 总数
+                 self.params['categories'],  # 类别码
+                 self.params['purity'],  # 分级码
+                 ] for result in results]
+        return pd.DataFrame(data, columns=GlobalValue.search_columns).astype(GlobalValue.search_dtype)
+
+    def get_download_data(self, signal: TaskSignal) -> BytesIO | None:
+        """获取文件数据"""
+        retry_count = 0
+        if self.response_task is None:
+            self.response_task = AsyncChunkDownloader(
+                self.url, self.__class__.async_manager,
+                params=self.params, headers=self.headers, proxies=self.proxies)
+        self.response_task.progress_signal.connect(signal.emit)
+        while self.task.isRunning and retry_count < self.__class__.retry_count:
+            data = self.response_task.start(0)
+            if data is not None:
+                return data
+            elif self.response_task.status_code == 429:
+                print(f'{self.task.name} 请求达到限制,正在重试... {Time.now_time()}')
+                time.sleep(3)
+                continue
+            elif self.response_task.status_code == 404:
+                print(f'{self.task.name} 请求连接失败,正在重试... {Time.now_time()}')
+                retry_count += 1
+                time.sleep(1)
+                continue
+            else:
+                return None
+
+    @classmethod
+    def stop(cls):
+        """停止异步任务"""
+        if cls.async_manager is not None:
+            cls.async_manager.stop()
 
 
 class RequestAPI:
@@ -223,6 +332,16 @@ class ImageData:
                 return True
         return False
 
+    def set_image_bytesIO(self, image_bytesio: BytesIO):
+        with self.lock:
+            self.image_load_time = time.time()
+            self.image_bytesio = image_bytesio
+
+    def set_thumb_bytesIO(self, thumb_bytesio: BytesIO):
+        with self.lock:
+            self.thumb_load_time = time.time()
+            self.thumb_bytesio = thumb_bytesio
+
     def get_image_info(self) -> pd.DataFrame | None:
         """从本地数据内获取图像详细信息"""
         while not ImageInfo.is_loaded(): time.sleep(1)
@@ -284,7 +403,7 @@ class ImageData:
 
 class ImageManage:
     """图像数据管理类,定时清理图像缓存,单例模式"""
-    clear_time = 30  # 清理时间
+    clear_time = 10  # 清理时间
     all_image_data: dict[str, ImageData] = {}  # 全部图像数据{image_id:ImageData}
     lock = Lock()  # 数据锁
     _instance = None
@@ -323,6 +442,8 @@ class ImageManage:
                         save_bytesIO(image_data.image_cache_path, image_data.get_image())
                         with image_data.lock:
                             image_data.image_bytesio = None
+            # 强制垃圾回收
+            gc.collect()
 
     @classmethod
     def get_image_data(cls, image_id: str, file_type: str, key_word: str) -> ImageData:
@@ -382,11 +503,9 @@ class SearchTask(Task):
                     ].copy(deep=True).reset_index(drop=True)
             if not result.empty: return result
         if self.use_network:  # 联网搜索
-            response = RequestAPI(self, Config.SEARCH_URL, self.params.to_dict())
-            if response.result is not None:
-                data = response.get_search_data()
-                if data is not None:
-                    SearchData.add_data(data)
+            data = AsyncAPI(self, Config.SEARCH_URL, self.params.to_dict()).get_search_data()
+            if data is not None:
+                SearchData.add_data(data)
                 return data
         else:  # 本地搜索
             purity_list = list(Config.PURITY_DICT.values())
@@ -430,7 +549,7 @@ class SearchTask(Task):
     def __execute_all(self) -> pd.DataFrame | None:
         """搜索全部"""
 
-        def sub_task_slot(task: Optional['SearchTask']):
+        def sub_task_slot(task: 'SearchTask'):
             """搜索全部时的返回函数,用于计数"""
             self.progress.finished += 1
             self.progress_signal.emit(self)
@@ -450,7 +569,7 @@ class SearchTask(Task):
                 sub_task.finish_signal.connect(sub_task_slot)
                 sub_task.start()
                 self.sub_task.append(sub_task)
-            while self.isRunning and self.progress.get_progress() < 100: time.sleep(0)
+            while self.progress.finished < self.progress.total: time.sleep(1)
             if self.isRunning:
                 for task in self.sub_task:
                     data = task.result()
@@ -458,7 +577,10 @@ class SearchTask(Task):
                         result = pd.concat([result, data]).drop_duplicates(
                             subset=['id'], keep='last', ignore_index=True)
                     else:
-                        return None
+                        print('失败的页码', task.params.page)
+                print(f'{self.params.q}全部搜索完成,'
+                      f'服务器预计数据量为{result.loc[0, '总数']},'
+                      f'实际数据量为{result.shape[0]}.')
                 return result
 
     def stop(self) -> bool:
@@ -506,39 +628,14 @@ class DownloadTask(Task):
         elif self.desc == 'image' and image_data.get_image():
             return image_data
         if self.use_network:  # 以上都不存在时发送网络请求
-            response = RequestAPI(self, self.download_url)
-            if response.result:
-                self.progress.total = int(response.result.headers['content-length'])  # 单位字节(b)
-                chunk_size = 1024 * 8 if self.progress.total >= 1024 * 100 else 1024 * 32
-                data = BytesIO()
-                up_time = time.time()
-                # iter_content 按chunk_size分块读取
-                # 这里会有可能出现读取超时,即request_api函数
-                # 的time_out的第二个值是指,两次chunk之间的时间不能超过20秒
-                try:
-                    for count, chunk in enumerate(response.get_download_data(chunk_size)):
-                        if self.isRunning:
-                            if chunk:  # 过滤保持连接的chunk
-                                data.write(chunk)
-                                self.progress.finished += len(chunk)
-                                if (count + 1) % 5 == 0:
-                                    time_taken = 1024 * (time.time() - up_time)
-                                    up_time = time.time()
-                                    self.progress.rate = (chunk_size * 5) / time_taken if time_taken != 0 else 0
-                                self.progress_signal.emit(self.progress)
-                            else:
-                                break
-                        else:
-                            break
-                except Exception:
-                    return None
-                if self.progress.finished == self.progress.total:
-                    with image_data.lock:
-                        if self.desc == 'thumb':
-                            image_data.thumb_bytesio = data
-                        elif self.desc == 'image':
-                            image_data.image_bytesio = data
-                    return image_data
+            response = AsyncAPI(self, self.download_url)
+            data = response.get_download_data(self.progress_signal)
+            if data is not None:
+                if self.desc == 'thumb':
+                    image_data.set_thumb_bytesIO(data)
+                elif self.desc == 'image':
+                    image_data.set_image_bytesIO(data)
+                return image_data
 
     def result(self, wait=None) -> ImageData | None:
         return super().result(wait)
@@ -578,6 +675,7 @@ class ImageInfoTask(Task):
                 if data is not None:
                     data.loc[0, '关键词'] = self.key_word
                     ImageInfo.add_data(data)
+                    response.result.close()
                     return data
 
     def result(self, wait=None) -> pd.DataFrame | None:
@@ -603,7 +701,7 @@ class KeyWordTask(Task):
     def __execute(self) -> pd.DataFrame | None:
         """具体的任务函数"""
         search_task = SearchTask(self.params, self.task_manage, use_network=self.use_network, use_cache=self.use_cache)
-        result = search_task.start(1)
+        result = search_task.start(0)
         if result is not None:
             key_data = pd.DataFrame(
                 [[
@@ -624,25 +722,19 @@ class KeyWordTask(Task):
 
 
 if __name__ == '__main__':
-    from BaseClass import DataManage
+    # from BaseClass import DataManage
+    import threading
+    from Fun.BaseTools.Get import monitor_threads
+
+    threading.Thread(target=monitor_threads, args=(2,), daemon=True).start()
 
     task_manage = TaskManage()
     params = Config.SearchParams()
     params.q = 'Fantasy Factory'
+    params.page = 1
     params.purity = '111'
     params.categories = '001'
-    local_task = KeyWordTask(params, task_manage, True, False)
+    local_task = SearchTask(params, task_manage, search_all=True)
+    local_task.finish_signal.connect(lambda x: print(x.result()))
+    local_task.progress_signal.connect(lambda x: print(x.progress))
     local_result = local_task.start(0)
-    print(local_result)
-    # remote_task = SearchTask(params, task_manage, True, True, False)
-    # remote_task.progress_signal.connect(lambda value: print(f'\r{value.progress.get_progress()}', end=''))
-    # remote_result = remote_task.start(0)
-    # print('\n', remote_result.shape[0])
-    # print(set(remote_result['id']) - set(local_result['id']))
-    # info_task = ImageInfoTask('yq8zpl', 'Aleksandra Bodler', task_manage)
-    # result = info_task.start(1)
-    # download_task = DownloadTask(result.loc[0, '远程路径'], 'Aleksandra Bodler', task_manage)
-    # image_file: ImageData = download_task.start(1)
-    # Config.SAVE_DIR = './'
-    # image_file.save_image(result)
-    # DataManage.stop()

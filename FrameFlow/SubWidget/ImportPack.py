@@ -1,6 +1,6 @@
 """Home的外部依赖库"""
 # 基本库
-import pandas as pd, os, time, requests, re
+import pandas as pd, os, time, requests, re, gc
 from queue import Queue, Empty
 from io import BytesIO
 from typing import Callable
@@ -22,11 +22,11 @@ from qfluentwidgets.components.widgets import (
 # 功能库
 from Fun.QtWidget import ImageWidget, TableCell, TableRow, get_exist_dir, get_exist_files, LeftandRightSplitter
 from Fun.BaseTools import Get, File, Str, Tools, FileBase, ImageLoad, CapturePythonTerminal, Terminal
-from BaseClass import (GlobalValue, TaskManage,
-                       Task, TaskProgress, TaskSignal,
-                       ImageInfo, KeyWord, SearchData, ConfigData)
-from BaseClass.WidgetMod import (GroupBoxCell, GroupBoxCellBase, AppCore,
-                                 LoadDialog, TopWidget, GroupBoxTable)
+from Fun.BaseTools import Task, TaskManageBase, TaskProgress, TaskSignal, TaskManage
+from BaseClass import GlobalValue, ImageInfo, KeyWord, SearchData, ConfigData
+from BaseClass.WidgetMod import (
+    GroupBoxCell, GroupBoxCellBase, AppCore,
+    LoadDialog, TopWidget, GroupBoxTable)
 # 后端库
 from SubAPI import WallHaven as WH
 from SubAPI.WallHaven import WallHavenAPI as WHAPI

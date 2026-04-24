@@ -140,7 +140,7 @@ class GroupBoxCell(GroupBoxCellBase):
         self.image = None  # 当前显示的图像
         self.thumb_url = None  # 略缩图网址
         self.image_url = None  # 图像图网址
-        self.image_widget.set_image(self.image_widget.default_image_load)
+        self.image_widget.set_image(None)
 
 
 class ProgressRingButton(PrimaryToolButton):

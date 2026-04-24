@@ -18,3 +18,6 @@ __pycache__/
 /获取远程仓库全部分支内容.txt
 temp/
 /Fun.egg-info
+/Discard/
+/NewFunTest/
+/Nuitka_output/

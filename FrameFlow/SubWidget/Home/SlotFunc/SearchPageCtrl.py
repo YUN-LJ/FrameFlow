@@ -1,4 +1,6 @@
 """搜索界面控制文件"""
+import gc
+
 from SubWidget.ImportPack import *
 from SubWidget.Home.SlotFunc.WorkFlow import SearchWorkFlow, ThumbWorkFlow
 
@@ -109,6 +111,8 @@ class Cell(GroupBoxCell):
         image_dialog.tagClicked.connect(sub_func)
         image_dialog.exec()
         image_dialog.work_flow.stop()
+        del image_dialog
+        gc.collect()
 
 
 class Table(GroupBoxTable):

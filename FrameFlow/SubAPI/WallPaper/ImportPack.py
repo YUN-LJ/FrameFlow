@@ -1,14 +1,15 @@
 # 标准库
-from queue import Empty
+from queue import Empty, Full, Queue as QueueThread
 from screeninfo import get_monitors
 from threading import Thread, Timer, Lock  # 定时器
-from multiprocessing import Process, Queue  # 进程
-import os, pandas as pd, numpy as np, time, random
+from multiprocessing import Process, Queue as QueueMul  # 进程
+from io import BytesIO
+import os, pandas as pd, numpy as np, time, random, gc
 # PySide6
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QThread
 # 自定义库
-from Fun.BaseTools import FileBase, ReuseTimer, ImageProcess, ImageEnum, ImageLoad
+from Fun.BaseTools import FileBase, ReuseTimer, ImageProcess, ImageEnum, ImageLoad, Image
 from Fun.BaseTools.Image import set_wallpaper_API
 from Fun.QtWidget import ImageWidget, WindowDesktop
 # 基本库

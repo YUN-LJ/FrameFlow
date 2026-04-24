@@ -1,16 +1,14 @@
 """子窗口部件"""
-import time
-import re
+import re, gc
 # 基本库
 import win32gui, win32con
-import numpy as np, sys, subprocess
+import numpy as np
 from screeninfo import get_monitors
 from typing import TYPE_CHECKING, Optional
 # 自定义库
 from Fun.BaseTools import CreateTerminal, Get
 
-if TYPE_CHECKING:
-    from Fun.BaseTools.Image import ImageLoad
+from Fun.BaseTools.Image import ImageLoad
 # PySide6库
 from PySide6.QtCore import Qt, QRect, QPoint, QEvent, Signal, QThread, QTimer
 from PySide6.QtGui import (QWindow, QIcon, QShortcut, QScreen, QFont, QColor,
@@ -264,6 +262,263 @@ class AnsiTextEdit(TextEdit):
         self.current_underline = False
 
 
+class FullScreenManager:
+    """全屏管理器 - 负责图片的全屏显示、缩放、拖拽等功能"""
+
+    def __init__(self, image_widget: 'ImageWidget'):
+        self.image_widget = image_widget
+        self.fullscreen_window: Optional[QWidget] = None
+        self.fullscreen_widget: Optional[QWidget] = None
+        self.info_bar: Optional[QWidget] = None
+        self.esc_shortcut: Optional[QShortcut] = None
+
+        # 全屏状态
+        self.scale_factor = 1.0
+        self.offset = QPoint(0, 0)
+        self.dragging = False
+        self.last_mouse_pos = QPoint()
+
+    def show_full_screen(self, show_info=True):
+        """显示全屏"""
+        if self.image_widget.original_pixmap.isNull():
+            return
+
+        if self.fullscreen_window is not None:
+            self.exit_full_screen()
+            return
+
+        self._create_fullscreen_window()
+        self._setup_layout(show_info)
+        self._setup_event_handlers()
+
+        self.image_widget.isFull = True
+        self.image_widget.fullScreenSignal.emit(True)
+
+    def exit_full_screen(self):
+        """退出全屏"""
+        if self.fullscreen_window:
+            try:
+                if self.esc_shortcut:
+                    self.esc_shortcut.setEnabled(False)
+                self.fullscreen_window.close()
+                self.fullscreen_window.deleteLater()
+            except:
+                pass
+
+            self._clear_references()
+            self.image_widget.isFull = False
+            self.image_widget.fullScreenSignal.emit(False)
+
+            # 强制垃圾回收
+            gc.collect()
+
+    def _create_fullscreen_window(self):
+        """创建全屏窗口"""
+        self.fullscreen_window = QWidget()
+        self.fullscreen_window.setWindowTitle("全屏查看 - 按ESC退出")
+        self.fullscreen_window.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.fullscreen_window.showFullScreen()
+
+    def _setup_layout(self, show_info: bool):
+        """设置全屏布局"""
+        layout = QVBoxLayout(self.fullscreen_window)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.fullscreen_widget = QWidget()
+        self.fullscreen_widget.setStyleSheet("background-color: black;")
+        layout.addWidget(self.fullscreen_widget)
+
+        if show_info:
+            self._create_info_bar(layout)
+
+    def _create_info_bar(self, layout: QVBoxLayout):
+        """创建信息栏"""
+        self.info_bar = QWidget()
+        self.info_bar.setFixedHeight(30)
+        self.info_bar.setStyleSheet("""
+            QWidget {
+                background-color: rgba(0, 0, 0, 180);
+                color: white;
+                font-size: 12px;
+            }
+        """)
+
+        info_layout = QHBoxLayout(self.info_bar)
+        info_layout.setContentsMargins(10, 0, 10, 0)
+
+        info = self.image_widget.get_image_info()
+        if isinstance(info, dict):
+            info_text = f"尺寸: {info.get('width', 0)}×{info.get('height', 0)} | 内存大小: {info.get('memory_mb', 0):.2f} MB"
+        else:
+            info_text = str(info)
+
+        info_label = QLabel(info_text)
+        info_label.setStyleSheet("color: white;")
+        info_layout.addWidget(info_label)
+        info_layout.addStretch()
+
+        esc_label = QLabel("按 ESC 退出全屏 | 双击图片恢复原状")
+        esc_label.setStyleSheet("color: lightgray;")
+        info_layout.addWidget(esc_label)
+
+        layout.addWidget(self.info_bar)
+
+    def _setup_event_handlers(self):
+        """设置事件处理器"""
+        self.fullscreen_window.installEventFilter(self.image_widget)
+
+        self.esc_shortcut = QShortcut(Qt.Key.Key_Escape, self.fullscreen_window)
+        self.esc_shortcut.activated.connect(self.exit_full_screen)
+
+        # 绑定事件处理方法
+        self.fullscreen_widget.wheelEvent = self._fullscreen_wheel_event
+        self.fullscreen_widget.mousePressEvent = self._fullscreen_mouse_press_event
+        self.fullscreen_widget.mouseMoveEvent = self._fullscreen_mouse_move_event
+        self.fullscreen_widget.mouseReleaseEvent = self._fullscreen_mouse_release_event
+        self.fullscreen_widget.paintEvent = self._fullscreen_paint_event
+        self.fullscreen_widget.mouseDoubleClickEvent = self._fullscreen_reset_view
+
+        # 窗口背景双击重置
+        self.fullscreen_window.mouseDoubleClickEvent = self._fullscreen_window_double_click
+
+        self.fullscreen_widget.update()
+
+    def _clear_references(self):
+        """清理引用"""
+        self.fullscreen_window = None
+        self.fullscreen_widget = None
+        self.info_bar = None
+        self.esc_shortcut = None
+        self.scale_factor = 1.0
+        self.offset = QPoint(0, 0)
+        self.dragging = False
+        self.last_mouse_pos = QPoint()
+
+    def _fullscreen_paint_event(self, event):
+        """全屏绘制事件"""
+        if self.image_widget.original_pixmap.isNull():
+            return
+
+        painter = QPainter(self.fullscreen_widget)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+
+        scaled_rect = self._calculate_fullscreen_scaled_rect()
+        scaled_rect.translate(self.offset)
+
+        painter.drawPixmap(scaled_rect, self.image_widget.original_pixmap)
+        painter.end()  # 显式结束绘制，释放资源
+
+    def _calculate_fullscreen_scaled_rect(self) -> QRect:
+        """计算全屏缩放矩形"""
+        widget_rect = self.fullscreen_widget.rect()
+        pixmap_size = self.image_widget.original_pixmap.size()
+
+        pixmap_ratio = pixmap_size.width() / pixmap_size.height()
+        widget_ratio = widget_rect.width() / widget_rect.height()
+
+        if pixmap_ratio > widget_ratio:
+            fitted_width = widget_rect.width()
+            fitted_height = fitted_width / pixmap_ratio
+        else:
+            fitted_height = widget_rect.height()
+            fitted_width = fitted_height * pixmap_ratio
+
+        scaled_width = fitted_width * self.scale_factor
+        scaled_height = fitted_height * self.scale_factor
+
+        x = (widget_rect.width() - scaled_width) / 2
+        y = (widget_rect.height() - scaled_height) / 2
+
+        return QRect(x, y, scaled_width, scaled_height)
+
+    def _fullscreen_wheel_event(self, event):
+        """全屏滚轮事件"""
+        if self.image_widget.original_pixmap.isNull():
+            return
+
+        old_scale = self.scale_factor
+        old_rect = self._calculate_fullscreen_scaled_rect()
+        old_rect_with_offset = old_rect.translated(self.offset)
+        mouse_pos = event.position().toPoint()
+
+        if event.angleDelta().y() > 0:
+            self.scale_factor = min(self.scale_factor * 1.1, 50.0)
+        else:
+            self.scale_factor = max(self.scale_factor / 1.1, 0.01)
+
+        if abs(self.scale_factor - old_scale) < 0.001:
+            return
+
+        if old_rect_with_offset.width() > 0 and old_rect_with_offset.height() > 0:
+            rel_x = (mouse_pos.x() - old_rect_with_offset.x()) / old_rect_with_offset.width()
+            rel_y = (mouse_pos.y() - old_rect_with_offset.y()) / old_rect_with_offset.height()
+            rel_x = max(0.0, min(1.0, rel_x))
+            rel_y = max(0.0, min(1.0, rel_y))
+
+            new_rect = self._calculate_fullscreen_scaled_rect()
+            target_x = mouse_pos.x() - rel_x * new_rect.width()
+            target_y = mouse_pos.y() - rel_y * new_rect.height()
+
+            self.offset = QPoint(
+                int(target_x - new_rect.x()),
+                int(target_y - new_rect.y())
+            )
+
+        self.fullscreen_widget.update()
+
+    def _fullscreen_mouse_press_event(self, event):
+        """全屏鼠标按下事件"""
+        if event.button() == Qt.LeftButton:
+            self.dragging = True
+            self.last_mouse_pos = event.position().toPoint()
+            self.fullscreen_widget.setCursor(Qt.ClosedHandCursor)
+            event.accept()
+
+    def _fullscreen_mouse_move_event(self, event):
+        """全屏鼠标移动事件"""
+        current_pos = event.position().toPoint()
+
+        if self.dragging:
+            delta = current_pos - self.last_mouse_pos
+            self.offset += delta
+            self.last_mouse_pos = current_pos
+            self.fullscreen_widget.update()
+            event.accept()
+        else:
+            if self.scale_factor > 1.0:
+                self.fullscreen_widget.setCursor(Qt.OpenHandCursor)
+            else:
+                self.fullscreen_widget.setCursor(Qt.ArrowCursor)
+
+    def _fullscreen_mouse_release_event(self, event):
+        """全屏鼠标释放事件"""
+        if event.button() == Qt.LeftButton and self.dragging:
+            self.dragging = False
+            self.fullscreen_widget.setCursor(Qt.ArrowCursor)
+            event.accept()
+
+    def _fullscreen_reset_view(self, event):
+        """全屏重置视图"""
+        if event.button() == Qt.LeftButton:
+            self.scale_factor = 1.0
+            self.offset = QPoint(0, 0)
+            self.fullscreen_widget.update()
+            event.accept()
+
+    def _fullscreen_window_double_click(self, event):
+        """全屏窗口双击事件"""
+        if event.button() == Qt.LeftButton:
+            self._fullscreen_reset_view(event)
+
+    def update_fullscreen(self):
+        """更新全屏显示（当图片改变时调用）"""
+        if self.fullscreen_widget:
+            self.fullscreen_widget.update()
+
+
 class ImageWidget(QWidget):
     """
     用于显示图片
@@ -279,21 +534,26 @@ class ImageWidget(QWidget):
     mouseWheelSignal = Signal()
     fullScreenSignal = Signal(bool)
 
-    default_image_load = None  # 会在类外部设置默认的ImageLoad实例
+    default_pixmap = None  # 默认图像的QPixmap
 
     def __init__(self, image_load: Optional['ImageLoad'] = None, parent=None):
-        super().__init__(parent)
-        # 直接接收 ImageLoad 对象
+        super().__init__()
+
+        # 初始化可见性优化相关变量
+        self._visibility_optimization_enabled = False
+        self._is_visible = False
+
+        # 存储图像的BytesIO数据（核心数据存储）
         if image_load is None:
-            if self.__class__.default_image_load is None:
-                from Fun.BaseTools.Image import ImageLoad
-                self.__class__.default_image_load = ImageLoad(np.full((224, 224, 4), fill_value=0, dtype=np.uint8))
-            self.image_load = self.__class__.default_image_load
+            if self.__class__.default_pixmap is None:
+                default_image_load = ImageLoad(np.full((224, 224, 4), fill_value=0, dtype=np.uint8))
+                self.__class__.default_pixmap = default_image_load.get_qpixmap()
+            self._image_bytes_io = None
         else:
-            self.image_load = image_load
+            self._image_bytes_io = image_load.get_bytesIO()
 
         self.display_text = None
-        self.original_pixmap = self._load_pixmap_from_imageload()
+        self.original_pixmap = self._load_pixmap_from_bytesio()
         self.setMinimumSize(50, 50)
 
         # 缩放和拖动功能的状态
@@ -304,32 +564,128 @@ class ImageWidget(QWidget):
         self.dragging = False
         self.last_mouse_pos = QPoint()
 
-        # 全屏相关
-        self.fullscreen_window = None
-        self.fullscreen_widget = None
-        self.info_bar = None
-        self.esc_shortcut = None
+        self.fullscreen_manager = FullScreenManager(self)
 
-    def _load_pixmap_from_imageload(self) -> QPixmap:
-        """从 ImageLoad 对象加载图片为 QPixmap"""
+    def _load_pixmap_from_bytesio(self) -> QPixmap:
+        """从BytesIO数据加载图片为QPixmap"""
         if self.display_text:
             return QPixmap()
-        return self.image_load.get_qpixmap()
+
+        try:
+            if self._image_bytes_io is None:
+                if self.__class__.default_pixmap is None:
+                    default_image_load = ImageLoad(np.full((224, 224, 4), fill_value=0, dtype=np.uint8))
+                    self.__class__.default_pixmap = default_image_load.get_qpixmap()
+                return self.__class__.default_pixmap
+
+            image_load = ImageLoad(self._image_bytes_io)
+            return image_load.get_qpixmap()
+        except Exception as e:
+            print(f"从BytesIO加载图像失败: {e}")
+            if self.__class__.default_pixmap is None:
+                default_image_load = ImageLoad(np.full((224, 224, 4), fill_value=0, dtype=np.uint8))
+                self.__class__.default_pixmap = default_image_load.get_qpixmap()
+            return self.__class__.default_pixmap
+
+    def _get_current_image_load(self) -> 'ImageLoad':
+        """获取当前的ImageLoad对象（按需创建）"""
+        if self._image_bytes_io is None:
+            if self.__class__.default_pixmap is None:
+                default_image_load = ImageLoad(np.full((224, 224, 4), fill_value=0, dtype=np.uint8))
+                self.__class__.default_pixmap = default_image_load.get_qpixmap()
+            return ImageLoad(np.full((224, 224, 4), fill_value=0, dtype=np.uint8))
+
+        return ImageLoad(self._image_bytes_io)
+
+    def enable_visibility_optimization(self):
+        """
+        启用可见性优化
+        启用后，Widget不可见时会显示默认图片以节省内存
+        """
+        if not self._visibility_optimization_enabled:
+            self._visibility_optimization_enabled = True
+            # 如果当前不可见，立即切换到默认图片
+            if not self._is_visible:
+                self._switch_to_default_image()
+
+    def disable_visibility_optimization(self):
+        """
+        禁用可见性优化
+        禁用后，Widget将始终显示实际图片
+        """
+        if self._visibility_optimization_enabled:
+            self._visibility_optimization_enabled = False
+            # 恢复实际图片
+            if not self._is_visible:
+                self._reload_actual_image()
+
+    def _switch_to_default_image(self):
+        """切换到默认图片"""
+        if self.__class__.default_pixmap is None:
+            default_image_load = ImageLoad(np.full((224, 224, 4), fill_value=0, dtype=np.uint8))
+            self.__class__.default_pixmap = default_image_load.get_qpixmap()
+
+        # 保存实际的图像数据
+        self._actual_image_bytes_io = self._image_bytes_io
+        # 切换到默认图片
+        self._image_bytes_io = None
+        self.original_pixmap = self.__class__.default_pixmap
+        self.update()
+
+        if self.isFull:
+            self.fullscreen_manager.update_fullscreen()
+
+    def _reload_actual_image(self):
+        """重新加载实际图片"""
+        if hasattr(self, '_actual_image_bytes_io') and self._actual_image_bytes_io is not None:
+            self._image_bytes_io = self._actual_image_bytes_io
+            self.original_pixmap = self._load_pixmap_from_bytesio()
+            self.update()
+
+            if self.isFull:
+                self.fullscreen_manager.update_fullscreen()
+
+    def showEvent(self, event):
+        """窗口显示事件 - 用于减少内存消耗"""
+        super().showEvent(event)
+        self._is_visible = True
+
+        # 如果启用了可见性优化，恢复到实际图片
+        if self._visibility_optimization_enabled:
+            self._reload_actual_image()
+
+    def hideEvent(self, event):
+        """窗口隐藏事件 - 用于减少内存消耗"""
+        super().hideEvent(event)
+        self._is_visible = False
+
+        # 如果启用了可见性优化，切换到默认图片
+        if self._visibility_optimization_enabled:
+            self._switch_to_default_image()
 
     def set_image(self, image_load: Optional['ImageLoad']) -> bool:
         """设置新图片"""
         self.display_text = None
 
-        # 检查是否是同一个对象
-        if self.image_load is image_load:
-            return False
+        # 检查是否是相同的图像数据
+        if image_load is not None:
+            new_bytes_io = image_load.get_bytesIO()
+            if self._image_bytes_io is not None and new_bytes_io.getvalue() == self._image_bytes_io.getvalue():
+                return False
+            self._image_bytes_io = new_bytes_io
+        else:
+            self._image_bytes_io = None
 
-        self.image_load = image_load
-        self.original_pixmap = self._load_pixmap_from_imageload()
+        self.original_pixmap = self._load_pixmap_from_bytesio()
+
+        # 清除保存的实际图像数据（因为已经更新了）
+        if hasattr(self, '_actual_image_bytes_io'):
+            delattr(self, '_actual_image_bytes_io')
+
         self.reset_view()
 
         if self.isFull:
-            self.fullscreen_widget.update()
+            self.fullscreen_manager.update_fullscreen()
 
         return True
 
@@ -440,7 +796,6 @@ class ImageWidget(QWidget):
                 int(target_x - new_rect.x()),
                 int(target_y - new_rect.y())
             )
-
         self.mouseWheelSignal.emit()
         self.update()
         event.accept()
@@ -448,18 +803,15 @@ class ImageWidget(QWidget):
     def can_drag(self):
         if not self.enable_zoom_drag or self.original_pixmap.isNull():
             return False
-
         scaled_width = self.original_pixmap.width() * self.scale_factor
         scaled_height = self.original_pixmap.height() * self.scale_factor
         widget_rect = self.rect()
-
         return scaled_width > widget_rect.width() or scaled_height > widget_rect.height()
 
     def mousePressEvent(self, event: QMouseEvent):
         if not self.can_drag():
             super().mousePressEvent(event)
             return
-
         if event.button() == Qt.LeftButton:
             self.dragging = True
             self.last_mouse_pos = event.position().toPoint()
@@ -471,9 +823,7 @@ class ImageWidget(QWidget):
         if not self.enable_zoom_drag:
             super().mouseMoveEvent(event)
             return
-
         current_pos = event.position().toPoint()
-
         if self.dragging and self.can_drag():
             delta = current_pos - self.last_mouse_pos
             self.offset += delta
@@ -514,240 +864,25 @@ class ImageWidget(QWidget):
     def get_image_info(self):
         if self.original_pixmap.isNull():
             return "无图片"
-
+        # 按需创建ImageLoad对象获取信息
+        current_image_load = self._get_current_image_load()
         return {
             'width': self.original_pixmap.width(),
             'height': self.original_pixmap.height(),
-            'memory_mb': self.image_load.size_mb,
-            'shape': self.image_load.shape,
-            'channels': self.image_load.channels,
+            'memory_mb': current_image_load.size_mb,
+            'shape': current_image_load.shape,
+            'channels': current_image_load.channels,
             'has_alpha': self.original_pixmap.hasAlphaChannel()
         }
 
-    # ==================== 全屏功能 ====================
     def showFullScreen(self, show_info=True):
-        if self.original_pixmap.isNull():
-            return
-
-        if self.fullscreen_window is not None:
-            self.exitFullScreen()
-            return
-
-        self.fullscreen_window = QWidget()
-        self.fullscreen_window.setWindowTitle("全屏查看 - 按ESC退出")
-        self.fullscreen_window.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint
-        )
-        self.fullscreen_window.showFullScreen()
-
-        layout = QVBoxLayout(self.fullscreen_window)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        self.fullscreen_widget = QWidget()
-        self.fullscreen_widget.setStyleSheet("background-color: black;")
-        layout.addWidget(self.fullscreen_widget)
-
-        if show_info:
-            self.info_bar = QWidget()
-            self.info_bar.setFixedHeight(30)
-            self.info_bar.setStyleSheet("""
-                QWidget {
-                    background-color: rgba(0, 0, 0, 180);
-                    color: white;
-                    font-size: 12px;
-                }
-            """)
-
-            info_layout = QHBoxLayout(self.info_bar)
-            info_layout.setContentsMargins(10, 0, 10, 0)
-
-            info = self.get_image_info()
-            if isinstance(info, dict):
-                info_text = f"尺寸: {info.get('width', 0)}×{info.get('height', 0)} | 内存: {info.get('memory_mb', 0):.2f} MB"
-            else:
-                info_text = str(info)
-
-            self.info_label = QLabel(info_text)
-            self.info_label.setStyleSheet("color: white;")
-            info_layout.addWidget(self.info_label)
-            info_layout.addStretch()
-
-            self.esc_label = QLabel("按 ESC 退出全屏 | 双击图片恢复原状")
-            self.esc_label.setStyleSheet("color: lightgray;")
-            info_layout.addWidget(self.esc_label)
-
-            layout.addWidget(self.info_bar)
-
-        self.fullscreen_scale_factor = 1.0
-        self.fullscreen_offset = QPoint(0, 0)
-        self.fullscreen_dragging = False
-        self.fullscreen_last_mouse_pos = QPoint()
-
-        self.fullscreen_window.installEventFilter(self)
-
-        self.esc_shortcut = QShortcut(Qt.Key.Key_Escape, self.fullscreen_window)
-        self.esc_shortcut.activated.connect(self.exitFullScreen)
-
-        # 绑定事件处理方法
-        self.fullscreen_widget.wheelEvent = self.fullscreenWheelEvent
-        self.fullscreen_widget.mousePressEvent = self.fullscreenMousePressEvent
-        self.fullscreen_widget.mouseMoveEvent = self.fullscreenMouseMoveEvent
-        self.fullscreen_widget.mouseReleaseEvent = self.fullscreenMouseReleaseEvent
-        self.fullscreen_widget.paintEvent = self.fullscreenPaintEvent
-        self.fullscreen_widget.mouseDoubleClickEvent = self.fullscreenResetView  # 改为重置视图
-
-        # 可选：同时也支持窗口背景双击重置
-        self.fullscreen_window.mouseDoubleClickEvent = self.fullscreenWindowDoubleClick
-
-        self.fullscreen_widget.update()
-        self.isFull = True
-        self.fullScreenSignal.emit(True)
+        self.fullscreen_manager.show_full_screen(show_info)
 
     def exitFullScreen(self):
-        if self.fullscreen_window:
-            try:
-                if self.esc_shortcut:
-                    self.esc_shortcut.setEnabled(False)
-                self.fullscreen_window.close()
-                self.fullscreen_window.deleteLater()
-            except:
-                pass
-
-            self.fullscreen_window = None
-            self.fullscreen_widget = None
-            self.info_bar = None
-            self.esc_shortcut = None
-            self.isFull = False
-            self.fullScreenSignal.emit(False)
-
-    def fullscreenPaintEvent(self, event):
-        if self.original_pixmap.isNull():
-            return
-
-        painter = QPainter(self.fullscreen_widget)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-
-        widget_rect = self.fullscreen_widget.rect()
-        pixmap_size = self.original_pixmap.size()
-
-        pixmap_ratio = pixmap_size.width() / pixmap_size.height()
-        widget_ratio = widget_rect.width() / widget_rect.height()
-
-        if pixmap_ratio > widget_ratio:
-            fitted_width = widget_rect.width()
-            fitted_height = fitted_width / pixmap_ratio
-        else:
-            fitted_height = widget_rect.height()
-            fitted_width = fitted_height * pixmap_ratio
-
-        scaled_width = fitted_width * self.fullscreen_scale_factor
-        scaled_height = fitted_height * self.fullscreen_scale_factor
-
-        x = (widget_rect.width() - scaled_width) / 2
-        y = (widget_rect.height() - scaled_height) / 2
-
-        scaled_rect = QRect(x, y, scaled_width, scaled_height)
-        scaled_rect.translate(self.fullscreen_offset)
-
-        painter.drawPixmap(scaled_rect, self.original_pixmap)
-
-    def fullscreenWheelEvent(self, event):
-        if self.original_pixmap.isNull():
-            return
-
-        old_scale = self.fullscreen_scale_factor
-        widget_rect = self.fullscreen_widget.rect()
-        pixmap_size = self.original_pixmap.size()
-
-        pixmap_ratio = pixmap_size.width() / pixmap_size.height()
-        widget_ratio = widget_rect.width() / widget_rect.height()
-
-        if pixmap_ratio > widget_ratio:
-            fitted_width = widget_rect.width()
-            fitted_height = fitted_width / pixmap_ratio
-        else:
-            fitted_height = widget_rect.height()
-            fitted_width = fitted_height * pixmap_ratio
-
-        old_width = fitted_width * old_scale
-        old_height = fitted_height * old_scale
-        old_x = (widget_rect.width() - old_width) / 2 + self.fullscreen_offset.x()
-        old_y = (widget_rect.height() - old_height) / 2 + self.fullscreen_offset.y()
-
-        mouse_pos = event.position().toPoint()
-
-        if event.angleDelta().y() > 0:
-            self.fullscreen_scale_factor = min(self.fullscreen_scale_factor * 1.1, 50.0)
-        else:
-            self.fullscreen_scale_factor = max(self.fullscreen_scale_factor / 1.1, 0.01)
-
-        new_width = fitted_width * self.fullscreen_scale_factor
-        new_height = fitted_height * self.fullscreen_scale_factor
-
-        if old_width > 0 and old_height > 0:
-            rel_x = (mouse_pos.x() - old_x) / old_width
-            rel_y = (mouse_pos.y() - old_y) / old_height
-            rel_x = max(0.0, min(1.0, rel_x))
-            rel_y = max(0.0, min(1.0, rel_y))
-
-            new_x = mouse_pos.x() - rel_x * new_width
-            new_y = mouse_pos.y() - rel_y * new_height
-
-            center_x = (widget_rect.width() - new_width) / 2
-            center_y = (widget_rect.height() - new_height) / 2
-
-            self.fullscreen_offset = QPoint(
-                int(new_x - center_x),
-                int(new_y - center_y)
-            )
-
-        self.fullscreen_widget.update()
-
-    def fullscreenMousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.fullscreen_dragging = True
-            self.fullscreen_last_mouse_pos = event.position().toPoint()
-            self.fullscreen_widget.setCursor(Qt.ClosedHandCursor)
-            event.accept()
-
-    def fullscreenMouseMoveEvent(self, event):
-        current_pos = event.position().toPoint()
-
-        if self.fullscreen_dragging:
-            delta = current_pos - self.fullscreen_last_mouse_pos
-            self.fullscreen_offset += delta
-            self.fullscreen_last_mouse_pos = current_pos
-            self.fullscreen_widget.update()
-            event.accept()
-        else:
-            # 只在可以拖拽时显示手型光标
-            if self.fullscreen_scale_factor > 1.0:  # 或者检查图片是否超出窗口
-                self.fullscreen_widget.setCursor(Qt.OpenHandCursor)
-            else:
-                self.fullscreen_widget.setCursor(Qt.ArrowCursor)
-
-    def fullscreenMouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self.fullscreen_dragging:
-            self.fullscreen_dragging = False
-            self.fullscreen_widget.setCursor(Qt.ArrowCursor)
-            event.accept()
-
-    def fullscreenResetView(self, event):
-        """全屏模式下双击重置视图"""
-        if event.button() == Qt.LeftButton:
-            self.fullscreen_scale_factor = 1.0
-            self.fullscreen_offset = QPoint(0, 0)
-            self.fullscreen_widget.update()
-            event.accept()
-
-    def fullscreenWindowDoubleClick(self, event):
-        """全屏窗口背景双击也重置视图"""
-        if event.button() == Qt.LeftButton:
-            self.fullscreenResetView(event)
+        self.fullscreen_manager.exit_full_screen()
 
     def eventFilter(self, obj, event):
-        if self.fullscreen_window and obj == self.fullscreen_window:
+        if self.fullscreen_manager.fullscreen_window and obj == self.fullscreen_manager.fullscreen_window:
             if event.type() == QEvent.Type.KeyPress:
                 if event.key() == Qt.Key.Key_Escape:
                     self.exitFullScreen()
@@ -1100,6 +1235,7 @@ class AcondaWidget(TerminalWidget):
         self.activate_name = activate_name  # 当前激活的环境,为None时处于继承状态
         super().__init__(False, parent, "cmd")
         self.startTerminal()
+        self.finished_init = False
         if self.activate_name is not None:
             self.__init_timer = QTimer()
             self.__init_timer.timeout.connect(self.__init_activate)
@@ -1108,6 +1244,7 @@ class AcondaWidget(TerminalWidget):
     def __init_activate(self):
         if self.terminal.wait_command:
             self.activateName(self.activate_name)
+            self.finished_init = True
             self.__init_timer.stop()
 
     def activateName(self, name):
