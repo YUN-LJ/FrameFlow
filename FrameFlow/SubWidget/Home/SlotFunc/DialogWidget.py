@@ -88,9 +88,11 @@ class ImageDialog(Ui_Image, MessageBoxBase):
 
         def pushButton_full():
             self.image_widget.showFullScreen()
-            shortcut_back = QShortcut(QKeySequence(Qt.Key.Key_Left), self.image_widget.fullscreen_window)
+            shortcut_back = QShortcut(QKeySequence(Qt.Key.Key_Left),
+                                      self.image_widget.fullscreen_manager.fullscreen_widget)
             shortcut_back.activated.connect(self.pushButton_back.click)
-            shortcut_next = QShortcut(QKeySequence(Qt.Key.Key_Right), self.image_widget.fullscreen_window)
+            shortcut_next = QShortcut(QKeySequence(Qt.Key.Key_Right),
+                                      self.image_widget.fullscreen_manager.fullscreen_widget)
             shortcut_next.activated.connect(self.pushButton_next.click)
 
         def switch_images(index):
@@ -150,14 +152,14 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         for label in self.scrollAreaWidgetContents.findChildren(QLabel):
             if '_value' in label.objectName():
                 label.setText('')
-        self.image_widget.set_image(self.image_widget.default_image_load)
+        self.image_widget.set_text('加载中...')
         self.image_widget.setMinimumHeight(0)
 
     def __progress(self, value: TaskProgress):
         self.progressBar.setValue(value.get_progress())
 
     def __finished(self, value: bool):
-        if value:
+        if value and self.work_flow.image_data.get_image() is not None:
             self.progressBar.hide()
             self.displayTags(self.work_flow.image_data.get_image_info())
             self.image_widget.set_image(ImageLoad(self.work_flow.image_data.get_image()))

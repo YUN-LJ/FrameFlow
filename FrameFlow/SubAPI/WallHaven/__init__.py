@@ -50,6 +50,7 @@ def set_proxies_url(url, check=True) -> bool:
             return False
     Config.PROXIES_URL = url
     Config.PROXIES = {'http': f'http://{url}', 'https': f'http://{url}'}
+    AsyncAPI.set_proxies(f'http://{url}')
     return True
 
 
@@ -251,6 +252,7 @@ class WallHavenAPI:
         self.__thread_pool_json.stop()
         self.__thread_pool_file.stop()
         self.__thread_pool_thumb.stop()
+        AsyncAPI.stop()
 
 
 load_config()

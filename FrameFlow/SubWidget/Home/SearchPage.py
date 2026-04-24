@@ -1,4 +1,6 @@
 """搜索子窗口"""
+import gc
+
 from SubWidget.ImportPack import *
 from SubWidget.Home.SlotFunc import SearchPageCtrl as SPC
 from SubWidget.Home.SlotFunc.DialogWidget import SearchDialog, DelDialog
@@ -142,7 +144,9 @@ class SearchSlot:
         """搜索完成"""
         if self.search_dialog is not None:
             self.search_dialog.searchFinished(task)
+            del self.search_dialog
             self.search_dialog = None
+            gc.collect()
 
     def searchSiganl(self, text):
         AppCore().getSignal('Home_switchPage').emit(self.parent)
@@ -239,6 +243,7 @@ class SearchSlot:
                 title = '删除成功'
                 content = f'成功删除:{len(select_image)}张'
                 SearchData.clear()
+                del del_dialog
                 self.lineEdit()
             else:
                 content = '已取消'

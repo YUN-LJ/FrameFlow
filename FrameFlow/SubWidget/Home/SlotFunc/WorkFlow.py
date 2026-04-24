@@ -72,7 +72,7 @@ class DownloadWorkFlow(Task):
 
     def __execute(self):
         state = True
-        self.info_task.start(1)  # 获取图像信息数据,防止图像存在但归属于多个关键词时信息不记录
+        self.info_task.start(0)  # 获取图像信息数据,防止图像存在但归属于多个关键词时信息不记录
         # 本地图像数据不存在时提交下载
         if not self.image_data.isExist:
             state = False
@@ -80,7 +80,7 @@ class DownloadWorkFlow(Task):
                 save_path = self.image_data.generate_save_path(self.info_task.result())
                 # 本地文件存在则不下载只保存图像信息
                 if not FileBase(save_path).exists and self.isRunning:
-                    self.download_task.start(1)
+                    self.download_task.start(0)
                     state = self.image_data.save_image(self.info_task.result()) if self.save else True
                 else:
                     self.image_data.save_image_info(self.info_task.result())
@@ -90,6 +90,7 @@ class DownloadWorkFlow(Task):
             self.finish_signal.emit(state)
         with self.__class__.__lock:
             self.__class__.All_Work_Flow.pop(self.url, None)
+        gc.collect()
 
     def setSignal(self, start_signal: Signal, progress_signal: Signal,
                   finish_signal: Signal, stop_singnal: Signal = None):
@@ -117,6 +118,7 @@ class DownloadWorkFlow(Task):
         self.download_task.stop()
         with self.__class__.__lock:
             self.__class__.All_Work_Flow.pop(self.url, None)
+        gc.collect()
         return super().stop()
 
 
@@ -156,11 +158,12 @@ class UpdateWorkFlow(Task):
     def __execute(self):
         self.isRunning = True
         state = False
+        print(f'{self.key_word} 执行更新中')
         # 获取远程第一页数据和全部本地数据
         if self.__step_one():
             # 更新关键词数据,不使用本地数据,step_one已经搜索了本地数据
             key_task = WHAPI.key_word_task(self.params, use_cache=False)
-            self.local_key_data = key_task.start(1)
+            self.local_key_data = key_task.start(0)
             # 筛选出需要下载的文件
             image_url = self.__step_two()
             state = True
@@ -207,8 +210,8 @@ class UpdateWorkFlow(Task):
 
     def __step_one(self) -> bool:
         if self.isRunning:
-            self.remote_first.start(1)
-            self.local_all.start(1)
+            self.remote_first.start(0)
+            self.local_all.start(0)
             if self.remote_first.result() is not None:
                 return True
         return False
@@ -223,16 +226,20 @@ class UpdateWorkFlow(Task):
                 # 对比云端数据与本地数据数量和日期是否对的上,云端可能会有图片被删除的情况
                 if (result.loc[0, '日期'] > local_result.loc[0, '日期'] or
                         result.loc[0, '总数'] > local_result.loc[0, '总数']):
-                    # 搜索全部云端文件
-                    remote_result = self.remote_all.start(1)
+                    # 搜索全部云端文件,如果已经搜索过则直接使用
+                    remote_result = self.remote_all.result()
+                    if remote_result is None:
+                        remote_result = self.remote_all.start(0)
                     if remote_result is not None:
                         # 选出差异文件
                         image_url = remote_result.loc[~remote_result['远程路径'].isin(
                             local_result['远程路径']), ['关键词', '远程路径']].values.tolist()
                         return image_url
             else:
-                # 搜索全部云端文件
-                remote_result: pd.DataFrame = self.remote_all.start(1)
+                # 搜索全部云端文件,如果已经搜索过则直接使用
+                remote_result = self.remote_all.result()
+                if remote_result is None:
+                    remote_result = self.remote_all.start(0)
                 if remote_result is not None:
                     # 选出差异文件
                     image_url = remote_result[['关键词', '远程路径']].values.tolist()
@@ -247,6 +254,8 @@ class UpdateWorkFlow(Task):
                 if work_flow is not None:
                     self.all_download_work_flow.append(work_flow)
                     work_flow.finish_signal.connect(
+                        lambda value, work=work_flow: self.__download_finished(value, work))
+                    work_flow.stop_signal.connect(
                         lambda value, work=work_flow: self.__download_finished(value, work))
                     work_flow.start()
                     break
@@ -297,10 +306,11 @@ class SerialWorkFlow(Task):
     def __execute(self):
         while self.isRunning:
             try:
+                gc.collect()
                 with self.__lock:
                     self.progress.total = len(self.task_list) + self.progress.finished
                     self.current_task = self.task_list.pop(0)
-                self.current_task.start(1)
+                self.current_task.start(0)
                 self.progress.finished += 1
                 self.progress_signal.emit(self.progress)
             except IndexError:

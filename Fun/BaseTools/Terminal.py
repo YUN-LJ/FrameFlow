@@ -69,8 +69,10 @@ class CreateTerminal:
         self.type = terminal_type.lower()
         self.python_path = python_path or sys.executable
         self.char_queue = Queue()
-        self.read_thread = threading.Thread(target=self.__read_output, daemon=True)
-        self.status_thread = threading.Thread(target=self.__monitor_status, daemon=True)
+        self.read_thread = threading.Thread(
+            target=self.__read_output, name=f'{self.__class__.__name__}.read_thread', daemon=True)
+        self.status_thread = threading.Thread(
+            target=self.__monitor_status, name=f'{self.__class__.__name__}.status_thread', daemon=True)
         self.process: PtyProcess = None
         self.is_running = False
         self.wait_command = False  # True表示等待命令输入,False表示正在执行命令
@@ -173,34 +175,34 @@ class CreateTerminal:
                 time.sleep(0.1)  # 每100ms检查一次
                 if not self.output_buffer:
                     continue
-                # 根据终端类型判断提示符
-                if self.type == self.TERMINAL_TYPE_PYTHON:
-                    # Python 提示符：>>> 或 ...
-                    if '>>>' in self.output_buffer or '...' in self.output_buffer:
-                        # 检查最后几行是否有提示符
+                elif time.time() - self.last_output_time > 2.0 and self.output_buffer:
+                    # 根据终端类型判断提示符
+                    if self.type == self.TERMINAL_TYPE_PYTHON:
+                        # Python 提示符：>>> 或 ...
+                        if '>>>' in self.output_buffer or '...' in self.output_buffer:
+                            # 检查最后几行是否有提示符
+                            lines = self.output_buffer.split('\n')
+                            for line in reversed(lines[-5:]):  # 检查最后5行
+                                stripped = line.strip()
+                                if stripped.startswith('>>>') or stripped.startswith('...'):
+                                    self.wait_command = True
+                                    self.output_buffer = ""  # 清空缓冲区
+                                    break
+                    elif self.type == self.TERMINAL_TYPE_CMD:
+                        # CMD 提示符：包含路径和 >
+                        # 例如：C:\Users\Admin> 或 E:\code\Python>
                         lines = self.output_buffer.split('\n')
-                        for line in reversed(lines[-5:]):  # 检查最后5行
+                        for line in reversed(lines[-3:]):  # 检查最后3行
                             stripped = line.strip()
-                            if stripped.startswith('>>>') or stripped.startswith('...'):
+                            # 匹配 CMD 提示符模式：盘符:\路径>
+                            if re.search(r'[A-Z]:\\[^>]*>', stripped, re.IGNORECASE):
                                 self.wait_command = True
                                 self.output_buffer = ""  # 清空缓冲区
                                 break
-                elif self.type == self.TERMINAL_TYPE_CMD:
-                    # CMD 提示符：包含路径和 > 
-                    # 例如：C:\Users\Admin> 或 E:\code\Python>
-                    lines = self.output_buffer.split('\n')
-                    for line in reversed(lines[-3:]):  # 检查最后3行
-                        stripped = line.strip()
-                        # 匹配 CMD 提示符模式：盘符:\路径>
-                        if re.search(r'[A-Z]:\\[^>]*>', stripped, re.IGNORECASE):
-                            self.wait_command = True
-                            self.output_buffer = ""  # 清空缓冲区
-                            break
                 # 如果超过2秒没有新输出，且缓冲区不为空，可能命令已执行完毕
-                if time.time() - self.last_output_time > 2.0 and self.output_buffer:
-                    self.wait_command = True
-                    self.output_buffer = ""
-
+                # if time.time() - self.last_output_time > 2.0 and self.output_buffer:
+                #     self.wait_command = True
+                #     self.output_buffer = ""
             except Exception as e:
                 time.sleep(0.5)
 

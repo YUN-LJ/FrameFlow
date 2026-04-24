@@ -72,6 +72,7 @@ def stop():
 
 if __name__ == '__main__':
     from Fun.BaseTools.Terminal import hide_python_terminal, CapturePythonTerminal
+    from Fun.BaseTools.Get import get_threads, monitor_threads
     from ImportFile import Config
 
     # 处理启动参数
@@ -97,3 +98,7 @@ if __name__ == '__main__':
     else:
         start()
         stop()
+    # 打印当前剩余线程
+    for index, thread in enumerate(get_threads()):
+        print(f'{index} - {thread.name:30s} | daemon={thread.daemon}')
+    print(f'程序已退出')

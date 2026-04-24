@@ -94,12 +94,15 @@ class WallPaperSlot:
 
     def startPlaySignal(self):
         self.parent.pushButton_play.setIcon(FIF.PAUSE)
+        self.parent.right_widget.image_widget.enable_visibility_optimization()  # 可见性优化
 
     def pausePlaySignal(self):
         if self.parent.pushButton_play._icon == FIF.PLAY:
             self.parent.pushButton_play.setIcon(FIF.PAUSE)
+            self.parent.right_widget.image_widget.enable_visibility_optimization()  # 可见性优化
         else:
             self.parent.pushButton_play.setIcon(FIF.PLAY)
+            self.parent.right_widget.image_widget.disable_visibility_optimization()  # 关闭可见性优化
 
     def pushButton_set(self):
         set_dialog = SetDialog(self.parent)

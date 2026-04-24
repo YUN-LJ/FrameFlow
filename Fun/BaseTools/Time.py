@@ -239,7 +239,10 @@ class ReuseTimer:
             self._wakeup_event.clear()
 
     def start(self, time_out=None):
-        """开始"""
+        """
+        开始
+        :param time_out:多少秒后执行,默认为间隔时间
+        """
         with self._state_lock:
             # 如果已经在运行，先停止
             if self._state != TimerState.IDLE:

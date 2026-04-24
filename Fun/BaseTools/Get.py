@@ -1,5 +1,28 @@
 """常用值获取"""
-import sys, os
+import os
+import sys
+import time
+import threading
+
+
+def get_threads():
+    """获取当前所有线程"""
+    return threading.enumerate()
+
+
+def monitor_threads(interval=5):
+    """定期监控线程状态"""
+    while True:
+        for thread in threading.enumerate():
+            print(f'  - {thread.name:30s} | daemon={thread.daemon}')
+        print(f'\n[{time.strftime("%H:%M:%S")}] 当前活跃线程数: {threading.active_count()}')
+        time.sleep(interval)
+
+
+def start_monitor_threads(interval=5):
+    """启动监控线程"""
+    monitor_thread = threading.Thread(target=monitor_threads, args=(interval,), daemon=True)
+    monitor_thread.start()
 
 
 def run_dir() -> str:
