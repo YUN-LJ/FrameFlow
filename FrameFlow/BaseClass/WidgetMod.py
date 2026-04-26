@@ -130,7 +130,7 @@ class GroupBoxCell(GroupBoxCellBase):
         self.layout.addWidget(self.image_widget)
 
     def setImage(self, image):
-        self.image_widget.set_image(ImageLoad(image))
+        self.image_widget.set_image(ImageLoad(image).get_bytesIO())
         self.image = image
 
     def setImageText(self, text: str):

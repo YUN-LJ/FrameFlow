@@ -57,7 +57,7 @@ class ImageCellBase:
     def setImage(self, image: ImageLoad | str):
         if not isinstance(image, ImageLoad):
             image = ImageLoad(image)
-        self.image_widget.set_image(image)
+        self.image_widget.set_image(image.get_bytesIO())
 
     def setImageText(self, text: str):
         self.image_widget.set_text(text)

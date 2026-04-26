@@ -95,8 +95,7 @@ class ImageQt:
                 with self.lock:
                     if screen.name() not in self.all_widget:
                         widget = WindowDesktop(screen)
-                        image = self.image if self.image is None else ImageLoad(self.image)
-                        image_widget = ImageWidget(image)  # 用于显示图像的类
+                        image_widget = ImageWidget(self.image)  # 用于显示图像的类
                         widget.addWidget(image_widget)
                         self.all_widget[widget.name] = (widget, image_widget)
             QTimer.singleShot(self.interval, self.createBackground)
@@ -132,7 +131,7 @@ class ImageQt:
                             screen_scale - image_scale) < 0.2 else ImageEnum.resize_fill
                         # 重新缩放图像
                         ImageProcess(image).resize(screen_size, mode)
-                        image_widget.set_image(image)
+                        image_widget.set_image(image.get_bytesIO())
             except Exception as e:
                 print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.set_wallpaper {e}')
         else:

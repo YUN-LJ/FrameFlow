@@ -35,7 +35,7 @@ class RightWidget(Ui_rightwidget, QWidget):
         self.checkBox_zoom.checkedChanged.connect(self.slot.checkBox_zoom)
 
     def setImage(self, image):
-        self.image_widget.set_image(ImageLoad(image))
+        self.image_widget.set_image(ImageLoad(image).get_bytesIO())
 
     def setTags(self, image_info: pd.Series):
         """显示标签"""
