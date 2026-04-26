@@ -219,6 +219,30 @@ class ImageLoad:
             qimage = QImage(default_array.data, w, h, bytes_per_line, QImage.Format_RGBA8888)
             return QPixmap.fromImage(qimage)
 
+    def get_qimage(self) -> QImage:
+        """
+        将图像转为Qt的QImage对象（不进行QPixmap包装）
+        返回的QImage共享内存数据，请确保ImageLoad实例生命周期长于QImage的使用
+        """
+        try:
+            h, w = self.height, self.width
+            if self.channels == 4:
+                # BGRA -> RGBA
+                rgba_array = cv2.cvtColor(self.image, cv2.COLOR_BGRA2RGBA)
+                bytes_per_line = w * 4
+                return QImage(rgba_array.data, w, h, bytes_per_line, QImage.Format_RGBA8888)
+            else:
+                # BGR -> RGB
+                rgb_array = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
+                bytes_per_line = w * 3
+                return QImage(rgb_array.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        except Exception as e:
+            print(f"转换为 QImage 失败: {e}")
+            # 返回默认透明图像
+            default_array = np.full((224, 224, 4), fill_value=0, dtype=np.uint8)
+            h, w, c = default_array.shape
+            bytes_per_line = w * c
+            return QImage(default_array.data, w, h, bytes_per_line, QImage.Format_RGBA8888)
 
 class ImageProcess:
     """图像处理类"""

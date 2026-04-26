@@ -32,6 +32,7 @@ class WallPaperWin(QWidget, Ui_wallpaper):
         self.splitter = LeftandRightSplitter(self.horizontalLayout, parent=self.__parent)
         self.left_widget = LeftWidget(self)
         self.right_widget = RightWidget(self)
+        self.splitter.setSizes([800, 500])
         self.splitter.addWidget(self.left_widget)
         self.splitter.addWidget(self.right_widget)
         # 防抖定时器

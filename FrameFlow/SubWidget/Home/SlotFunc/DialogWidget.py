@@ -162,7 +162,7 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         if value and self.work_flow.image_data.get_image() is not None:
             self.progressBar.hide()
             self.displayTags(self.work_flow.image_data.get_image_info())
-            self.image_widget.set_image(ImageLoad(self.work_flow.image_data.get_image()))
+            self.image_widget.set_image(self.work_flow.image_data.get_image())
             self.image_widget.setMinimumHeight(self.widget.height())
         else:
             self.image_widget.set_text('加载失败')
