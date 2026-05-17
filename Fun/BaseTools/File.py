@@ -375,6 +375,9 @@ class EasyConfig:
     def __repr__(self):
         return str(self.config_data)
 
+    def get_config_data(self) -> dict:
+        return self.config_data.copy()
+
     def load_config(self) -> bool:
         """加载本地配置文件"""
         if self.config_file is not None and check_exist(self.config_file):

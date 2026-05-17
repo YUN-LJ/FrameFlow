@@ -1,0 +1,77 @@
+"""
+后端文件
+功能模块内部实现UI和API接口
+涉及到可能会大量实例化的QObject对象或临时弹窗类等
+需要重写deleteLater方法来清理资源
+并在不需要用时显式调用,防止内存溢出
+
+多进程问题:
+    当前包DataManage的常量只在主进程下自动实例化
+    当前包WallHaven的常量只在主进程下自动加载配置
+    当前包WallPaper的常量只在主进程下自动加载配置
+    使用多进程池任务时,所有所需的参数必须再主线程中
+    直接传递给模块级函数,函数内不要使用任何全局变量
+"""
+from Fun.BaseTools import LogClass
+
+logger = LogClass.get_logger(__name__, console_level='WARNING')
+
+
+def global_value_init():
+    import os
+    from SubAPI.Settings import GlobalValue
+    from Fun.BaseTools import TaskManage, TaskProcessManage, AsyncHTTPManage
+    if GlobalValue.GLOBAL_TASK_SUBMIT_MANAGE is None:
+        GlobalValue.GLOBAL_TASK_SUBMIT_MANAGE = TaskManage(os.cpu_count() * 2)
+    if GlobalValue.GLOBAL_TASK_MANAGE is None:
+        GlobalValue.GLOBAL_TASK_MANAGE = TaskManage(os.cpu_count() * 2)
+    if GlobalValue.GLOBAL_Task_PROCESS_MANAGE is None:
+        GlobalValue.GLOBAL_Task_PROCESS_MANAGE = TaskProcessManage(os.cpu_count())
+    if GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE is None:
+        GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE = AsyncHTTPManage(50, rate_limit=45)
+
+
+def exit_handler():
+    from SubAPI.DataManage import DATA_MANAGE
+    from SubAPI.Settings.GlobalValue import (
+        GLOBAL_TASK_MANAGE, IMAGE_CACHE_DIR, GLOBAL_ASYNC_HTTP_MANAGE,
+        GLOBAL_Task_PROCESS_MANAGE, GLOBAL_TASK_SUBMIT_MANAGE,
+    )
+    from SubAPI.WallHaven.api import save_config as WH_save_config
+    from SubAPI.WallPaper.api import save_config as WP_save_config
+    from Fun.BaseTools import FileBase
+    logger.info('执行清理...')
+    WH_save_config()  # 保存wallhaven配置
+    WP_save_config()  # 保存壁纸配置
+    DATA_MANAGE.stop()  # 关闭数据管理
+    GLOBAL_TASK_SUBMIT_MANAGE.stop()
+    GLOBAL_TASK_MANAGE.stop()  # 关闭全局线程池
+    GLOBAL_Task_PROCESS_MANAGE.stop()  # 关闭全局进程池
+    GLOBAL_ASYNC_HTTP_MANAGE.stop()  # 关闭全局异步HTTP管理
+    FileBase(IMAGE_CACHE_DIR).delete()  # 删除缓存文件夹
+    logger.info('清理完成')
+
+
+def start_desktop(func):
+    """
+    启动桌面应用
+    :param func:启动函数,需要返回顶层窗口
+    """
+
+    from SubAPI.Settings import GlobalValue
+    from Fun.QtWidget import MainWidget
+    from PySide6.QtWidgets import QApplication, QWidget
+    from Fun.BaseTools import FileBase
+    # ---准备阶段---
+    app = QApplication([])
+    FileBase(GlobalValue.IMAGE_CACHE_DIR).ensure_exists()
+    global_value_init()
+    # ---启动阶段---
+    win = func()
+    if not isinstance(win, QWidget):
+        raise TypeError('启动函数返回值必须是QWidget对象')
+    GlobalValue.TOP_WINDOWS = win
+    MainWidget.change_theme()
+    app.exec()
+    # ---清理阶段---
+    exit_handler()

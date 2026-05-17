@@ -1,4 +1,5 @@
 """FTabel的配套组件用于创建单元格类或一行类"""
+from io import BytesIO
 # PySide6原生组件
 from PySide6.QtCore import Signal, Qt, QTimer, QObject, QPoint
 from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QTableWidgetItem,
@@ -54,16 +55,20 @@ class ImageCellBase:
         self.layout_title.addWidget(self.check_box)
         self.layout.addWidget(self.image_widget)
 
-    def setImage(self, image: ImageLoad | str):
-        if not isinstance(image, ImageLoad):
-            image = ImageLoad(image)
-        self.image_widget.set_image(image.get_bytesIO())
+    def setImage(self, image: str | BytesIO):
+        if isinstance(image, str):
+            self.image_widget.set_image(ImageLoad(image).get_bytesIO())
+        elif isinstance(image, BytesIO):
+            self.image_widget.set_image(image)
 
     def setImageText(self, text: str):
         self.image_widget.set_text(text)
 
     def setText(self, text: str):
         self.check_box.setText(text)
+
+    def setState(self, checked: bool):
+        self.check_box.setChecked(checked)
 
 
 class ImageCell(QGroupBox, ImageCellBase):
@@ -90,6 +95,15 @@ class ImageCell(QGroupBox, ImageCellBase):
                 color: {color};
                 }}
                 """)
+
+    def deleteLater(self):
+        """确保资源删除干净"""
+        try:
+            for object in self.findChildren(QObject):
+                object.deleteLater()
+        except RuntimeError:
+            pass
+        super().deleteLater()
 
 
 if __name__ == '__main__':
