@@ -2,7 +2,7 @@
 import cv2, os, math
 import numpy as np
 from io import BytesIO
-from typing import Optional
+from typing import Optional, Union
 from Fun.BaseTools import FileBase
 from PySide6.QtGui import QPixmap, QImage
 
@@ -28,7 +28,7 @@ class ImageLoad:
     image属性为BGR通道值,赋值时必须保证为BGR顺序的数组
     """
 
-    def __init__(self, image: str | BytesIO | np.ndarray):
+    def __init__(self, image: Union['ImageLoad', str, BytesIO, np.ndarray]):
         """
         :param image:图像数据
         """
@@ -38,7 +38,7 @@ class ImageLoad:
         """设置图像数据"""
         self.image = self.__load_image(image)
 
-    def __load_image(self, image: str | BytesIO | np.ndarray | bytes) -> np.ndarray:
+    def __load_image(self, image: Union['ImageLoad', str, BytesIO, np.ndarray]) -> np.ndarray:
         """加载图像，支持多种输入格式"""
 
         # 1. numpy数组
@@ -60,6 +60,9 @@ class ImageLoad:
         # 5. PIL Image
         elif 'PIL' in str(type(image)):
             return self._load_from_pil(image)
+
+        elif isinstance(image, ImageLoad):
+            return image.image
 
         else:
             raise TypeError(f"不支持的图像类型: {type(image)}")
@@ -172,14 +175,28 @@ class ImageLoad:
 
     def show(self, title: str = "Image"):
         """显示图像"""
+        from PySide6.QtWidgets import QApplication
+
+        # 检查是否需要创建 QApplication 实例
+        app = QApplication.instance()
+        need_exec = app is None
+
+        if need_exec:
+            app = QApplication([])
+
         from Fun.QtWidget.FWidget import ImageWidget
-        image_widget = ImageWidget(self)
-        image_widget.setWindowTitle(title)
-        image_widget.enable_zoom_and_drag()
-        image_widget.show()
+        self.image_widget = ImageWidget(self.get_bytesIO())
+        self.image_widget.setWindowTitle(title)
+        self.image_widget.enable_zoom_and_drag()
+        self.image_widget.show()
+
+        # 如果是内部创建的 QApplication，则进入事件循环
+        if need_exec:
+            app.exec()
 
     def save(self, path: str, quality: int = 100):
         """保存图像"""
+        FileBase(FileBase(path).dir_name).ensure_exists()
         cv2.imwrite(path, self.image, [cv2.IMWRITE_JPEG_QUALITY, quality])
 
     def get_bytesIO(self, format: str = '.jpg', quality: int = 100) -> BytesIO:
@@ -243,6 +260,7 @@ class ImageLoad:
             h, w, c = default_array.shape
             bytes_per_line = w * c
             return QImage(default_array.data, w, h, bytes_per_line, QImage.Format_RGBA8888)
+
 
 class ImageProcess:
     """图像处理类"""

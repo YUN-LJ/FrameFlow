@@ -6,7 +6,7 @@ import importlib
 # 模块名与模块路径的映射字典（仅需模块名即可，因为都是同级模块）
 _MODULE_MAP = {
     'BaseTools': '.BaseTools',
-    'QtWidget': '.BaseTools',
+    'QtWidget': '.QtWidget',
 }
 
 
@@ -18,14 +18,7 @@ def __getattr__(name):
         # 使用importlib动态导入模块
         # 导入格式为：from .模块名 import 模块名
         module = importlib.import_module(f'{_MODULE_MAP[name]}', package=__name__)
-        return getattr(module, name)
+        return module
     except ImportError as e:
         raise e
-
     raise AttributeError(f"无法导入模块 'Fun.{name}'")
-
-
-if __name__ == '__main__':
-    from Fun import BaseTools
-
-    print(BaseTools)

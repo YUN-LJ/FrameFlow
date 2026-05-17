@@ -9,6 +9,7 @@ start_time: 2025/9/26
 
 def process_startup_parameters():
     import sys
+    from SubWidget import Config
     # 参数映射字典
     argv_dict = {
         '--hide': 'hide',
@@ -30,14 +31,13 @@ def process_startup_parameters():
                 Config.IS_DEBUG = True
                 Config.IS_CAPTURE = False
                 Config.IS_HIED_TERMINAL = False
-                print('----调试模式----')
-    if Config.IS_HIED_TERMINAL:
-        hide_python_terminal()
 
 
-def create_tray_icon():
+def create_tray_icon(top_window):
     """创建系统托盘,必须在主窗口创建后"""
-    top_window: FrameFlowWin = Config.TOP_WINDOWS
+    from Fun.QtWidget import TrayIcon
+
+    from SubWidget import Config
     tray = TrayIcon(top_window)
     Config.TRAY = tray
     tray.showClicked.connect(top_window.show)
@@ -47,58 +47,37 @@ def create_tray_icon():
 
 def create_main_window():
     """创建主窗口"""
+
+    from SubWidget import Config
+    from SubWidget import FrameFlowWin
     main_window = FrameFlowWin(False)
     main_window.notLazyLoad(False)
     if Config.IS_SHOW:
         main_window.show()
+    return main_window
 
 
 def start():
-    app = QApplication([])
-    Config.APP = app
     # 创建主窗口
-    create_main_window()
+    top_window = create_main_window()
     # 创建系统托盘
-    create_tray_icon()
-    # 进入事件循环
-    app.exec()
-
-
-def stop():
-    AppCore().stopWorkFlow()
-    DataManage.stop()
-    FileBase(GlobalValue.image_cache_dir).delete()
+    create_tray_icon(top_window)
+    return top_window
 
 
 if __name__ == '__main__':
-    from Fun.BaseTools.Terminal import hide_python_terminal, CapturePythonTerminal
-    from Fun.BaseTools.Get import get_threads, monitor_threads
-    from ImportFile import Config
+    from SubAPI import start_desktop, global_value_init
+    from Fun.BaseTools import LogClass
 
+    logger = LogClass.get_logger(__name__, console_level='WARNING')
+    # from Fun.BaseTools.Get import monitor_threads
+    # from threading import Thread
+    #
+    # Thread(target=monitor_threads, daemon=True).start()
+    # 初始化全局变量
+    logger.info('程序启动')
+    global_value_init()
     # 处理启动参数
     process_startup_parameters()
-    if Config.IS_HIED_TERMINAL:
-        hide_python_terminal()
-
-    from ImportFile.ImportPack import *
-    from SubWidget import FrameFlowWin
-
-    # 启用输出捕获
-    captrue_python_terminal = CapturePythonTerminal()
-    Config.CAPTURE_PYTHON_TERMINAL = captrue_python_terminal
-    if Terminal.is_python_terminal_visible() == -1:  # 控制台不可见时启用捕获
-        captrue_python_terminal.start(GlobalValue.log_path)
-    if Config.IS_DEBUG:
-        try:
-            captrue_python_terminal.stop()
-            start()
-        except Exception as e:
-            print(e)
-            stop()
-    else:
-        start()
-        stop()
-    # 打印当前剩余线程
-    for index, thread in enumerate(get_threads()):
-        print(f'{index} - {thread.name:30s} | daemon={thread.daemon}')
-    print(f'程序已退出')
+    start_desktop(start)
+    logger.info('程序结束')
