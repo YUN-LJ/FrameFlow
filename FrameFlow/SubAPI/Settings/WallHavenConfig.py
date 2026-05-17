@@ -1,15 +1,5 @@
 """WallHaven模块配置文件"""
 # API配置
-# API_KEY_LIST = [
-#     "mxYAr8xPS6J4gyVOtfu0YQHwftSO4p6x",
-#     "tDm50CzRxRoxhd51msb1gnO48do6zAsM",
-#     "v0wcHRypBXK5EjriNvlfB6kF0huAS94h",
-#     "YjFjjwPh1uM4cuyTn6dt32mf6emJeBJf",
-#     "qMczJD5d20sWn5QIG6iNozekstld4rYs",
-#     "vPdJ4AYQJJsfECQjPipUEN5l0QzzYVyb",
-#     "fEJqYw27z1fV1M1ChhzbwuiglM5ttJXy",
-#     "RIynJj6HLkOn3xy0ZOWcaAwZiMk53R4A",
-# ]  # 用户密钥,无密钥时无法查看限制级
 USE_NETWORK = False
 PACK_NAME = 'WallHaven'  # 包名
 WALLHAVEN_URL = 'https://wallhaven.cc'  # 网站链接
@@ -21,7 +11,6 @@ CONNECT_TEST_URL = "https://wallhaven.cc/api/v1/w/g71erd"  # 用于测试是否�
 API_KEY_TEST_URL = "https://wallhaven.cc/api/v1/w/pk6yv9"  # 用于测试api_key是否可用
 # 参数,更多内容请查看https://wallhaven.cc/help/api
 REQUEST_MAX_COUNT = 45  # 每分钟最多请求45次
-THREAD_NUM = 4  # 默认线程数量,可根据配置文件动态修改
 HEADERS = {"X-API-Key": API_KEY}  # 头文件
 PROXIES = {'http': f'http://{PROXIES_URL}', 'https': f'http://{PROXIES_URL}'}  # 网络代理
 # 字典映射

@@ -10,7 +10,6 @@ def load_config():
     with CONFIG_DATA as data:
         value = data.get_values(section_name=Config.PACK_NAME)
         if value:
-            Config.THREAD_NUM = value.get('num_work', Config.THREAD_NUM)
             Config.SAVE_DIR = value.get('save_dir', File.get_user_PicturesPath())
             Config.USE_NETWORK = value.get('use_network', Config.USE_NETWORK)
             Config.SearchParams.default_params['categories'] = value.get(
@@ -32,7 +31,6 @@ def save_config():
     data = get_search_params()
     data = data.to_dict()
     data.update({'save_dir': Config.SAVE_DIR,
-                 'num_work': Config.THREAD_NUM,
                  'api_key': Config.API_KEY,
                  'search_history': Config.SEARCH_HISTORY,
                  'search_history_count': Config.SEARCH_HISTORY_COUNT,
