@@ -7,7 +7,8 @@ from io import BytesIO
 from PySide6.QtCore import Signal, QObject
 # 自定义组件
 from Fun.BaseTools import (
-    FileBase, TaskManage, TaskProcessManage, Get, ImageLoad, ImageProcess, AsyncHTTPManage
+    FileBase, TaskManage, TaskProcessManage, Get, ImageLoad,
+    ImageProcess, AsyncHTTPManage, TaskAsyncManage,
 )
 
 THUMB_SIZE = (300, 200)  # 略缩图尺寸
@@ -15,8 +16,8 @@ RUN_DIR = 'E:/code/Python/simple/AutoWallpaper/FrameFlow' if FileBase(sys.argv[0
 CONFIG_DIR = os.path.join(RUN_DIR, 'config')
 LOG_PATH = os.path.join(CONFIG_DIR, 'log.txt')
 IMAGE_CACHE_DIR = os.path.join(CONFIG_DIR, 'image_cache')
-GLOBAL_TASK_MANAGE: TaskManage = None  # 全局任务线程池,支持优先级
-GLOBAL_TASK_SUBMIT_MANAGE: TaskManage = None  # 全局提交任务线程池,支持优先级
+GLOBAL_TASK_MANAGE: TaskManage = None  # 全局线程管理,支持优先级
+GLOBAL_TASK_ASYNC_MANAGE: TaskAsyncManage = None  # 全局异步管理
 GLOBAL_Task_PROCESS_MANAGE: TaskProcessManage = None  # 全局进程管理
 GLOBAL_ASYNC_HTTP_MANAGE: AsyncHTTPManage = None  # 全局异步HTTP管理
 TOP_WINDOWS = None  # 全局顶层窗口

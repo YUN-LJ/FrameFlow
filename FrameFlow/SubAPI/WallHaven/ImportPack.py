@@ -1,11 +1,18 @@
 """WallHaven的外部依赖库"""
 # 基本库
+import gc
+import os
+import re
+import time
+import asyncio
+import requests
+import pandas as pd
 from io import BytesIO
 from pathlib import Path
 from queue import Queue, Empty
 from threading import Lock, Thread, RLock
 from typing import Callable, Optional, Union
-import pandas as pd, os, time, requests, gc, asyncio, re
+
 # 桌面端Qt库
 from PySide6.QtCore import QTimer, Signal, QEvent, QPoint, QThread, QObject, QSize
 from PySide6.QtGui import QShortcut, QKeySequence, Qt, QGuiApplication, QPalette, QColor
@@ -38,7 +45,7 @@ from Fun.BaseTools import (
     Time, ReuseTimer, ImageProcess, ImageLoad, ImageEnum,
     Task, TaskManageBase, TaskProgress, TaskSignal, TaskManage,
     singleton_decorator, Str, Tools, CapturePythonTerminal, Terminal,
-    copy_text_to_clipboard, LogClass,
+    copy_text_to_clipboard, LogClass, TaskAsyncManage,
 )
 
 from SubAPI.DataManage import SEARCH_DATA, IMAGE_INFO, KEY_WORD, CONFIG_DATA

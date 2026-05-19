@@ -22,7 +22,7 @@ class AsyncHTTPManage(TaskAsyncManage):
     - 所有异步操作通过 submit_task 提交到父类异步池
     - 支持API速率限制控制
     - 在启用API速率限制时带有速率信号,发送当前已经请求的次数rate_limit_count_signal
-    - 在启用API速率限制时带有API受限信号,发送当前速率达到上限信号rate_limit_signal
+    - 在启用API速率限制时带有API受限信号,发送当前速率达到上限信号rate_limit_signal 发送最大限制和需要等待时间
     """
     connect_limit = 48  # 连接池总大小
     host_limit = 16  # 同一主机最大连接数
@@ -47,7 +47,7 @@ class AsyncHTTPManage(TaskAsyncManage):
 
         # 速率控制配置
         self.rate_limit = rate_limit  # 速率最大限制
-        self.rate_period = rate_period  # 请求次数
+        self.rate_period = rate_period  # 窗口限制
         self._request_timestamps = []
         self._rate_lock = None  # 在事件循环中初始化
         self._lock = Lock()  # 线程锁
@@ -164,7 +164,7 @@ class AsyncHTTPManage(TaskAsyncManage):
 
             # 调试信息（可选）
             if len(self._request_timestamps) % 10 == 0:
-                logger.info(f"当前请求计数: {len(self._request_timestamps)}/"
+                logger.debug(f"当前请求计数: {len(self._request_timestamps)}/"
                             f"{self.rate_limit} (窗口: {self.rate_period}秒)")
 
     async def _wait_with_check(self, wait_time: float, parent_task=None) -> bool:
@@ -174,9 +174,9 @@ class AsyncHTTPManage(TaskAsyncManage):
         :param parent_task: 父任务对象，用于检查isRunning状态
         :return: True表示等待完成，False表示被中断
         """
-        self.rate_limit_signal.emit(self.rate_limit)
-        logger.info(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
-                    f"等待 {wait_time:.1f} 秒...")
+        self.rate_limit_signal.emit((self.rate_limit, int(wait_time)))
+        logger.debug(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
+                     f"等待 {wait_time:.1f} 秒...")
 
         # 分段等待，每1秒检查一次父任务状态
         elapsed = 0.0
@@ -184,7 +184,7 @@ class AsyncHTTPManage(TaskAsyncManage):
         while elapsed < wait_time:
             # 检查父任务是否仍在运行
             if parent_task is not None and not parent_task.isRunning:
-                logger.info(f"API速率限制等待被中断: {parent_task.name}已停止")
+                logger.debug(f"API速率限制等待被中断: {parent_task.name}已停止")
                 return False
 
             # 计算本次睡眠时长（不超过剩余时间和检查间隔）
@@ -202,9 +202,9 @@ class AsyncHTTPManage(TaskAsyncManage):
         :param parent_task: 父任务对象，用于检查isRunning状态
         :return: True表示等待完成，False表示被中断
         """
-        self.rate_limit_signal.emit(self.rate_limit)
-        logger.info(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
-                    f"等待 {wait_time:.1f} 秒...")
+        self.rate_limit_signal.emit((self.rate_limit, int(wait_time)))
+        logger.debug(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
+                     f"等待 {wait_time:.1f} 秒...")
 
         # 分段等待，每1秒检查一次父任务状态
         elapsed = 0.0
@@ -212,7 +212,7 @@ class AsyncHTTPManage(TaskAsyncManage):
         while elapsed < wait_time:
             # 检查父任务是否仍在运行
             if parent_task is not None and not parent_task.isRunning:
-                logger.info(f"API速率限制等待被中断: {parent_task.name}已停止")
+                logger.debug(f"API速率限制等待被中断: {parent_task.name}已停止")
                 return False
 
             # 计算本次睡眠时长（不超过剩余时间和检查间隔）
@@ -442,7 +442,7 @@ class AsyncChunkDownloader(Task):
                 chunks = max(min_chunks, (self.file_size + self.chunk_size_max - 1) // self.chunk_size_max)
                 # 再次确保不超过最大块数限制
                 chunks = min(chunks, self.chunk_num_max)
-        logger.info(f'{self.url} 分块数量为: {chunks}')
+        logger.debug(f'{self.url} 分块数量为: {chunks}')
         return chunks
 
     @property
@@ -580,7 +580,7 @@ class AsyncChunkDownloader(Task):
             return None
         start_time = time.time()
         session = self.async_manager.session
-        logger.info(f'{Path(self.url).name} 获取请求头')
+        logger.debug(f'{Path(self.url).name} 获取请求头')
         try:
             self.file_size = await self.get_file_size(session)  # 获取文件大小
             if self.file_size == 0:

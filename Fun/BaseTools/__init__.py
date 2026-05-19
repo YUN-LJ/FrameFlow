@@ -35,7 +35,9 @@ __all__ = [
     'PriorityPoolExecutorBase', 'PriorityThreadPoolExecutor',
     'PriorityProcessPoolExecutor', 'PriorityAsyncPoolExecutor',
     # AsyncHTTP 模块中的类
-    'AsyncHTTPManage', 'AsyncJson', 'AsyncChunkDownloader'
+    'AsyncHTTPManage', 'AsyncJson', 'AsyncChunkDownloader',
+    # LogClass 模块中的类
+    'LogConfig', 'LogManager',
 ]
 
 import importlib

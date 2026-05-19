@@ -74,10 +74,6 @@ if __name__ == '__main__':
     # from threading import Thread
     #
     # Thread(target=monitor_threads, daemon=True).start()
-    # 初始化全局变量
-    logger.info('程序启动')
-    global_value_init()
     # 处理启动参数
     process_startup_parameters()
     start_desktop(start)
-    logger.info('程序结束')

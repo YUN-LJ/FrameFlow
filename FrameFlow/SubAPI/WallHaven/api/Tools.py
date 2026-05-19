@@ -214,11 +214,12 @@ class ImageData(ImageDataBase):
             IMAGE_INFO.del_row(self.image_id)
             FileBase(image_path).delete()
 
-    def save_image(self, save_path: str = None, cover=False):
+    def save_image(self, save_path: str = None, cover=False) -> bool:
         """
         保存图像文件
         :param save_path: 保存路径,文件夹
         :param cover:是否覆盖,默认不覆盖
+        :return 是否保存成功
         """
         if save_path is None:
             image_path = self.save_path
@@ -240,8 +241,12 @@ class ImageData(ImageDataBase):
                     cache_path.move(image_path, True)
                 else:
                     self.image.save(image_path)
+            else:
+                logger.warning(f'{self.__class__.__name__} {self.image_id} 文件已存在!')
+            return True
         else:
-            raise FileNotFoundError(f'{self.__class__.__name__} {self.image_id} 保存路径获取失败!')
+            logger.warning(f'{self.__class__.__name__} {self.image_id} 保存路径获取失败!')
+            return False
 
     def copy_to_clipboard(self) -> bool:
         """将图片复制到剪切板中"""
@@ -304,6 +309,8 @@ class AsyncAPI:
                 self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE,
                 self.params, self.headers, retry_count=self.retry_count)
         while self.task.isRunning and retry_count < self.__class__.retry_count:
+            if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
+                return None
             data = self.response_task.start(0, 3, self.task)
             if data:
                 break
@@ -370,6 +377,8 @@ class AsyncAPI:
             self.response_task = AsyncJson(
                 self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE, self.params, self.headers)
         while self.task.isRunning and retry_count < self.__class__.retry_count:
+            if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
+                return None
             data = self.response_task.start(0, 3, self.task)
             if data: break
             if self.response_task.status_code == 429:
@@ -517,6 +526,7 @@ class RequestAPI:
 
 
 class SearchTask(Task):
+    """搜索全部时,如果传入的任务池满载了则会创建一个临时的任务池用于完成子任务"""
 
     def __init__(self, params: Config.SearchParams, task_manage: TaskManageBase = None,
                  search_all=False, use_network: bool = True, use_cache: bool = True,
@@ -617,9 +627,10 @@ class SearchTask(Task):
             self.progress_signal.emit(self)
             self.sub_task: list[SearchTask] = []
             # 提交全部子任务
+            task_manage = self.task_manage if not self.task_manage.is_full else TaskManage(10)
             for page in range(2, result.loc[0, '总页数'] + 1):
                 self.params.page = page
-                sub_task = SearchTask(self.params.copy(), self.task_manage, False, self.use_network, self.use_cache)
+                sub_task = SearchTask(self.params.copy(), task_manage, False, self.use_network, self.use_cache)
                 sub_task.finish_signal.connect(sub_task_slot)
                 sub_task.start()
                 self.sub_task.append(sub_task)
@@ -668,7 +679,7 @@ class DownloadTask(Task):
         self.download_url = download_url
         self.use_network = use_network
         self.use_cache = use_cache
-        self.task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
+        task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
         self.image_id, self.file_type = os.path.basename(download_url).split('.')
         self.file_type = f'.{self.file_type}'
         self.desc = 'thumb'
@@ -676,7 +687,7 @@ class DownloadTask(Task):
             self.image_id = self.image_id.split('-')[1]
             self.desc = 'image'
         super().__init__(
-            func=self.__execute, task_manage=self.task_manage,
+            func=self.__execute, task_manage=task_manage,
             name=f'{self.image_id}_download')
 
     def __execute(self) -> ImageData | None:
@@ -719,8 +730,8 @@ class ImageInfoTask(Task):
         self.key_word = key_word
         self.use_network = use_network
         self.use_cache = use_cache
-        self.task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
-        super().__init__(self.__execute, self.task_manage, f'{image_id}_tags')
+        task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
+        super().__init__(self.__execute, task_manage, f'{image_id}_tags')
 
     def __execute(self) -> pd.DataFrame | None:
         """具体的任务函数"""
@@ -744,7 +755,7 @@ class ImageInfoTask(Task):
 
 
 class KeyWordTask(Task):
-    def __init__(self, params: Config.SearchParams, task_manage: TaskManageBase = None,
+    def __init__(self, params: Config.SearchParams, task_manage: TaskAsyncManage = None,
                  use_network=True, use_cache=True):
         """
         :param params:搜索参数
@@ -754,16 +765,16 @@ class KeyWordTask(Task):
         """
         self.params = params.copy()
         self.params.page = 1
-        self.task_manage = task_manage
         self.use_network = use_network
         self.use_cache = use_cache
-        self.task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
-        super().__init__(self.__execute, self.task_manage, f'{params.q}_addKey')
+        task_manage = GlobalValue.GLOBAL_TASK_ASYNC_MANAGE if task_manage is None else task_manage
+        super().__init__(self.__execute, task_manage, f'{params.q}_addKey', use_async=True)
 
-    def __execute(self) -> pd.DataFrame | None:
+    async def __execute(self) -> pd.DataFrame | None:
         """具体的任务函数"""
-        search_task = SearchTask(self.params, self.task_manage, use_network=self.use_network, use_cache=self.use_cache)
-        result: pd.DataFrame = search_task.start(0, 3, self)
+        search_task = SearchTask(self.params, GlobalValue.GLOBAL_TASK_MANAGE,
+                                 use_network=self.use_network, use_cache=self.use_cache)
+        result: pd.DataFrame = await search_task.start_async(0, 3, self)
         if result is not None:
             key_data = pd.DataFrame(
                 [[
@@ -784,15 +795,23 @@ class KeyWordTask(Task):
 
 
 if __name__ == '__main__':
-    # 单元测试
     params_test = get_search_params()
     params_test.q = 'Abaoyeshitunia'
     params_test.purity = '111'
     params_test.categories = '001'
-    task_test = DownloadTask('https://w.wallhaven.cc/full/qr/wallhaven-qrgl87.jpg')
-    result_test = task_test.start(0)
+    # 搜索任务测试
+    task_test = SearchTask(params_test, search_all=True, use_network=False)
+    result_test = task_test.start(0, 3)
     print(result_test)
-    if isinstance(result_test, ImageData):
-        print(f'当前文件路径: {result_test.image_path}')
-        image_load = ImageLoad(result_test.image_path)
-        image_load.show()
+    # 获取关键词任务测试
+    # task_test = KeyWordTask(params_test)
+    # result_test = task_test.start(0, 3)
+    # print(result_test)
+    # 下载任务测试
+    # task_test = DownloadTask('https://w.wallhaven.cc/full/qr/wallhaven-qrgl87.jpg')
+    # result_test = task_test.start(0)
+    # print(result_test)
+    # if isinstance(result_test, ImageData):
+    #     print(f'当前文件路径: {result_test.image_path}')
+    #     image_load = ImageLoad(result_test.image_path)
+    #     image_load.show()

@@ -89,13 +89,12 @@ class ImageDisplaySlot:
         self.parent.image_widget.fullScreenSignal.connect(self.fullScreenSignal)
 
     def fullScreenSignal(self, value):
+        """value:进入为True,退出为False"""
         if self.parent.checkBox.isChecked():
             if value:
-                if not self.wallpaper_api.isPause:
-                    self.wallpaper_api.pause()
+                self.wallpaper_api.pause()
             else:
-                if self.wallpaper_api.isPause:
-                    self.wallpaper_api.pause()
+                self.wallpaper_api.resume()
 
     def mousePause(self):
         """暂停"""
@@ -105,7 +104,7 @@ class ImageDisplaySlot:
     def mouseStart(self):
         """恢复播放"""
         if self.parent.checkBox.isChecked() and self.wallpaper_api.isPause:
-            self.wallpaper_api.pause()
+            self.wallpaper_api.resume()
 
     def pushButton_open(self):
         local_path = self.parent.label_local_path_value.text()

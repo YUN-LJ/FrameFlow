@@ -2,8 +2,9 @@
 from io import BytesIO
 from queue import Empty, Full, Queue as QueueThread
 from screeninfo import get_monitors
-from threading import Thread, Timer, Lock  # 定时器
+from threading import Thread, Timer, RLock  # 定时器
 from multiprocessing import Process, Queue as QueueMul  # 进程
+from typing import Optional
 import os, pandas as pd, numpy as np, time, random, gc, re
 # PySide6
 from PySide6.QtWidgets import QApplication, QWidget, QAbstractItemView, QLabel
@@ -18,7 +19,8 @@ from Fun.QtWidget.FTabelWidget import (
 )
 from Fun.BaseTools import (
     FileBase, ReuseTimer, ImageProcess, ImageEnum, ImageLoad, Image, Time,
-    Task, TaskManage, TaskSignal, singleton_decorator, copy_text_to_clipboard
+    Task, TaskManage, TaskSignal, singleton_decorator, copy_text_to_clipboard,
+    LogClass,
 )
 from Fun.BaseTools.Image import set_wallpaper_API
 from Fun.QtWidget import (

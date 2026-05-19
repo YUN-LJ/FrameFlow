@@ -25,7 +25,7 @@ from qfluentwidgets.components.widgets import (
 from Fun.QtWidget import (
     ImageWidget, TableCell, TableRow, TopWidget, LazyLoadMS,
     get_exist_dir, get_exist_files, FluentWidgetBase, info_bar_decorator,
-    debouncer_timer
+    debouncer_timer, throttle_reuse_timer_decorator
 )
 from Fun.BaseTools import (
     Get, File, Str, Tools, FileBase, ImageLoad, CapturePythonTerminal, Terminal

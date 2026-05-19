@@ -233,8 +233,6 @@ def throttle_reuse_timer_decorator(timeout: float = 0.05):
         - 不依赖 Qt 事件循环，性能更好
         - 每个实例有独立的定时器，状态隔离
     """
-    from weakref import WeakKeyDictionary
-    from Fun.BaseTools.Time import ReuseTimer
 
     def decorator(func):
         # 使用弱引用字典存储每个实例的节流助手，避免内存泄漏
@@ -258,7 +256,6 @@ def throttle_reuse_timer_decorator(timeout: float = 0.05):
                 wrapper._module_helper.trigger(*args, **kwargs)
 
         # 保留原函数的元信息
-        from functools import wraps
         wrapper = wraps(func)(wrapper)
 
         return wrapper

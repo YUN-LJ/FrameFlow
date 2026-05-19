@@ -12,7 +12,7 @@ from SubWidget.SetPage import SetsWin
 class FrameFlowWin(LazyLoadMS):
     keywordLoadFinishedSignal = Signal()  # 收藏夹数据加载完成
     imageinfoLoadFinishedSignal = Signal()  # 图像信息数据加载完成
-    limitHTTPSignal = Signal(int)  # HTTP请求速率限制
+    limitHTTPSignal = Signal(tuple)  # HTTP请求速率限制
 
     def __init__(self, lazy=True):
         """
@@ -43,21 +43,25 @@ class FrameFlowWin(LazyLoadMS):
                 duration=1500, parent=self))
 
         # 创建节流定时器
-        self._limit_http_timer = debouncer_timer(self._limitHTTPSlot)
-        self.limitHTTPSignal.connect(lambda rate_limit: self._limit_http_timer.start(1000))
+        self.limitHTTPSignal.connect(self._limitHTTPSlot)
 
         IMAGE_INFO.load_callback(lambda _: self.imageinfoLoadFinishedSignal.emit())
         KEY_WORD.load_callback(lambda _: self.keywordLoadFinishedSignal.emit())
-        GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.rate_limit_signal.connect(self.limitHTTPSignal.emit)
+        GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.rate_limit_signal.connect(self.limitHTTPSlot)
 
-    def _limitHTTPSlot(self):
-        """HTTP速率限制提示（通过debouncer_timer节流）"""
+    def _limitHTTPSlot(self, limit):
+        """limit首个参数为 最大限制,等待时间"""
         if self.isVisible():
             InfoBar.new(
                 icon=InfoBarIcon.WARNING, title='速率已达上限',
-                content=f'速率已达上限 {GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.rate_limit}',
+                content=f'速率已达上限 最大速率{limit[0]} 等待时间{limit[1]}',
                 orient=Qt.Horizontal, isClosable=True, position=InfoBarPosition.TOP,
                 duration=1000, parent=self)
+
+    @throttle_reuse_timer_decorator(timeout=10)
+    def limitHTTPSlot(self, limit):
+        """HTTP速率限制提示(节流)"""
+        self.limitHTTPSignal.emit(limit)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

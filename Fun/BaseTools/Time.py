@@ -115,306 +115,180 @@ def timer_decorator(_func=None, *, name=None):
     return decorator
 
 
-class ReuseTimer_old:
-    """PySide6 QTimer 风格的定时器"""
-    IDLE = "idle"
-    RUNNING = "running"
-    PAUSED = "paused"
-
-    def __init__(self, interval: float, func: Callable, *args, **kwargs):
-        """
-        :param interval: 间隔时间（秒）
-        :param func: 执行函数
-        :param args: 执行函数需要的位置参数
-        :param kwargs: 执行函数需要的关键字参数
-        """
-        self._interval = interval  # 间隔时间（秒）
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
-
-        # 定时器属性
-        self._single_shot = False
-
-        # 状态管理
-        self._state = self.IDLE
-        self._state_lock = threading.RLock()
-
-        # 线程控制
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._pause_event = threading.Event()
-
-    @property
-    def isActive(self) -> bool:
-        """是否处于活动状态"""
-        with self._state_lock:
-            return self._state in (self.RUNNING, self.PAUSED)
-
-    @property
-    def isPause(self) -> bool:
-        """是否处于暂停状态"""
-        return self._state == self.PAUSED
-
-    @property
-    def isRunning(self) -> bool:
-        """是否处于运行状态"""
-        return self._state == self.RUNNING
-
-    @property
-    def isIdle(self) -> bool:
-        """是否处于空闲状态"""
-        return self._state == self.IDLE
-
-    @property
-    def state(self) -> str:
-        """获取当前状态"""
-        return self._state
-
-    def setInterval(self, interval: float):
-        """设置间隔时间（秒）"""
-        with self._state_lock:
-            self._interval = interval
-
-    def setSingleShot(self, single_shot: bool):
-        """设置是否为单次执行"""
-        with self._state_lock:
-            self._single_shot = single_shot
-
-    def _worker(self):
-        """工作线程"""
-        while not self._stop_event.is_set():
-            # 检查是否暂停
-            while self._pause_event.is_set() and not self._stop_event.is_set():
-                time.sleep(0.01)  # 小幅休眠避免CPU占用
-
-            # 检查是否停止
-            if self._stop_event.is_set():
-                break
-
-            # 等待指定的时间间隔或直到被停止/暂停
-            sleep_time = 0.01
-            total_slept = 0
-            while total_slept < self._interval and not self._stop_event.is_set():
-                if self._pause_event.is_set():
-                    # 当进入暂停状态时，等待暂停结束
-                    while self._pause_event.is_set() and not self._stop_event.is_set():
-                        time.sleep(0.01)
-                    if self._stop_event.is_set():
-                        break
-                time.sleep(sleep_time)
-                total_slept += sleep_time
-
-            # 检查是否在等待期间被停止或暂停
-            if self._stop_event.is_set():
-                break
-            if self._pause_event.is_set():
-                continue
-
-            # 执行回调函数
-            self.func(*self.args, **self.kwargs)
-
-            # 如果是单次执行，则退出循环
-            if self._single_shot:
-                break
-
-        # 重置状态
-        with self._state_lock:
-            self._state = self.IDLE
-
-    def start(self, interval: float = None):
-        """
-        启动定时器
-        :param interval: 可选的间隔时间（秒），如果不提供则使用之前设置的值
-        """
-        with self._state_lock:
-            if self._state in (self.RUNNING, self.PAUSED):
-                self.stop()
-
-            if interval is not None:
-                self._interval = interval
-
-            self._state = self.RUNNING
-            self._stop_event.clear()
-            self._pause_event.clear()
-
-            # 创建并启动工作线程
-            self._thread = threading.Thread(target=self._worker, daemon=True)
-            self._thread.start()
-
-    def stop(self):
-        """停止定时器"""
-        with self._state_lock:
-            if self._state == self.IDLE:
-                return
-
-            self._state = self.IDLE
-            self._stop_event.set()
-            self._pause_event.clear()
-
-        # 等待线程结束
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
-            self._stop_event.clear()
-
-    def pause(self):
-        """暂停定时器"""
-        with self._state_lock:
-            if self._state == self.RUNNING:
-                self._state = self.PAUSED
-                self._pause_event.set()
-            elif self._state == self.PAUSED:
-                self.resume()
-
-    def resume(self):
-        """恢复定时器"""
-        with self._state_lock:
-            if self._state == self.PAUSED:
-                self._state = self.RUNNING
-                self._pause_event.clear()
-
-
 class ReuseTimer:
-    """PySide6 QTimer 风格的定时器"""
-    IDLE = "idle"
-    RUNNING = "running"
-    PAUSED = "paused"
+    """
+    仿照QTimer定时器,支持单次执行和循环执行,默认循环执行
+    start方法支持防抖设计
+    不依赖qt事件循环,内部采用独立线程+timer执行任务
+    """
+    IDLE = "idle"  # 空闲状态,表示定时器未执行或正在等待执行,只有空闲状态下定时器才会执行,其余状态都会导致任务线程终止
+    RUNNING = "running"  # 运行状态,定时器正在执行任务,此时定时器的操作方法全部失效
+    PAUSED = "paused"  # 暂停状态
+    STOPPED = "stopped"  # 停止状态
 
-    def __init__(self, interval: float, func: Callable, *args, **kwargs):
+    def __init__(self, interval: float, func: Callable, name=None, args: tuple = None, kwargs: dict = None):
         """
-        :param interval: 间隔时间（秒）
+        :param interval: 间隔时间（秒），最小值为0.01秒
         :param func: 执行函数
+        :param name: 定时器名称
         :param args: 执行函数需要的位置参数
         :param kwargs: 执行函数需要的关键字参数
         """
-        self._interval = interval
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
-
+        # 确保最小间隔为0.01秒，避免interval=0导致的忙循环
+        self.__interval = max(interval, 0.01)
+        self.__func = func
+        self.name = func.__name__ if name is None else name
+        self.__args = args if args is not None else ()
+        self.__kwargs = kwargs if kwargs is not None else {}
         # 定时器属性
-        self._single_shot = False
-
+        self.__single_shot = False
         # 状态管理
-        self._state = self.IDLE
-        self._state_lock = threading.RLock()
-
+        self.__state = self.IDLE
+        self.__pause_requested = False
+        self.__state_lock = threading.Lock()
+        self.__timer_lock = threading.RLock()
         # Timer对象
-        self._timer: Optional[threading.Timer] = None
+        self.__timer: Optional[threading.Thread] = None
 
-    @property
-    def isActive(self) -> bool:
-        """是否处于活动状态"""
-        with self._state_lock:
-            return self._state in (self.RUNNING, self.PAUSED)
+    def _run_thread(self):
+        """启动定时器线程"""
+        with self.__timer_lock:
+            if self.__timer is not None:
+                return
+            self.__timer = threading.Thread(target=self._execute, name=self.name, daemon=True)
+            self._set_state(self.IDLE)
+            self.__timer.start()
+
+    def _set_state(self, state: str):
+        with self.__state_lock:
+            self.__state = state
+
+    def _execute(self):
+        """
+        执行任务并安排下一次执行
+        执行任务前会将状态改为RUNNING
+        执行完成后会将状态改为IDLE
+        """
+        logger.debug(f"{self.name}定时器线程已启动")
+        while True:
+            # 等待计时器间隔
+            old_interval = self.__interval
+            count = max(int(old_interval / 0.1), 1)
+            for _ in range(count):
+                if self.__state != self.IDLE or self.__pause_requested:
+                    break
+                if self.__interval != old_interval:
+                    continue
+                time.sleep(0.1)
+
+            # 检查是否应该退出循环
+            if self.__state != self.IDLE or self.__pause_requested:
+                if self.__pause_requested:
+                    self.__state = self.PAUSED
+                    self.__pause_requested = False
+                break
+
+            # 执行任务函数
+            with self.__state_lock:
+                try:
+                    self.__state = self.RUNNING
+                    self.__func(*self.__args, **self.__kwargs)
+
+                    if self.__single_shot:
+                        self.__state = self.STOPPED
+                        break
+
+                    # 检查是否有暂停请求
+                    if self.__pause_requested:
+                        self.__state = self.PAUSED
+                        self.__pause_requested = False
+                        break
+
+                    self.__state = self.IDLE
+                except Exception as e:
+                    logger.exception(f"{self.name}回调函数执行异常: {e}")
+                    break
+
+        with self.__timer_lock:
+            self.__timer = None
+        logger.debug(f"{self.name}定时器线程已结束")
 
     @property
     def isPause(self) -> bool:
         """是否处于暂停状态"""
-        return self._state == self.PAUSED
+        return self.__state == self.PAUSED
 
     @property
     def isRunning(self) -> bool:
         """是否处于运行状态"""
-        return self._state == self.RUNNING
+        return self.__state == self.RUNNING
+
+    @property
+    def isStopped(self) -> bool:
+        """是否处于停止状态"""
+        return self.__state == self.STOPPED
 
     @property
     def isIdle(self) -> bool:
         """是否处于空闲状态"""
-        return self._state == self.IDLE
+        return self.__state == self.IDLE
 
     @property
     def state(self) -> str:
         """获取当前状态"""
-        return self._state
+        return self.__state
 
     def setInterval(self, interval: float):
-        """设置间隔时间（秒）"""
-        with self._state_lock:
-            self._interval = interval
+        """设置间隔时间（秒），最小值为0.01秒"""
+        self.__interval = max(interval, 0.01)
 
     def setSingleShot(self, single_shot: bool):
         """设置是否为单次执行"""
-        with self._state_lock:
-            self._single_shot = single_shot
-
-    def _execute_callback(self):
-        """执行回调并安排下一次执行"""
-        with self._state_lock:
-            if self._state != self.RUNNING:
-                return
-
-            # 执行回调函数
-            self.func(*self.args, **self.kwargs)
-
-            # 如果不是单次执行，安排下一次执行
-            if not self._single_shot and self._state == self.RUNNING:
-                self._timer = threading.Timer(self._interval, self._execute_callback)
-                self._timer.daemon = True
-                self._timer.start()
-            else:
-                self._state = self.IDLE
+        self.__single_shot = single_shot
 
     def start(self, interval: float = None):
         """
-        启动定时器
+        启动定时器，只有空闲、暂停、停止状态下会运行线程
         :param interval: 可选的间隔时间（秒），如果不提供则使用之前设置的值
         """
-        with self._state_lock:
-            # 如果已经在运行，忽略本次调用（实现防抖效果）
-            if self._state == self.RUNNING:
-                return
+        if self.isRunning:
+            return
+        elif self.isPause:  # 如果处于暂停状态，执行恢复操作
+            self.resume()
+            return
+        else:
+            if self.__timer is None:
+                with self.__timer_lock:
+                    if interval is not None:
+                        self.setInterval(interval)
+                    if self.__timer is not None:
+                        self.stop()
+                    self._run_thread()
 
-            # 如果处于暂停状态，执行恢复操作
-            if self._state == self.PAUSED:
-                self._state = self.RUNNING
-                self._timer = threading.Timer(self._interval, self._execute_callback)
-                self._timer.daemon = True
-                self._timer.start()
-                return
-
-            # 只有在IDLE状态才启动新定时器
-            if interval is not None:
-                self._interval = interval
-
-            self._state = self.RUNNING
-
-            # 创建并启动Timer
-            self._timer = threading.Timer(self._interval, self._execute_callback)
-            self._timer.daemon = True
-            self._timer.start()
-
-    def stop(self):
+    def stop(self, timeout=None):
         """停止定时器"""
-        with self._state_lock:
-            if self._state == self.IDLE:
-                return
-
-            self._state = self.IDLE
-
-            # 取消Timer
-            if self._timer is not None:
-                self._timer.cancel()
-                self._timer = None
+        if not self.isRunning:
+            self._set_state(self.STOPPED)  # 改变状态,定时器线程将会关闭
+            with self.__timer_lock:
+                if timeout is not None and self.__timer is not None:
+                    self.__timer.join(timeout)
 
     def pause(self):
         """暂停定时器"""
-        with self._state_lock:
-            if self._state == self.RUNNING:
-                self._state = self.PAUSED
-                # 取消当前Timer
-                if self._timer is not None:
-                    self._timer.cancel()
-                    self._timer = None
-            elif self._state == self.PAUSED:
-                self.resume()
+        if not self.isRunning:
+            self._set_state(self.PAUSED)
+        else:
+            # 如果正在运行，设置暂停请求标志
+            self.__pause_requested = True
 
     def resume(self):
         """恢复定时器"""
-        with self._state_lock:
-            if self._state == self.PAUSED:
-                self._state = self.RUNNING
-                # 重新启动Timer
-                self._timer = threading.Timer(self._interval, self._execute_callback)
-                self._timer.daemon = True
-                self._timer.start()
+        if not self.isRunning:
+            self._set_state(self.IDLE)
+            # 恢复运行
+            with self.__timer_lock:
+                if self.__timer is None:
+                    self._run_thread()
+        else:
+            # 如果正在运行，设置暂停请求标志
+            self.__pause_requested = False

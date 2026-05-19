@@ -3,6 +3,7 @@
     Task为核心类,其余类为任务管理类或/各种任务池
     任务对象依赖于Future
     任务池与ProcessPoolExecutor接口一致
+    对于Task内递归提交到任务管理内需要
 使用方法:
     创建Task类的实例、或继承内部传入任务函数即可
     调用start方法即可运行在不同任务池中
@@ -890,10 +891,13 @@ class Task:
         isRunning属性(只读且子类无法修改)用于判断任务是否正在运行
         任务调用了start方法后isRunning将变为True
         任务完成后isRuning将变为False,依赖finish_signal信号修改
+    任务管理类参数说明:
+        如果不指定任务管理类,默认会在内部创建一个线程管理类
+        通过use_process或use_async参数指定默认创建的管理类类型
     """
 
     def __init__(self, func: Callable, task_manage: 'TaskManageBase' = None, name: str = None,
-                 use_process: bool = False, args: tuple = (), kwargs: dict = None):
+                 use_process: bool = False, use_async: bool = False, args: tuple = (), kwargs: dict = None):
         """
         :param func:任务函数
         :param task_manage:任务池,不传入时内部创建一个单线程任务池,启用use_process时使用子进程任务池
@@ -910,11 +914,15 @@ class Task:
         self.__kwargs = kwargs if kwargs is not None else {}  # 保存关键字参数
 
         if task_manage is None:
+            self.__need_delete_task_manage = True  # 是否需要删除任务管理器
             if use_process:
                 self.__task_manage = TaskProcessManage(1)
+            elif use_async:
+                self.__task_manage = TaskAsyncManage(1)
             else:
                 self.__task_manage = TaskManage(1)
         else:
+            self.__need_delete_task_manage = False
             self.__task_manage = task_manage
 
         self.__callback_func = set()  # 所有的返回函数
@@ -942,6 +950,36 @@ class Task:
         """获取任务函数及其参数"""
         return self.__func, self.__args, self.__kwargs
 
+    def _start(self, priority: int = 5) -> bool:
+        """
+        内部启动任务的核心逻辑（私有方法）
+
+        :param priority: 任务优先级（1-10，1为最高优先级，默认为5）
+        :return: 是否成功提交任务
+        """
+        # 如果任务正在运行，先停止
+        if self.__isRunning:
+            self.stop()
+        # 标记为运行状态
+        self.__isRunning = True
+        # 发送开始信号
+        self.start_signal.emit(self)
+        # 提交任务到任务池
+        self.__future = self.__task_manage.submit_task(self, priority=priority)
+        if self.__future is not None:
+            # 增加运行计数
+            self.countRun += 1
+            # 添加回调函数
+            for callback in self.__callback_func:
+                if callable(callback):
+                    self.add_done_callback(callback)
+            return True
+        else:
+            # 提交失败，停止任务
+            self.stop()
+            logger.warning(f'{self.name} 任务提交失败')
+            return False
+
     def start(self, timeout: float | int = None, priority: int = 5, parent_task: 'Task' = None) -> Any | bool:
         """
         执行任务,可反复调用
@@ -949,53 +987,60 @@ class Task:
         :param priority: 任务优先级（1-10，1为最高优先级，默认为5）
         :param parent_task:关联父任务,用于父任务被停止时关闭阻塞中的子任务,timeout>=0时生效
         """
-        if not self.__isRunning:
-            self.__isRunning = True
-        else:
-            self.stop()
-            self.__isRunning = True
-        self.start_signal.emit(self)
-        self.__future = self.__task_manage.submit_task(self, priority=priority)
-        if self.__future is not None:
-            self.countRun += 1
-            for callback in self.__callback_func:
-                if callable(callback):
-                    self.add_done_callback(callback)
-            if timeout is not None:
-                return self.result(timeout, parent_task)
+        # 启动任务
+        if not self._start(priority):
+            return False
+        # 根据 timeout 决定是否等待
+        if timeout is not None:
+            return self.result(timeout, parent_task)
+        return True
+
+    async def start_async(self, timeout: float | int = None, priority: int = 5,
+                          parent_task: 'Task' = None, check_interval: float = 0.05) -> Any | bool:
+        """
+        异步执行任务（非阻塞等待），适合在异步池中使用
+
+        :param timeout: 超时时间（秒），0表示无限等待，None表示不等待立即返回True
+        :param priority: 任务优先级（1-10，1为最高优先级，默认为5）
+        :param parent_task: 关联父任务，父任务停止时自动停止当前任务
+        :param check_interval: 检查间隔（秒），默认0.05秒，仅在有等待时生效
+        :return:
+            - timeout=None: 返回 True（提交成功）或 False（提交失败）
+            - timeout>=0: 返回任务结果或 None（超时/失败）
+
+        使用示例:
+            # 方式1：不等待，立即返回
+            success = await task.start_async(timeout=None)
+
+            # 方式2：限时等待结果
+            result = await task.start_async(timeout=30, parent_task=self)
+
+            # 方式3：无限等待结果
+            result = await task.start_async(timeout=0)
+
+        注意:
+            - 该方法应该在异步池中调用，避免占用线程池工作线程
+            - 子任务应该提交到线程池，父任务在异步池中等待，防止死锁
+            - 与同步 start() 不同，该方法不会阻塞工作线程
+        """
+        # 启动任务
+        if not self._start(priority):
+            return False
+        # 根据 timeout 决定行为
+        if timeout is None:
+            # 不等待，立即返回提交状态
             return True
         else:
-            self.stop()
-            logger.warning(f'{self.name} 任务提交失败')
-            return False
-
-    def start_sync(self) -> Any | bool:
-        """同步开始,在本线程同步执行任务函数,返回任务结果"""
-        if not self.__isRunning:
-            self.__isRunning = True
-        else:
-            self.stop()
-            self.__isRunning = True
-        self.start_signal.emit(self)
-        self.__future = Future()
-        self.countRun += 1
-        for callback in self.__callback_func:
-            if callable(callback):
-                self.add_done_callback(callback)
-        try:
-            result = self.__call__()
-            self.__future.set_result(result)
-            return result
-        except Exception as e:
-            self.__future.set_exception(e)
-            return False
+            # 异步等待结果
+            return await self.result_async(timeout, parent_task, check_interval)
 
     def stop(self) -> bool:
         """停止任务,已开始的任务无法被取消,需要在提交函数内引用isRunning标识符"""
         state = False
         if self.__isRunning:
             self.__isRunning = False
-            state = self.__future.cancel()
+            if self.__future is not None:
+                state = self.__future.cancel()
         self.stop_signal.emit(state)
         return state
 
@@ -1019,7 +1064,7 @@ class Task:
                         return None
                     else:
                         time.sleep(0.1)
-                if not self.__future.cancelled():
+                if self.__future is not None and not self.__future.cancelled():
                     return self.__future.result()
             # 即使 isRunning 为 False，只要任务已完成，仍可获取结果
             if self.__future is not None and self.__future.done() and not self.__future.cancelled():
@@ -1027,6 +1072,98 @@ class Task:
         except Exception as e:
             logger.exception(f'{self.__class__.__name__}.result 错误{e}')
         return None
+
+    async def result_async(self, timeout: float | int = None, parent_task: 'Task' = None,
+                           check_interval: float = 0.05) -> Any:
+        """
+        异步获取任务结果（非阻塞等待）
+
+        :param timeout: 超时时间（秒），0表示无限等待，None表示立即返回（不等待）
+        :param parent_task: 关联父任务，父任务停止时自动停止当前任务
+        :param check_interval: 检查间隔（秒），默认0.05秒，范围建议[0.01, 0.2]
+        :return: 任务结果，超时、失败或未启动时返回None
+
+        使用示例:
+            # 在异步函数中使用
+            async def my_async_func():
+                task = SomeTask(...)
+                task.start_async()
+                result = await task.async_result(timeout=30)
+
+            # 在普通函数中使用（需要事件循环）
+            import asyncio
+            result = asyncio.run(task.async_result(timeout=30))
+
+        注意:
+            - 该方法不会阻塞线程池工作线程，适合在异步池中调用
+            - 父任务应该在异步池中运行，子任务在线程池中运行，避免死锁
+            - check_interval 不宜过小（<0.01）或过大（>0.2）
+        """
+        # 参数验证
+        if check_interval <= 0:
+            raise ValueError(f"check_interval 必须为正数，收到: {check_interval}")
+
+        if timeout is not None and not isinstance(timeout, (int, float)):
+            raise TypeError(f"timeout 必须是数字或None，收到: {type(timeout).__name__}")
+
+        try:
+            # 情况1：任务未启动或已完成，直接返回结果
+            if not self.__isRunning or self.done():
+                if self.__future is not None and self.__future.done() and not self.__future.cancelled():
+                    try:
+                        return self.__future.result()
+                    except Exception as e:
+                        logger.exception(f'{self.__class__.__name__}.async_result 获取结果错误: {e}')
+                        return None
+                return None
+
+            # 情况2：timeout=None，立即返回（非阻塞检查）
+            if timeout is None:
+                return None
+
+            # 情况3：需要等待（timeout=0 无限等待，或 timeout>0 限时等待）
+            timeout_value = max(timeout, 0)  # 确保非负
+            start_time = time.time() if timeout_value > 0 else None
+
+            # 异步等待循环
+            while self.__isRunning and not self.done():
+                # 检查父任务状态
+                if parent_task is not None and not parent_task.isRunning:
+                    self.stop()
+                    logger.debug(f"父任务已停止，终止任务: {self.name}")
+                    return None
+
+                # 检查超时（timeout=0 表示无限等待，不检查超时）
+                if timeout_value > 0 and start_time is not None:
+                    elapsed = time.time() - start_time
+                    if elapsed >= timeout_value:
+                        self.stop()
+                        logger.warning(f"任务超时: {self.name} (耗时: {elapsed:.2f}s)")
+                        return None
+
+                # 让出控制权，不阻塞线程
+                await asyncio.sleep(check_interval)
+
+            # 任务完成，安全获取结果
+            if self.__future is not None and not self.__future.cancelled():
+                try:
+                    return self.__future.result()
+                except Exception as e:
+                    logger.exception(f'{self.__class__.__name__}.async_result 获取结果错误: {e}')
+                    return None
+
+            return None
+
+        except asyncio.CancelledError:
+            # 协程被取消，停止任务并重新抛出异常
+            logger.debug(f"异步等待被取消: {self.name}")
+            self.stop()
+            raise  # 必须重新抛出，保持协程取消语义
+
+        except Exception as e:
+            logger.exception(f'{self.__class__.__name__}.async_result 错误: {e}')
+            self.stop()
+            return None
 
     def set_result(self, result):
         """
@@ -1122,15 +1259,10 @@ class Task:
 
         # 7. 清理任务管理器引用（如果是内部创建的）
         # 注意：外部传入的task_manage不由这里清理
-        if hasattr(self, '_Task__task_manage'):
-            # 只清理内部创建的单线程管理器
-            if isinstance(self.__task_manage, (TaskManage, TaskProcessManage)):
-                # 检查是否是单工作线程的内部管理器
-                if self.__task_manage.num_work == 1:
-                    try:
-                        self.__task_manage.stop()
-                    except Exception:
-                        pass
+        # 只清理内部创建的单线程管理器
+        if self.__need_delete_task_manage:
+            self.__task_manage.stop()
+            self.__task_manage = None
 
         # 8. 标记为已清理
         self.__isRunning = False

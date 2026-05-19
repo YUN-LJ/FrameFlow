@@ -1,4 +1,6 @@
-"""任务工作流"""
+"""
+任务工作流,工作流由异步池管理
+"""
 from SubAPI.WallHaven.api.Tools import *
 
 logger = LogClass.get_logger(__name__, console_level='WARNING')
@@ -7,23 +9,22 @@ logger = LogClass.get_logger(__name__, console_level='WARNING')
 class ThumbWorkFlow(Task):
     """略缩图加载任务"""
 
-    def __init__(self, url: str, task_manage: TaskManageBase = None,
-                 use_network: bool = True, use_cache: bool = True):
+    def __init__(self, url: str, use_network: bool = True, use_cache: bool = True):
         self.url = url
-        self.task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
         self.use_network = use_network
         self.use_cache = use_cache
         self.image_id = None
-        super().__init__(self.__execute, self.task_manage, name='ThumbWorkFlow')
+        super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_ASYNC_MANAGE,
+                         name='ThumbWorkFlow', use_async=True)
 
-    def __execute(self) -> ImageData | None:
-        task = DownloadTask(self.url, self.task_manage, self.use_network, self.use_cache)
+    async def __execute(self) -> ImageData | None:
+        task = DownloadTask(self.url, GlobalValue.GLOBAL_TASK_MANAGE, self.use_network, self.use_cache)
         self.image_id = task.image_id
         task.start_signal.bridge_signal(self.start_signal)
         task.progress_signal.bridge_signal(self.progress_signal)
         task.finish_signal.bridge_signal(self.finish_signal)
         task.stop_signal.bridge_signal(self.stop_signal)
-        return task.start(0, 2, self)
+        return await task.start_async(0, 2, self)
 
 
 class DownloadWorkFlowManage:
@@ -182,40 +183,65 @@ class DownloadWorkFlow(Task):
     def __init__(self, params: Params):
         # 确保同一参数任务只实例化一次
         if DownloadWorkFlowManage.get_work_flow(params.image_id) is None:
-            super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_MANAGE, name='DownloadWorkFlow')
+            super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_ASYNC_MANAGE,
+                             name='DownloadWorkFlow', use_async=True)
             self.params = params
             self.image_data = None
             self.append_time = time.time()  # 添加时间
             DownloadWorkFlowManage.append_work_flow(self)
 
-    def create_task(self) -> DownloadTask:
-        """创建下载任务"""
-        # if self.params.url is None or self.params.image_info is None:
-        image_info = self.params.image_info_task.start(0, 2, self)
+    async def _get_params_image_info(self) -> bool:
+        image_info = await self.params.image_info_task.start_async(0, 2, self)
         if image_info is not None:
             self.params.image_info = image_info
-        download_task = DownloadTask(self.params.url)
-        download_task.progress_signal.connect(self.progress_signal.emit)
-        return download_task
+            return True
+        return False
 
-    def __execute(self) -> ImageData | None:
-        while self.isRunning and self.countRun < 3:
-            try:
-                download_task = self.create_task()
-                # 本地图像数据不存在时提交下载
-                local_path = self.params.image_info['本地路径'].values[0]
-                self.image_data = ImageData(self.params.image_id, self.params.extension)
-                if not local_path or not FileBase(local_path).exists:  # 本地不存在时发送下载请求
-                    self.image_data: ImageData = download_task.start(0, 3, self)
-                    if self.image_data is not None and self.params.save:
-                        self.image_data.save_image(self.params.save_path, self.params.cover)
-                logger.info(f'{self.__class__.__name__} {self.params.image_id} 下载图像成功')
-                return self.image_data
-            except FileNotFoundError:  # 保存路径获取失败时重试
-                self.countRun += 1
-            except Exception as e:
-                logger.exception(f'{self.__class__.__name__} {self.params.image_id} 下载图像失败 {e}')
-                return None
+    async def _create_task(self) -> DownloadTask | None:
+        """创建下载任务"""
+        # if self.params.url is None or self.params.image_info is None:
+        if await self._get_params_image_info():
+            download_task = DownloadTask(self.params.url)
+            download_task.progress_signal.connect(self.progress_signal.emit)
+            return download_task
+
+    async def __execute(self) -> ImageData | None:
+        try:
+            download_task = await self._create_task()
+            if download_task is None:
+                raise Exception('获取图像信息失败')
+            # 本地图像数据不存在时提交下载
+            local_path = self.params.image_info['本地路径'].values[0]
+            self.image_data = ImageData(self.params.image_id, self.params.extension)
+            if not local_path or not FileBase(local_path).exists:  # 本地不存在时发送下载请求
+                logger.info(f'{self.__class__.__name__} {self.params.image_id} 开始下载图像')
+                self.image_data: ImageData = await download_task.start_async(0, 3, self)
+                if self.image_data is not None:
+                    logger.info(f'{self.__class__.__name__} {self.params.image_id} 下载图像成功')
+                    if self.params.save:  # 保存图像,最多重试三次
+                        try_count = 1
+                        while self.isRunning and try_count <= 3:
+                            # 创建保存任务
+                            save_task = Task(self.image_data.save_image, GlobalValue.GLOBAL_TASK_MANAGE,
+                                             args=(self.params.save_path, self.params.cover))
+                            save_state = await save_task.start_async(0, 1, self)
+                            if save_state:
+                                logger.info(f'{self.__class__.__name__} {self.params.image_id} 保存图像成功')
+                                break
+                            else:
+                                logger.warning(f'{self.__class__.__name__} {self.params.image_id} '
+                                               f'第{try_count}次 保存图像失败')
+                                try_count += 1
+                                await asyncio.sleep(0.1)
+                                await self._get_params_image_info()
+                else:
+                    logger.warning(f'{self.__class__.__name__} {self.params.image_id} 下载图像失败')
+            else:
+                logger.info(f'{self.__class__.__name__} {self.params.image_id} 图像已存在{local_path}')
+            return self.image_data
+        except Exception as e:
+            logger.exception(f'{self.__class__.__name__} {self.params.image_id} 下载图像失败 {e}')
+            return None
 
     def setSignal(self, start_signal, progress_signal, finish_signal, stop_signal=None):
         """设置信号连接"""
@@ -250,7 +276,8 @@ class UpdateWorkFlow(Task):
         :param purity:分级
         :param categories:分类
         """
-        super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_MANAGE, name='UpdateWorkFlow')
+        super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_ASYNC_MANAGE,
+                         name='UpdateWorkFlow', use_async=True)
         self.key_word = key_word
         self.purity = purity
         self.categories = categories
@@ -303,22 +330,25 @@ class UpdateWorkFlow(Task):
                 return self.DOWNLOAD_STATE
         return self.SEARCH_STATE
 
-    def __execute(self) -> bool:
-        def step_one() -> bool:
+    async def __execute(self) -> bool:
+        async def step_one() -> bool:
             """第一步,获取远程第一页数据已经更新本地关键词数据和本地全部数据"""
             # 更新关键词数据,不使用本地数据,确保数据准确性
             key_task = KeyWordTask(self.search_params, use_cache=False)
             key_task.finish_signal.bridge_signal(self.start_signal)
-            key_result = key_task.start(0, parent_task=self)
+            key_result = await key_task.start_async(0, parent_task=self)
             if key_result is None:
                 return False
+            logger.debug(f'{self.__class__.__name__} {self.key_word} 更新关键词数据成功')
             remote_first = SearchTask(self.search_params, use_cache=False)
-            self.remote_first_result = remote_first.start(0, parent_task=self)
+            self.remote_first_result = await remote_first.start_async(0, parent_task=self)
             if self.remote_first_result is None:
                 return False
+            logger.debug(f'{self.__class__.__name__} {self.key_word} 获取远程第一页数据成功')
             # 获取本地全部数据
             local_all = SearchTask(self.search_params, search_all=True, use_network=False, use_cache=False)
-            self.local_all_result = local_all.start(0, parent_task=self)
+            self.local_all_result = await local_all.start_async(0, parent_task=self)
+            logger.debug(f'{self.__class__.__name__} {self.key_word} 获取本地全部数据成功')
             return True
 
         def step_two() -> pd.DataFrame | None:
@@ -338,11 +368,12 @@ class UpdateWorkFlow(Task):
                 if self.remote_first_result is not None:
                     return self.remote_first_result
 
-        def step_three(diff_image_search_result: pd.DataFrame) -> bool:
+        async def step_three(diff_image_search_result: pd.DataFrame) -> bool:
             """提交下载任务并等待完成"""
             # 提交下载任务
             with self.__lock:
                 self.all_work_flow.clear()
+            logger.debug(f'{self.__class__.__name__} 提交下载任务:{self.key_word}')
             for index, row in diff_image_search_result.iterrows():
                 work_flow = self.create_download_work_flow(
                     DownloadWorkFlow.Params(row['id'], self.key_word, url=row['远程路径']))
@@ -352,6 +383,7 @@ class UpdateWorkFlow(Task):
                 self.progress.total = len(self.all_work_flow)
             self.progress_signal.emit(self)  # 通知外部进入下载阶段
             # 等待下载任务完成
+            logger.debug(f'{self.__class__.__name__} 等待下载任务:{self.key_word}')
             self.timeout = None
             while self.isRunning:
                 if self.timeout is not None and time.time() - self.timeout > self.TIME_OUT:
@@ -363,19 +395,21 @@ class UpdateWorkFlow(Task):
                     logger.info(f'{self.__class__.__name__} 更新完成:{self.key_word} '
                                 f'分级:{self.purity} 分类:{self.categories}')
                     return True
-                time.sleep(0.2)
+                await asyncio.sleep(0.2)
             return False
 
-        logger.info(f'{self.__class__.__name__} 更新中:{self.key_word} 分级:{self.purity} 分类:{self.categories}')
+        logger.info(f'{self.__class__.__name__} 开始更新:{self.key_word} 分级:{self.purity} 分类:{self.categories}')
         # 获取远程第一页数据已经更新本地关键词数据和本地全部数据
-        if step_one():
+        if await step_one():
             # 筛选出需要下载的文件
             diff_result = step_two()
             if diff_result is not None:
                 if not diff_result.empty:
                     # 提交下载任务
-                    return step_three(diff_result)
+                    return await step_three(diff_result)
+            logger.info(f'{self.__class__.__name__} 更新成功:{self.key_word} 分级:{self.purity} 分类:{self.categories}')
             return True
+        logger.info(f'{self.__class__.__name__} 更新失败:{self.key_word} 分级:{self.purity} 分类:{self.categories}')
         return False
 
     def setSignal(self, start_signal: Signal, progress_signal: Signal, finish_signal: Signal, stop_signal: Signal):
@@ -505,7 +539,8 @@ class SerialUpdateWorkFlow(Task):
     """串行更新任务"""
 
     def __init__(self):
-        super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_MANAGE, name='SerialUpdateWorkFlow')
+        super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_ASYNC_MANAGE,
+                         name='SerialUpdateWorkFlow', use_async=True)
         self.task_list: list[tuple[str, str, str]] = []
         # 子类任务信号
         self.current_task_start_signal = TaskSignal()
@@ -533,7 +568,8 @@ class SerialUpdateWorkFlow(Task):
         """任务排序"""
         self.task_list.sort(key=lambda x: x[0])
 
-    def __execute(self) -> bool:
+    async def __execute(self) -> bool:
+        logger.info(f'{self.__class__.__name__} 批量更新任务开始执行 队列长度{len(self.task_list)}')
         while self.isRunning:
             try:
                 # 取出任务
@@ -541,19 +577,20 @@ class SerialUpdateWorkFlow(Task):
                     with self.__lock:
                         self.progress.total = len(self.task_list) + self.progress.finished
                         key_word, purity, categories = self.task_list[0]
-                        self.current_task = UpdateWorkFlow(key_word, purity, categories)
-                        self.current_task.start_signal.bridge_signal(self.current_task_start_signal)
-                        self.current_task.progress_signal.bridge_signal(self.current_task_progress_signal)
-                        self.current_task.finish_signal.bridge_signal(self.current_task_finish_signal)
-                        self.current_task.stop_signal.bridge_signal(self.current_task_stop_signal)
+                    self.current_task = UpdateWorkFlow(key_word, purity, categories)
+                    self.current_task.start_signal.bridge_signal(self.current_task_start_signal)
+                    self.current_task.progress_signal.bridge_signal(self.current_task_progress_signal)
+                    self.current_task.finish_signal.bridge_signal(self.current_task_finish_signal)
+                    self.current_task.stop_signal.bridge_signal(self.current_task_stop_signal)
                 # 同一任务重试三次后则删除并继续
                 elif self.current_task.countRun >= 3:
                     self.del_task(self.current_task.key_word, self.current_task.purity, self.current_task.categories)
                     self.current_task.cleanup()
                     self.current_task = None
+                    await asyncio.sleep(0.1)
                     continue
                 # 执行任务,任务完成后,如果成功则计数并从任务队列中移除
-                elif self.current_task.start(0, parent_task=self):
+                elif await self.current_task.start_async(0, parent_task=self):
                     self.progress.finished += 1
                     self.progress_signal.emit(self.progress)
                     self.del_task(self.current_task.key_word, self.current_task.purity, self.current_task.categories)
@@ -585,20 +622,16 @@ if __name__ == '__main__':
     # DATA_MANAGE.stop()
 
     # 批量更新任务示例
-    # task_test = UpdateWorkFlow(
-    #     'chengzimiaoj', '111', '001'
-    # )
+    # task_test = UpdateWorkFlow('chengzimiaoj', '111', '001')
+    # task_test = UpdateWorkFlow('11', '111', '100')
     # task_test.start_signal.connect(print)
-    # task_test.progress_signal.connect(print)
+    # task_test.progress_signal.connect(lambda x: print(x.progress))
     # task_test.start(0)
     # DATA_MANAGE.stop()
 
     # 串行批量更新任务示例
     serial_task = SerialUpdateWorkFlow()
-    # task_test_1 = UpdateWorkFlow('chengzimiaoj', '111', '001')
-    # task_test_2 = UpdateWorkFlow('Momo Kawaii', '111', '001')
     serial_task.progress_signal.connect(print)
-    serial_task.current_task_signal.connect(lambda x: print(x.key_word))
     serial_task.add_task('chengzimiaoj', '111', '001')
     serial_task.add_task('Momo Kawaii', '111', '001')
     serial_task.start(0)
