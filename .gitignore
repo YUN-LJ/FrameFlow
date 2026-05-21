@@ -9,7 +9,6 @@
 # 忽略.idea文件夹
 /.idea/
 /.venv/
-/.vscode/
 # 忽略打包命令
 /Nuitka打包命令.txt
 # 忽略python解释器
@@ -22,5 +21,3 @@ temp/
 /Discard/
 /NewFunTest/
 /Nuitka_output/
-/assert/
-
