@@ -7,12 +7,13 @@ import time
 import asyncio
 import requests
 import pandas as pd
+import weakref
 from io import BytesIO
 from pathlib import Path
 from queue import Queue, Empty
 from threading import Lock, Thread, RLock
-from typing import Callable, Optional, Union
-
+from weakref import WeakSet, ReferenceType
+from typing import Callable, Optional, Union, Any
 # 桌面端Qt库
 from PySide6.QtCore import QTimer, Signal, QEvent, QPoint, QThread, QObject, QSize
 from PySide6.QtGui import QShortcut, QKeySequence, Qt, QGuiApplication, QPalette, QColor
@@ -45,7 +46,7 @@ from Fun.BaseTools import (
     Time, ReuseTimer, ImageProcess, ImageLoad, ImageEnum,
     Task, TaskManageBase, TaskProgress, TaskSignal, TaskManage,
     singleton_decorator, Str, Tools, CapturePythonTerminal, Terminal,
-    copy_text_to_clipboard, LogClass, TaskAsyncManage,
+    copy_text_to_clipboard, LogClass, TaskAsyncManage, TaskSignalParams
 )
 
 from SubAPI.DataManage import SEARCH_DATA, IMAGE_INFO, KEY_WORD, CONFIG_DATA

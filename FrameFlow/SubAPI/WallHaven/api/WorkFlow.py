@@ -33,7 +33,8 @@ class DownloadWorkFlowManage:
     新增工作流时发送新增信号,工作流的生命周期可连接工作流的信号获取
     任务成功完成后会从All_Work_Flow中删除,失败的任务则不会删除,方便重试
     """
-    All_Work_Flow: dict[str, 'DownloadWorkFlow'] = {}  # 图像id:工作流
+    # 图像id:工作流,采用弱引用值字典,值被gc回收时自定删除对应的键
+    All_Work_Flow: weakref.WeakValueDictionary[str, 'DownloadWorkFlow'] = weakref.WeakValueDictionary()
     __lock = RLock()
 
     # 信号
@@ -60,7 +61,7 @@ class DownloadWorkFlowManage:
             return cls.All_Work_Flow.get(image_id, None)
 
     @classmethod
-    def get_all_work_flow(cls) -> dict[str, 'DownloadWorkFlow']:
+    def get_all_work_flow(cls) -> weakref.WeakValueDictionary[str, 'DownloadWorkFlow']:
         """获取所有工作流,返回副本"""
         with cls.__lock:
             return cls.All_Work_Flow.copy()
@@ -202,7 +203,7 @@ class DownloadWorkFlow(Task):
         # if self.params.url is None or self.params.image_info is None:
         if await self._get_params_image_info():
             download_task = DownloadTask(self.params.url)
-            download_task.progress_signal.connect(self.progress_signal.emit)
+            download_task.signal.set_progress(self.progress_signal)
             return download_task
 
     async def __execute(self) -> ImageData | None:
@@ -216,15 +217,16 @@ class DownloadWorkFlow(Task):
             if not local_path or not FileBase(local_path).exists:  # 本地不存在时发送下载请求
                 logger.info(f'{self.__class__.__name__} {self.params.image_id} 开始下载图像')
                 self.image_data: ImageData = await download_task.start_async(0, 3, self)
+                download_task.clear()
                 if self.image_data is not None:
                     logger.info(f'{self.__class__.__name__} {self.params.image_id} 下载图像成功')
                     if self.params.save:  # 保存图像,最多重试三次
                         try_count = 1
                         while self.isRunning and try_count <= 3:
                             # 创建保存任务
-                            save_task = Task(self.image_data.save_image, GlobalValue.GLOBAL_TASK_MANAGE,
-                                             args=(self.params.save_path, self.params.cover))
-                            save_state = await save_task.start_async(0, 1, self)
+                            with Task(self.image_data.save_image, GlobalValue.GLOBAL_TASK_MANAGE,
+                                      args=(self.params.save_path, self.params.cover)) as save_task:
+                                save_state = await save_task.start_async(0, 1, self)
                             if save_state:
                                 logger.info(f'{self.__class__.__name__} {self.params.image_id} 保存图像成功')
                                 break
@@ -293,9 +295,8 @@ class UpdateWorkFlow(Task):
         self.__remote_all_result = None  # 远程全部结果
         # 属性
         self.timeout = None  # 上一个下载任务完成的时间
-        self.all_work_flow = []
+        self.all_work_flow: list[DownloadWorkFlow] = []
         self.__lock = Lock()
-
         # 外部桥接的信号
         self._start_signal_set: set[Signal] = set()
         self._progress_signal_set: set[Signal] = set()
@@ -335,19 +336,22 @@ class UpdateWorkFlow(Task):
             """第一步,获取远程第一页数据已经更新本地关键词数据和本地全部数据"""
             # 更新关键词数据,不使用本地数据,确保数据准确性
             key_task = KeyWordTask(self.search_params, use_cache=False)
-            key_task.finish_signal.bridge_signal(self.start_signal)
-            key_result = await key_task.start_async(0, parent_task=self)
+            key_task.signal.set_start(self.start_signal)
+            with key_task:
+                key_result = await key_task.start_async(0, parent_task=self)
             if key_result is None:
                 return False
             logger.debug(f'{self.__class__.__name__} {self.key_word} 更新关键词数据成功')
             remote_first = SearchTask(self.search_params, use_cache=False)
-            self.remote_first_result = await remote_first.start_async(0, parent_task=self)
+            with remote_first:
+                self.remote_first_result = await remote_first.start_async(0, parent_task=self)
             if self.remote_first_result is None:
                 return False
             logger.debug(f'{self.__class__.__name__} {self.key_word} 获取远程第一页数据成功')
             # 获取本地全部数据
             local_all = SearchTask(self.search_params, search_all=True, use_network=False, use_cache=False)
-            self.local_all_result = await local_all.start_async(0, parent_task=self)
+            with local_all:
+                self.local_all_result = await local_all.start_async(0, parent_task=self)
             logger.debug(f'{self.__class__.__name__} {self.key_word} 获取本地全部数据成功')
             return True
 
@@ -396,6 +400,8 @@ class UpdateWorkFlow(Task):
                                 f'分级:{self.purity} 分类:{self.categories}')
                     return True
                 await asyncio.sleep(0.2)
+            # 清理资源
+            self.__clear_all_work_flow()
             return False
 
         logger.info(f'{self.__class__.__name__} 开始更新:{self.key_word} 分级:{self.purity} 分类:{self.categories}')
@@ -444,13 +450,14 @@ class UpdateWorkFlow(Task):
     def create_download_work_flow(self, params: DownloadWorkFlow.Params) -> DownloadWorkFlow:
         """创建一个下载工作流"""
         work_flow = DownloadWorkFlow(params)
-        work_flow.progress_signal.connect(self.__download_progress)
-        work_flow.finish_signal.connect(self.__download_finished)
+        work_flow.signal.progress_signal.connect(self.__download_progress)
+        work_flow.signal.finish_signal.connect(self.__download_finished)
         with self.__lock:
             self.all_work_flow.append(work_flow)
         return work_flow
 
-    def __download_progress(self, _):
+    @throttle_reuse_timer_decorator(timeout=5)
+    def __download_progress(self):
         """任务进度更新代表任务活跃中"""
         self.timeout = time.time()
 
@@ -468,10 +475,15 @@ class UpdateWorkFlow(Task):
             else:
                 self.stop()
 
-    def stop(self) -> bool:
+    def __clear_all_work_flow(self):
+        """清除所有任务"""
         for work_flow in self.all_work_flow:
-            work_flow.stop()
             DownloadWorkFlowManage.del_work_flow(work_flow.params.image_id)
+            work_flow.clear()
+        self.all_work_flow.clear()
+
+    def stop(self) -> bool:
+        self.__clear_all_work_flow()
         return super().stop()
 
 
@@ -543,10 +555,7 @@ class SerialUpdateWorkFlow(Task):
                          name='SerialUpdateWorkFlow', use_async=True)
         self.task_list: list[tuple[str, str, str]] = []
         # 子类任务信号
-        self.current_task_start_signal = TaskSignal()
-        self.current_task_progress_signal = TaskSignal()
-        self.current_task_finish_signal = TaskSignal()
-        self.current_task_stop_signal = TaskSignal()
+        self.sub_task_signal = TaskSignalParams(is_shared=True)
         self.current_task = None  # 当前正在执行的任务
         self.__lock = Lock()
 
@@ -578,14 +587,11 @@ class SerialUpdateWorkFlow(Task):
                         self.progress.total = len(self.task_list) + self.progress.finished
                         key_word, purity, categories = self.task_list[0]
                     self.current_task = UpdateWorkFlow(key_word, purity, categories)
-                    self.current_task.start_signal.bridge_signal(self.current_task_start_signal)
-                    self.current_task.progress_signal.bridge_signal(self.current_task_progress_signal)
-                    self.current_task.finish_signal.bridge_signal(self.current_task_finish_signal)
-                    self.current_task.stop_signal.bridge_signal(self.current_task_stop_signal)
+                    self.current_task.set_signal(self.sub_task_signal)
                 # 同一任务重试三次后则删除并继续
-                elif self.current_task.countRun >= 3:
+                elif self.current_task.executor.run_count >= 3:
                     self.del_task(self.current_task.key_word, self.current_task.purity, self.current_task.categories)
-                    self.current_task.cleanup()
+                    self.current_task.clear()
                     self.current_task = None
                     await asyncio.sleep(0.1)
                     continue
@@ -594,7 +600,7 @@ class SerialUpdateWorkFlow(Task):
                     self.progress.finished += 1
                     self.progress_signal.emit(self.progress)
                     self.del_task(self.current_task.key_word, self.current_task.purity, self.current_task.categories)
-                    self.current_task.cleanup()
+                    self.current_task.clear()
                     self.current_task = None
             except IndexError:
                 logger.info(f'{self.__class__.__name__} 队列已空,任务执行完毕')
@@ -603,14 +609,16 @@ class SerialUpdateWorkFlow(Task):
 
     def stop(self) -> bool:
         if self.current_task is not None:
-            self.current_task.cleanup()
+            self.current_task.clear()
         self.current_task = None
         return super().stop()
 
 
 if __name__ == '__main__':
     from SubAPI.DataManage import DATA_MANAGE
+    from Fun.BaseTools import LogManager
 
+    LogManager().set_console_output(console_level='DEBUG')
     # 下载任务示例
     # params_test = DownloadWorkFlow.Params(
     #     'qrgl87', 'test', save_path='./'
@@ -630,9 +638,9 @@ if __name__ == '__main__':
     # DATA_MANAGE.stop()
 
     # 串行批量更新任务示例
-    serial_task = SerialUpdateWorkFlow()
-    serial_task.progress_signal.connect(print)
-    serial_task.add_task('chengzimiaoj', '111', '001')
-    serial_task.add_task('Momo Kawaii', '111', '001')
-    serial_task.start(0)
-    DATA_MANAGE.stop()
+    # serial_task = SerialUpdateWorkFlow()
+    # serial_task.progress_signal.connect(print)
+    # serial_task.add_task('chengzimiaoj', '111', '001')
+    # serial_task.add_task('Momo Kawaii', '111', '001')
+    # serial_task.start(0)
+    # DATA_MANAGE.stop()

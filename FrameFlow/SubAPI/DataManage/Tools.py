@@ -112,7 +112,7 @@ class DataManage:
         for name, data in self.__class__.data_object.items():
             if self.isRunning:
                 self.isAutoSave = True
-                logger.info(f'{self.__class__.__name__}.__auto_save 正在保存数据:{name}')
+                logger.debug(f'{self.__class__.__name__}.__auto_save 正在保存数据:{name}')
                 data.save()
                 self.isAutoSave = False
 

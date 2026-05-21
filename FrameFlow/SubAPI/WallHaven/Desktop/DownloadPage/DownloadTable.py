@@ -124,12 +124,13 @@ class DownloadTableData(DataFrameModelBase):
             image_id = task.params.image_id
             row = self.getImageIDRowIndex(image_id)
             # 连接其余信号
-            task.progress_signal.connect(lambda progress, iid=image_id: progress_slot(iid, progress))
-            task.finish_signal.bridge_signal(self.finishedSignal)
-            task.stop_signal.connect(lambda _, t=task: stop_slot(t))
+            task.progress_signal.connect(lambda progress, iid=image_id: progress_slot(iid, progress),
+                                         enable_strict_repeat=True)
+            task.finish_signal.bridge_signal(self.finishedSignal, enable_strict_repeat=True)
+            task.stop_signal.connect(lambda _, t=task: stop_slot(t), enable_strict_repeat=True)
             self.setCellData(row, 3, 1)  # 设置按钮状态为停止任务
 
-        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 1000)
+        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 50)
         def progress_slot(image_id: str, value: TaskProgress):
             """任务进度"""
             row = self.getImageIDRowIndex(image_id)
@@ -151,6 +152,7 @@ class DownloadTableData(DataFrameModelBase):
                     self.setCellData(row, 2, '100;下载完成')
                     self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
                 SignalConfig.WallHavenSignal.search_signal.refreshViewSignal.emit()
+                task.clear()  # 清理资源
                 return True, f'{image_id}下载完成', self.__parent
             else:
                 if row > -1:
@@ -171,7 +173,9 @@ class DownloadTableData(DataFrameModelBase):
         # 处理任务信号
         for work_flow in DownloadWorkFlowManage.get_all_work_flow_by_sorted():
             # 连接任务信号
-            work_flow.start_signal.connect(start_slot)
+            work_flow.start_signal.connect(start_slot, enable_strict_repeat=True)
+            if work_flow.state.isRunning:
+                start_slot(work_flow)
             data.append(work_flow.params.image_id)
         # 更新数据
         data = pd.DataFrame(data, columns=['图像ID'])
@@ -303,12 +307,16 @@ class DownloadTable(TableWidgetBase):
     def startDownload(self):
         """外部调用开始任务"""
         for image_id in self.data_model.getAllImageID(True):
-            DownloadWorkFlowManage.get_work_flow(image_id).start()
+            work_flow = DownloadWorkFlowManage.get_work_flow(image_id)
+            if work_flow is not None:
+                work_flow.start()
 
     def stopDownload(self):
         """外部调用停止任务"""
         for image_id in self.data_model.getAllImageID(True):
-            DownloadWorkFlowManage.get_work_flow(image_id).stop()
+            work_flow = DownloadWorkFlowManage.get_work_flow(image_id)
+            if work_flow is not None:
+                work_flow.stop()
 
     def deleteDownload(self, image_ids: list | str = None):
         """

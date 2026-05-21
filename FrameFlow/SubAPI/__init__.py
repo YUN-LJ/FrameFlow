@@ -59,10 +59,11 @@ def exit_handler():
     LogManager().close_all_handlers()
 
 
-def start_desktop(func):
+def start_desktop(func, console_level='WARNING'):
     """
     启动桌面应用
     :param func:启动函数,需要返回顶层窗口
+    :param console_level:控制台输出日志级别
     """
 
     from SubAPI.Settings import GlobalValue
@@ -81,7 +82,7 @@ def start_desktop(func):
     GlobalValue.TOP_WINDOWS = win
     MainWidget.change_theme()
     # 设置全模块日志控制台输出级别, 默认为WARNING
-    # LogManager().set_console_output(console_level='INFO')
+    LogManager().set_console_output(console_level=console_level)
     app.exec()
     # ---清理阶段---
     exit_handler()

@@ -76,4 +76,4 @@ if __name__ == '__main__':
     # Thread(target=monitor_threads, daemon=True).start()
     # 处理启动参数
     process_startup_parameters()
-    start_desktop(start)
+    start_desktop(start,'DEBUG')

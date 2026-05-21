@@ -55,7 +55,7 @@ class KeyWordCell(ImageCell):
             self.work_flow.start_signal.bridge_signal(self.thumbStartSignal)
             self.work_flow.finish_signal.bridge_signal(self.thumbFinishedSignal)
             self.work_flow.stop_signal.bridge_signal(self.thumbFinishedSignal)
-            self.work_flow.start()
+            self.work_flow.start(priority=2)
 
     def loadThumb(self):
         self.__load_thumb_timer.start(TIMEOUT)
@@ -75,7 +75,8 @@ class KeyWordCell(ImageCell):
                 if result is not None and self.thumb_url == task.url:
                     self.setImage(result.generate_thumb())
             except Exception as e:
-                task.start(priority=2)
+                if task.executor.run_count < 3:
+                    task.start(priority=2)
                 self.setImageText('加载图片失败')
         else:
             self.setImageText('停止加载图片')
@@ -118,7 +119,7 @@ class KeyWordCell(ImageCell):
             self.__load_thumb_timer.stop()
         if self.work_flow is not None:
             self.work_flow.stop()
-            self.work_flow.cleanup()
+            self.work_flow.clear()
 
     def deleteLater(self):
         """确保资源删除干净"""

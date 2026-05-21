@@ -143,7 +143,7 @@ class LikeTableData(DataFrameModelBase):
                 col = self.columnCount() - 1
                 self.setCellData(row, col, f'0;{text}')
 
-        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 1000)
+        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 50)
         def current_task_progress_slot(task: UpdateWorkFlow):
             text = f'搜索中' if task.get_progress_state == task.SEARCH_STATE else '下载中'
             row = self.getKeyWordRowIndex(task.key_word)
@@ -176,10 +176,10 @@ class LikeTableData(DataFrameModelBase):
         self.work_flow.finish_signal.bridge_signal(signal.finishSignal)
         self.work_flow.stop_signal.bridge_signal(signal.stopSignal)
 
-        self.work_flow.current_task_start_signal.connect(current_task_start_slot)
-        self.work_flow.current_task_progress_signal.connect(current_task_progress_slot)
-        self.work_flow.current_task_finish_signal.connect(current_task_finish_slot)
-        self.work_flow.current_task_stop_signal.connect(current_task_stop_slot)
+        self.work_flow.sub_task_signal.start_signal.connect(current_task_start_slot)
+        self.work_flow.sub_task_signal.progress_signal.connect(current_task_progress_slot)
+        self.work_flow.sub_task_signal.finish_signal.connect(current_task_finish_slot)
+        self.work_flow.sub_task_signal.stop_signal.connect(current_task_stop_slot)
 
     def _load_key_word(self):
         with KEY_WORD as df:

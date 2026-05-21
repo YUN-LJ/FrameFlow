@@ -356,7 +356,7 @@ class AsyncAPI:
             self.response_task = AsyncChunkDownloader(
                 self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE, num_chunks=1,
                 params=self.params, headers=self.headers)
-        self.response_task.progress_signal.connect(progress_signal.emit)
+        self.response_task.signal.set_progress(progress_signal)
         while self.task.isRunning and retry_count < self.__class__.retry_count:
             if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
                 return None
@@ -525,8 +525,77 @@ class RequestAPI:
             return self.result.iter_content(chunk_size=chunk_size)
 
 
-class SearchTask(Task):
+class TaskBase(Task):
+    """WallHaven后端任务基类,全局任务器满载时可选是否提交到内部线程池"""
+
+    def start(self, timeout: float | int = None, priority: int = 5,
+              parent_task: 'Task' = None, submit_to_internal=False) -> Any | bool:
+        if submit_to_internal and self.manage.is_full:
+            task_manage = self.manage.__class__
+            self.set_manage(task_manage(2), True)
+        return super().start(timeout, priority, parent_task)
+
+
+class SearchTask(TaskBase):
     """搜索全部时,如果传入的任务池满载了则会创建一个临时的任务池用于完成子任务"""
+
+    class Params:
+        """搜索任务参数"""
+
+        def __init__(self,
+                     search_params: Config.SearchParams,
+                     task_manage: TaskManageBase = None,
+                     search_all=False,
+                     use_network: bool = True,
+                     use_cache: bool = True,
+                     add_history: bool = False,
+                     enable_tags_search=False):
+            self.image_id = image_id
+            self.key_word = key_word
+            self.save = save  # 是否保存
+            self.cover = cover  # 是否覆盖
+            self.save_path = save_path  # 保存路径
+            self.__image_info = image_info  # 图像信息
+            self.__url = url  # url地址
+            self.extension = extension  # 文件扩展名
+            # 图像信息请求任务
+            self.image_info_task = ImageInfoTask(self.image_id, self.key_word)
+
+        @property
+        def url(self) -> str | None:
+            """获取远程路径"""
+            return self.__url
+
+        @property
+        def image_info(self) -> pd.DataFrame | None:
+            """获取图像信息"""
+            return self.__image_info
+
+        @image_info.setter
+        def image_info(self, image_info: pd.DataFrame):
+            self.__image_info = image_info
+            self.extension = image_info['文件扩展名'].values[0]
+            self.__url = image_info['远程路径'].values[0]
+
+        def copy(self) -> 'DownloadWorkFlow.Params':
+            """创建副本"""
+            return self.__class__(
+                self.image_id,
+                self.key_word,
+                self.save,
+                self.cover,
+                self.url,  # 使用 property
+                self.image_info,  # 使用 property
+                self.save_path,
+                self.extension
+            )
+
+        def __eq__(self, other):
+            if not isinstance(other, self.__class__):
+                return False
+            # 比较指定属性
+            attrs = ['image_id', 'key_word']
+            return all(getattr(self, attr) == getattr(other, attr) for attr in attrs)
 
     def __init__(self, params: Config.SearchParams, task_manage: TaskManageBase = None,
                  search_all=False, use_network: bool = True, use_cache: bool = True,
@@ -541,7 +610,7 @@ class SearchTask(Task):
         :param enable_tags_search:启用标签搜索,默认为关键词检索
         """
         self.params = params
-        self.task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
+        task_manage = GlobalValue.GLOBAL_TASK_MANAGE if task_manage is None else task_manage
         self.search_all = search_all
         self.use_network = use_network
         self.use_cache = use_cache
@@ -622,7 +691,7 @@ class SearchTask(Task):
         self.params.page = 1
         result = self.__execute()
         if result is not None:
-            self.progress.total = result.loc[0, '总页数']
+            self.progress.total = int(result.loc[0, '总页数'])
             self.progress.finished = 1
             self.progress_signal.emit(self)
             self.sub_task: list[SearchTask] = []
@@ -662,7 +731,7 @@ class SearchTask(Task):
         return super().result(timeout, parent_task)
 
 
-class DownloadTask(Task):
+class DownloadTask(TaskBase):
     """
     下载任务,下载的图像数据将会存储在IMAGE_CACHE_DIR中
     返回ImageData类
@@ -716,7 +785,7 @@ class DownloadTask(Task):
         return super().result(timeout, parent_task)
 
 
-class ImageInfoTask(Task):
+class ImageInfoTask(TaskBase):
     def __init__(self, image_id: str, key_word: str, task_manage: TaskManageBase = None,
                  use_network: bool = True, use_cache: bool = True):
         """
@@ -754,7 +823,7 @@ class ImageInfoTask(Task):
         return super().result(timeout, parent_task)
 
 
-class KeyWordTask(Task):
+class KeyWordTask(TaskBase):
     def __init__(self, params: Config.SearchParams, task_manage: TaskAsyncManage = None,
                  use_network=True, use_cache=True):
         """
