@@ -6,7 +6,9 @@ logger = LogClass.get_logger(__name__, console_level='WARNING')
 
 def load_config():
     # 加载配置文件
-    CONFIG_DATA.is_loaded(0)
+    if not CONFIG_DATA.is_loaded(5):
+        logger.warning(f'{Config.PACK_NAME} 本地配置加载失败')
+        return
     with CONFIG_DATA as data:
         value = data.get_values(section_name=Config.PACK_NAME)
         if value:

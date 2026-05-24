@@ -45,8 +45,8 @@ class FrameFlowWin(LazyLoadMS):
         # 创建节流定时器
         self.limitHTTPSignal.connect(self._limitHTTPSlot)
 
-        IMAGE_INFO.load_callback(lambda _: self.imageinfoLoadFinishedSignal.emit())
-        KEY_WORD.load_callback(lambda _: self.keywordLoadFinishedSignal.emit())
+        IMAGE_INFO.load_callback(self.imageinfoLoadFinishedSignal.emit)
+        KEY_WORD.load_callback(self.keywordLoadFinishedSignal.emit)
         GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.rate_limit_signal.connect(self.limitHTTPSlot)
 
     def _limitHTTPSlot(self, limit):

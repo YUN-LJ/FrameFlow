@@ -21,6 +21,7 @@ class DownloadPage(FluentWidgetFromUI, Ui_DownloadWidget):
         self.pushButton_start.setIcon(FIF.PLAY)
         self.pushButton_stop.setIcon(FIF.STOP_WATCH)
         self.pushButton_delete.setIcon(FIF.DELETE)
+        self.pushButton_sync.setIcon(FIF.SYNC)
 
         self.setStyleSheet("DownloadPage, DownloadPage * {background-color: transparent;}")
 
@@ -40,6 +41,7 @@ class DownloadPage(FluentWidgetFromUI, Ui_DownloadWidget):
         self.pushButton_start.clicked.connect(self.slot.pushButton_start)
         self.pushButton_stop.clicked.connect(self.slot.pushButton_stop)
         self.pushButton_delete.clicked.connect(self.slot.pushButton_delete)
+        self.pushButton_sync.clicked.connect(self.slot.pushButton_sync)
 
 
 class DownloadSlot:
@@ -57,29 +59,24 @@ class DownloadSlot:
     def pushButton_delete(self):
         self.parent.tableWidget_download.deleteDownload()
 
+    def pushButton_sync(self):
+        """刷新"""
+        self.parent.tableWidget_download.data_model.refreshDataLazy()
 
-if __name__ == '__main__':
-    from SubAPI import start_desktop
-    from SubAPI.WallHaven import api
 
+def start():
+    # 创建窗口
+    win = DownloadPage()
+    win.show()
     # 创建测试样本
-    image_ids = ['mlwj3m', 'e8ekxl', '7jw8po', 'qrgl87']
-
-    # 打印图像数据信息
-    # IMAGE_INFO.is_loaded(0)
-    # with IMAGE_INFO as df:
-    #     mask = df['id'].isin(image_ids)
-    #     print(df.loc[mask, '本地路径'])
-
+    image_ids = ['1qj5e1', '6lq3m7', 'o5k319', 'gpymve', 'o5p5rl']
     params = DownloadWorkFlow.Params
     [DownloadWorkFlow(params(image_id, 'test')) for image_id in image_ids]
+    return win
 
 
-    def start():
-        # 创建窗口
-        win = DownloadPage()
-        win.show()
-        return win
+if __name__ == '__main__':
+    from SubAPI import StartAPI
 
-
-    start_desktop(start)
+    start_api = StartAPI(func=start, console_level='DEBUG')
+    start_api.start_thread()

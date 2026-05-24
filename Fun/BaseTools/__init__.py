@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     # 只有类的模块 - 使用 from 模块 import *
     from .AsyncHTTP import *
     from .TaskClass import *
+    from .TaskMonitor import *
+    from .TaskOrch import *
 
 # 声明对外接口
 __all__ = [
@@ -39,6 +41,8 @@ __all__ = [
     'AsyncHTTPManage', 'AsyncJson', 'AsyncChunkDownloader',
     # LogClass 模块中的类
     'LogConfig', 'LogManager',
+    # TaskOrchestrator模块中的类
+    'TaskChain', 'ParallelTaskGroup', 'TaskOrchestrator'
 ]
 
 import importlib
@@ -91,6 +95,10 @@ _MODULE_MAP = {
     # LogClass 模块中的类
     'LogConfig': '.LogClass',
     'LogManager': '.LogClass',
+    # TaskOrchestrator 模块中的类
+    'TaskChain': '.TaskOrch',
+    'ParallelTaskGroup': '.TaskOrch',
+    'TaskOrchestrator': '.TaskOrch'
 }
 
 

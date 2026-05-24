@@ -463,6 +463,7 @@ class TaskManageBase:
     子类需要更改提交任务逻辑重写_pool_submit方法即可
     """
     all_manage: WeakSet['TaskManageBase'] = WeakSet()  # 全部任务管理类,弱引用
+    __class_lock = threading.Lock()
 
     def __init__(self, num_work: int = None):
         self.isStop = False  # 是否停止
@@ -471,7 +472,8 @@ class TaskManageBase:
         # 存储了全部未完成的Task任务
         self.__all_tasks: set[Task] = set()
         self.__lock = threading.Lock()
-        self.__class__.all_manage.add(self)
+        with self.__class__.__class_lock:
+            self.__class__.all_manage.add(self)
 
     def create_pool(self, num_work: int) -> PriorityThreadPool:
         """创建内部池的方法"""
@@ -527,9 +529,18 @@ class TaskManageBase:
                 for task in self.__all_tasks.copy():
                     task.stop()
             self.pool.shutdown(wait=False, cancel_futures=True)
-            self.__class__.all_manage.discard(self)
+            with self.__class__.__class_lock:
+                self.__class__.all_manage.discard(self)
         except Exception as e:
             logger.exception(f'{self.__class__.__name__}.stop() 错误: {e}')
+
+    @classmethod
+    def stop_all(cls):
+        """停止全部任务管理类"""
+        with cls.__class_lock:
+            manages = cls.all_manage.copy()
+        for manage in manages:
+            manage.stop()
 
     # ========== 新增方法 ==========
     @property
@@ -605,14 +616,13 @@ class TaskSignalExecutor:
             target=self._worker_loop, name=f'{self.__class__.__name__}.信号线程', daemon=True)
         self.worker_thread.start()
 
-    def _execute_func(self, func: Callable, value: Any):
+    @staticmethod
+    def execute_func(func: Callable, *args):
         """执行单个槽函数，自动判断参数"""
         try:
             try:
-                # 尝试带参数调用
-                func(value)
+                func(*args)
             except TypeError:
-                # 如果因为参数错误，尝试无参调用
                 func()
         except RuntimeError as e:
             if 'Signal source has been deleted' not in str(e):
@@ -626,22 +636,23 @@ class TaskSignalExecutor:
                 if task is None:  # 退出信号
                     break
                 # 支持批量执行
-                for func, args, kwargs in task:
+                for func, args in task:
                     try:
-                        self._execute_func(func, *args, **kwargs)
+                        self.execute_func(func, *args)
                     except Exception:
-                        logger.exception(f'{self.__class__.__name__} 槽函数执行错误')
+                        logger.exception(f'{self.__class__.__name__} 槽函数执行错误'
+                                         f'函数: {func} 位置参数{args}')
                 self.task_queue.task_done()
             except queue.Empty:
                 continue
             except Exception as e:
                 logger.exception(f'{self.__class__.__name__} 工作线程错误{e}')
 
-    def submit(self, func: Callable, value: Any = None):
+    def submit(self, func: Callable, *args):
         """提交单个任务到队列"""
-        self.task_queue.put((func, value))
+        self.task_queue.put((func, args))
 
-    def submit_emit(self, funcs: Iterable[Callable], *args, **kwargs):
+    def submit_emit(self, funcs: Iterable[Callable], *args):
         """
         批量提交信号发射任务
 
@@ -652,8 +663,8 @@ class TaskSignalExecutor:
         if not funcs:
             return
 
-        # 直接提交(func, args,kwargs)对，不做参数判断
-        tasks = [(func, args, kwargs) for func in funcs]
+        # 直接提交(func, args)对，不做参数判断
+        tasks = [(func, args) for func in funcs]
         self.task_queue.put(tasks)
 
     def shutdown(self):
@@ -665,11 +676,17 @@ class TaskSignalExecutor:
 
 
 class TaskSignal:
-    """仿Qt信号类，支持强/弱引用（默认强引用），所有槽函数在后台线程执行"""
+    """
+    仿Qt信号类
+    支持强/弱引用(默认强引用)
+    所有槽函数在同一后台线程执行,请勿执行阻塞函数
+    槽函数可选择不接受参数
+    一旦接受必须符合
+    """
 
     _executor = TaskSignalExecutor()  # 共享执行器
 
-    def __init__(self, use_weak: bool = False, is_shared=False):
+    def __init__(self, use_weak: bool = False, is_shared=False, name=None):
         """
         :param use_weak: True=弱引用 False=强引用(默认)
         :param is_shared:是否是共享信号类,注意管理生命周期
@@ -678,11 +695,15 @@ class TaskSignal:
         self._is_shared = is_shared
         self._slots: set[Callable] = set()  # 存储函数或弱引用
         self._lock = threading.RLock()
+        self.name = name or f'{self.__class__.__name__}_{hex(id(self))}'
 
-    def emit(self, *args, **kwargs):
+    def set_name(self, name):
+        self.name = name
+
+    def emit(self, *args):
         """发送信号"""
         slots = self.clear_dead_slot()
-        self._executor.submit_emit(slots, *args, **kwargs)
+        self._executor.submit_emit(slots, *args)
 
     def connect(self, func: Callable, use_weak=None, enable_strict_repeat=False) -> ReferenceType | None:
         """
@@ -703,8 +724,9 @@ class TaskSignal:
                     if enable_strict_repeat:
                         is_add = False
                     else:
-                        logger.warning(f'{self.__class__.__name__} 存在同名函数重复添加,可能造成槽函数溢出!!! '
-                                       f'即将连接的槽函数{func} | 已连接槽函数:{self}')
+                        logger.debug(f'{repr(self)}'
+                                     f'存在同名函数重复添加,可能造成槽函数溢出'
+                                     f'即将连接的槽函数{func}|已连接槽函数数量{len(self)}')
             if is_add:
                 self._slots.add(func)
             if use_weak:
@@ -728,11 +750,11 @@ class TaskSignal:
     def connect_once(self, func: Callable):
         """单次连接，执行一次后自动断开"""
 
-        def wrapper(*args, **kwargs):
+        def wrapper(*args):
             try:
-                func(*args, **kwargs)
-            except Exception:
-                logger.exception(f'{self.__class__.__name__} 槽函数执行错误')
+                TaskSignalExecutor.execute_func(func, *args)
+            except Exception as e:
+                logger.exception(f'{self.__class__.__name__} 槽函数执行错误{e}')
             finally:
                 self.disconnect(wrapper)
 
@@ -746,7 +768,7 @@ class TaskSignal:
         with self._lock:
             if func is None:
                 if self._is_shared and not compulsory:
-                    logger.warning(f'{self.__class__.__name__} 共享信号无法自动清理全部槽函数,请使用compulsory参数')
+                    logger.debug(f'{self.name} 共享信号无法自动清理全部槽函数,请使用compulsory参数')
                     return
                 self._slots.clear()
             else:
@@ -756,6 +778,56 @@ class TaskSignal:
         """桥接到另一个信号"""
         self.connect(signal.emit, use_weak, enable_strict_repeat)
 
+    def transfer_to(self, target_signal: 'TaskSignal',
+                    disconnect_original: bool = True,
+                    enable_strict_repeat: bool = False) -> int:
+        """
+        将当前信号的所有槽函数转移到目标信号
+
+        :param target_signal: 目标信号
+        :param disconnect_original: 转移后是否断开原信号的连接（默认True）
+        :param enable_strict_repeat: 是否启用严格重复检查（默认False）
+        :return: 成功转移的槽函数数量
+        """
+        if not isinstance(target_signal, TaskSignal):
+            raise TypeError(f"target_signal 必须是 TaskSignal 类型，收到: {type(target_signal).__name__}")
+
+        if target_signal is self:
+            logger.debug(f'{self.name} 不能转移到自身')
+            return 0
+
+        transferred_count = 0
+
+        # 获取所有有效的槽函数
+        with self._lock:
+            slots_snapshot = self._slots.copy()
+
+        for slot in slots_snapshot:
+            try:
+                if isinstance(slot, ReferenceType):
+                    # 弱引用槽函数：解引用后以弱引用方式连接到目标
+                    func = slot()
+                    if func is None:
+                        # 弱引用已失效，跳过
+                        continue
+                    # 以弱引用方式连接到目标信号
+                    target_signal.connect(func, use_weak=True, enable_strict_repeat=enable_strict_repeat)
+                else:
+                    # 强引用槽函数：直接以强引用方式连接到目标
+                    target_signal.connect(slot, use_weak=False, enable_strict_repeat=enable_strict_repeat)
+
+                transferred_count += 1
+            except Exception as e:
+                logger.exception(f'{self.name} 转移槽函数失败: {e}')
+                continue
+
+        # 如果需要断开原连接
+        if disconnect_original:
+            self.disconnect(compulsory=True)
+
+        logger.debug(f'{self.name} 转移 {transferred_count} 个槽函数到 {target_signal.name}')
+        return transferred_count
+
     def clear_dead_slot(self) -> set[Callable]:
         """清理死亡的弱引用槽函数,返回可用的槽函数集合"""
         # 清理已死亡弱引用
@@ -763,13 +835,18 @@ class TaskSignal:
         slots = set()  # 存储有效的槽函数
         for slot in _slots:
             if isinstance(slot, ReferenceType):
-                if slot() is None:
+                func = slot()
+                if func is None:
                     self._slots.remove(slot)
                 else:
-                    slots.add(slot)
+                    slots.add(func)
             else:
                 slots.add(slot)
         return slots
+
+    def get_slots(self):
+        """获取可用的槽函数"""
+        return self.clear_dead_slot()
 
     def __len__(self):
         return len(self.clear_dead_slot())
@@ -778,7 +855,10 @@ class TaskSignal:
         return item in self._slots
 
     def __repr__(self):
-        return f'{self.__class__.__name__} 已连接槽函数:{self._slots}'
+        return (f'{self.__class__.__name__}('
+                f'{self._use_weak},'
+                f'{self._is_shared},'
+                f'{self.name}) 连接的槽函数{self._slots}')
 
     def __del__(self):
         self.disconnect()
@@ -828,6 +908,12 @@ class TaskProgress:
             value = int((self.__finished / self.__total) * 100) if self.__total != 0 else 0
             return value
 
+    def set_progress(self, progress: 'TaskProgress'):
+        with self.__lock:
+            self.__total = progress.total
+            self.__finished = progress.finished
+            self.__rate = progress.rate
+
     @property
     def total(self) -> int | float:
         """获取任务总量"""
@@ -872,6 +958,12 @@ class TaskProgress:
     def __repr__(self):
         return f'已完成:{self.__finished} 总计:{self.__total} 速率:{self.__rate}'
 
+    def __eq__(self, other):
+        with self.__lock:
+            return all([self.__total == other.total,
+                        self.__finished == other.finished,
+                        self.__rate == other.rate])
+
 
 class TaskSignalParams:
     """Task类内部的信号参数"""
@@ -881,10 +973,11 @@ class TaskSignalParams:
         :param is_shared:是否是共享信号类
         """
         self.is_shared = is_shared
-        self.start_signal = TaskSignal(is_shared=is_shared)  # 任务开始信号
-        self.progress_signal = TaskSignal(is_shared=is_shared)  # 任务进度信号
-        self.finish_signal = TaskSignal(is_shared=is_shared)  # 任务完成信号
-        self.stop_signal = TaskSignal(is_shared=is_shared)  # 任务停止信号
+        self.start_signal = TaskSignal(is_shared=is_shared, name='start_signal')  # 任务开始信号
+        self.progress_signal = TaskSignal(is_shared=is_shared, name='progress_signal')  # 任务进度信号
+        self.finish_signal = TaskSignal(is_shared=is_shared, name='finish_signal')  # 任务完成信号
+        self.stop_signal = TaskSignal(is_shared=is_shared, name='stop_signal')  # 任务停止信号
+        self.clear_signal = TaskSignal(is_shared=is_shared, name='clear_signal')  # 任务清理信号
 
     def set_start(self, signal: TaskSignal):
         self.start_signal = signal
@@ -898,12 +991,27 @@ class TaskSignalParams:
     def set_stop(self, signal: TaskSignal):
         self.stop_signal = signal
 
+    def set_clear(self, signal: TaskSignal):
+        self.clear_signal = signal
+
+    def bridge_other_signal(self, signal: 'TaskSignalParams'):
+        """
+        桥接其他信号
+        等价于start_signal.connect(signal.start_signal.emit)
+        """
+        self.start_signal.bridge_signal(signal.start_signal)
+        self.progress_signal.bridge_signal(signal.progress_signal)
+        self.finish_signal.bridge_signal(signal.finish_signal)
+        self.stop_signal.bridge_signal(signal.stop_signal)
+        self.clear_signal.bridge_signal(signal.clear_signal)
+
     def clear(self, compulsory=False):
         """清空信号"""
         self.start_signal.disconnect(compulsory=compulsory)
         self.progress_signal.disconnect(compulsory=compulsory)
         self.finish_signal.disconnect(compulsory=compulsory)
         self.stop_signal.disconnect(compulsory=compulsory)
+        self.clear_signal.disconnect(compulsory=compulsory)
 
 
 class TaskStateParams:
@@ -960,6 +1068,19 @@ class TaskStateParams:
         with self.__lock:
             return self.__current_state == TaskEnum.Status.CLEAR
 
+    @property
+    def isUsable(self) -> bool:
+        """判断当前是否可使用"""
+        with self.__lock:
+            return self.__current_state in (
+                TaskEnum.Status.RUNNING,
+                TaskEnum.Status.PAUSED,
+                TaskEnum.Status.STOPPED,
+                TaskEnum.Status.FINISHED,
+                TaskEnum.Status.ERROR,
+                TaskEnum.Status.CANCELED
+            )
+
     def set_running(self):
         with self.__lock:
             self.__current_state = TaskEnum.Status.RUNNING
@@ -991,15 +1112,6 @@ class TaskStateParams:
     def reset(self):
         with self.__lock:
             self.__current_state = TaskEnum.Status.STOPPED
-
-    def can_start(self) -> bool:
-        with self.__lock:
-            return self.__current_state in (
-                TaskEnum.Status.STOPPED,
-                TaskEnum.Status.FINISHED,
-                TaskEnum.Status.ERROR,
-                TaskEnum.Status.CANCELED
-            )
 
     def __str__(self) -> str:
         with self.__lock:
@@ -1126,10 +1238,8 @@ class TaskExecutor:
             task = self.__weak_task()
             while task.state.isRunning and not self.done_future():
                 if parent_task is not None and not parent_task.state.isRunning:
-                    task.stop()
                     yield False
                 if timeout != 0 and time.time() - start_time >= timeout:
-                    task.stop()
                     yield False
                 else:
                     yield True
@@ -1153,6 +1263,7 @@ class TaskExecutor:
                     else:
                         if self.future_valid():
                             return self.__future.result()
+                        return None
         except Exception as e:
             logger.exception(f'{self.__class__.__name__}.result 错误{e}')
         return None
@@ -1212,7 +1323,7 @@ class TaskExecutor:
             if self.future_valid():
                 self.__future.set_result(result)
                 return True
-            logger.warning(f"{self.__class__.__name__} {self.name} 的 Future 对象不可用,无法设置结果")
+            logger.debug(f"{self.__class__.__name__} {self.name} 的 Future 对象不可用,无法设置结果")
             return False
 
     # 状态
@@ -1293,7 +1404,7 @@ class TaskExecutor:
 class Task:
     """
     基本说明:
-        任务类,所有继承该类的都带有四个信号,开始、进度、完成、停止
+        任务类,所有继承该类的都带有四个信号,开始、进度、完成、停止、清理
         支持协程/多线程/多进程,提交到不同的管理类中将即可,
         如果是异步则传入的函数支持异步写法
         内部复杂属性都已经差分为独立的类进行管理,如传入TaskSignalParams即内部不会再创建信号
@@ -1302,10 +1413,12 @@ class Task:
         使用完后最好显示调用clear方法清理资源
         或使用with语句+阻塞等待方法来使用(退出时自动清理资源)
     信号说明:
+        如果没有特殊声明,默认发送自身
         start_signal,开始信号,发送自身
         progress_signal,进度信号,需要在func函数中自定义
         finish_signal,完成信号,发送自身
         stop_signal,停止信号,发送自身
+        clear_signal,清理信号,发送自身
         自带的信号由独立的单线程维护不用考虑线程安全,
         添加的回调函数由各自任务所在的线程池/进程池维护,需要考虑线程安全
         高耗时任务使用add_done_callback添加回调
@@ -1325,6 +1438,7 @@ class Task:
                  use_async: bool = False,
                  args: tuple | Any = (),
                  kwargs: dict = None,
+                 parent_task: 'Task' = None,
                  signal: TaskSignalParams = None,
                  progress: TaskProgress = None):
         """
@@ -1334,6 +1448,7 @@ class Task:
         :param use_process:是否使用多进程模式
         :param args: 任务函数所需要的参数,单个参数直接传递,多参数元组传递
         :param kwargs:任务函数所需要的参数
+        :param parent_task:关联的父对象,任务启动会检查父对象是否被停止或清理,父对象停止或清理会同步关闭子任务或清理子任务
         :param signal:传入指定的信号参数,默认内部创建独立的信号
         :param progress:传入指定的进度参数,默认内部创建独立的进度参数
         """
@@ -1348,6 +1463,20 @@ class Task:
         self.__progress = TaskProgress() if progress is None else self.set_progress(progress)  # 进度属性
         # 信号的槽函数由单独的线程维护,循环调用会导致信号发送阻塞,这时请使用add_done_callback
         self.__signal = TaskSignalParams() if signal is None else self.set_signal(signal)  # 信号参数
+        at = hex(id(self))
+        # 设置名称
+        self.__signal.start_signal.set_name(f'{self.__signal.start_signal.name}->Parent:{self.__class__.__name__}_{at}')
+        self.__signal.progress_signal.set_name(
+            f'{self.__signal.progress_signal.name}->Parent:{self.__class__.__name__}_{at}')
+        self.__signal.finish_signal.set_name(
+            f'{self.__signal.finish_signal.name}->Parent:{self.__class__.__name__}_{at}')
+        self.__signal.stop_signal.set_name(f'{self.__signal.stop_signal.name}->Parent:{self.__class__.__name__}_{at}')
+        self.__signal.clear_signal.set_name(f'{self.__signal.clear_signal.name}->Parent:{self.__class__.__name__}_{at}')
+
+        self.__parent_task = None
+        self.__sub_tasks: WeakSet[Task] = WeakSet()  # 子任务
+        if parent_task is not None:
+            self.set_parent_task(parent_task)
 
     # 只读属性
     @property
@@ -1357,6 +1486,13 @@ class Task:
     @name.setter
     def name(self, value: str):
         self.__executor.name = value
+
+    @property
+    def parent_task(self) -> Optional['Task'] | None:
+        """安全的获取父任务"""
+        if self.__parent_task is None:
+            return None
+        return self.__parent_task()  # 可能返回 None
 
     @property
     def state(self) -> TaskStateParams:
@@ -1408,9 +1544,17 @@ class Task:
         return self.__signal.stop_signal
 
     @property
+    def clear_signal(self) -> TaskSignal:
+        return self.__signal.clear_signal
+
+    @property
     def get_progress(self) -> int:
         """获取百分制进度"""
         return self.__progress.get_progress()
+
+    @property
+    def sub_tasks(self) -> WeakSet:
+        return self.__sub_tasks.copy()
 
     # 设置方法
     def set_result(self, result) -> bool:
@@ -1423,8 +1567,16 @@ class Task:
     def set_signal(self, signal: TaskSignalParams) -> TaskSignalParams:
         """设置信号参数"""
         if isinstance(signal, TaskSignalParams):
+            # 转移原有信号的槽函数
+            self.__signal.start_signal.transfer_to(signal.start_signal)
+            self.__signal.progress_signal.transfer_to(signal.progress_signal)
+            self.__signal.finish_signal.transfer_to(signal.finish_signal)
+            self.__signal.stop_signal.transfer_to(signal.stop_signal)
+
+            # 清空原有信号的槽函数
             if not self.__signal.is_shared:
                 self.__signal.clear()
+
             self.__signal = signal
             return signal
         else:
@@ -1451,6 +1603,33 @@ class Task:
         else:
             raise TypeError("参数 task_manage 必须为 TaskManageBase 类型")
 
+    def set_parent_task(self, parent_task: Optional['Task'] | None):
+        """设置父任务"""
+        if parent_task == self.parent_task:
+            return
+        # 解除父任务连接
+        if parent_task is None and self.parent_task is not None:
+            self.parent_task.signal.stop_signal.disconnect(self.__parent_task_stop_slot)
+            self.parent_task.signal.clear_signal.disconnect(self.__parent_task_clear_slot)
+            self.__parent_task = None
+            return
+        # 断开旧父任务连接
+        if self.parent_task is not None:
+            self.parent_task.signal.stop_signal.disconnect(self.__parent_task_stop_slot)
+            self.parent_task.signal.clear_signal.disconnect(self.__parent_task_clear_slot)
+        # 连接新父任务
+        if parent_task.signal != self.signal:
+            self.__parent_task = weakref.ref(parent_task)
+            parent_task.signal.stop_signal.connect(self.__parent_task_stop_slot)
+            parent_task.signal.clear_signal.connect(self.__parent_task_clear_slot)
+        else:
+            logger.warning(f'父任务信号与该任务信号一致 父任务{parent_task.name}.signal == 子任务{self.name}.signal')
+
+    def add_sub_task(self, sub_task: 'Task'):
+        if not isinstance(sub_task, Task):
+            raise TypeError("参数 sub_task 必须为 Task 类型")
+        self.__sub_tasks.add(sub_task)
+
     def __call__(self):
         """返回执行函数,必须调用该函数"""
         return self.__executor()
@@ -1474,9 +1653,19 @@ class Task:
         :param priority: 任务优先级（1-10，1为最高优先级，默认为5）
         :return: 是否成功提交任务
         """
+        if self.__state.isClear:
+            logger.debug(f"任务 {self.name} 已被清理，无法再次启动")
+            return False
         # 如果任务正在运行，先停止
         if self.__state.isRunning:
             self.stop()
+        # 检查父任务状态
+        if self.__parent_task is not None:
+            if (self.parent_task is None or
+                    self.parent_task.state.isStopped or
+                    self.parent_task.state.isClear):
+                logger.warning(f"{self.__class__.__name__} 父任务已停止/已清理,无法启动任务: {self.name}")
+                return False
         # 标记为运行状态
         self.__state.set_running()
         # 发送开始信号
@@ -1484,19 +1673,22 @@ class Task:
         # 提交任务到任务池
         return self.__executor.submit_task(self.__task_manage, priority)
 
-    def start(self, timeout: float | int = None, priority: int = 5, parent_task: 'Task' = None) -> Any | bool:
+    def start(self, timeout: float | int = None, priority: int = 5,
+              parent_task: 'Task' = None) -> Any | bool:
         """
         执行任务,可反复调用
         :param timeout:是否等待任务完成,支持输入float|int值,0为无限等待,默认不等待,等待时返回任务结果,超时停止
         :param priority: 任务优先级（1-10，1为最高优先级，默认为5）
-        :param parent_task:关联父任务,用于父任务被停止时关闭阻塞中的子任务,timeout>=0时生效
+        :param parent_task: 指定父任务
         """
+        if parent_task is not None:
+            self.set_parent_task(parent_task)
         # 启动任务
         if not self._start(priority):
             return False
         # 根据 timeout 决定是否等待
         if timeout is not None:
-            return self.result(timeout, parent_task)
+            return self.result(timeout)
         return True
 
     async def start_async(self, timeout: float | int = None, priority: int = 5,
@@ -1506,7 +1698,7 @@ class Task:
 
         :param timeout: 超时时间（秒），0表示无限等待，None表示不等待立即返回True
         :param priority: 任务优先级（1-10，1为最高优先级，默认为5）
-        :param parent_task: 关联父任务，父任务停止时自动停止当前任务
+        :param parent_task: 指定父任务
         :return:
             - timeout=None: 返回 True（提交成功）或 False（提交失败）
             - timeout>=0: 返回任务结果或 None（超时/失败）
@@ -1526,30 +1718,30 @@ class Task:
             - 子任务应该提交到线程池，父任务在异步池中等待，防止死锁
             - 与同步 start() 不同，该方法不会阻塞工作线程
         """
+        if parent_task is not None:
+            self.set_parent_task(parent_task)
         # 启动任务
         if not self._start(priority):
             return False
         # 根据 timeout 决定行为
         if timeout is not None:
             # 异步等待结果
-            return await self.result_async(timeout, parent_task)
+            return await self.result_async(timeout)
         return True
 
-    def result(self, timeout: float | int = None, parent_task: 'Task' = None) -> Any | None:
+    def result(self, timeout: float | int = None) -> Any | None:
         """
         获取任务结果
-        :param timeout:是否等待任务完成,支持输入float|int值,0为无限等待,默认不等待,等待时返回任务结果,超时时会停止当前任务
-        :param parent_task:关联父任务,用于父任务被停止时关闭阻塞中的子任务,timeout>=0时生效
+        :param timeout:是否等待任务完成,支持输入float|int值,0为无限等待,默认不等待,等待时返回任务结果,超时时会停止当前任务,内部每0.1秒检查一次
         """
-        result = self.__executor.result(timeout, parent_task)
+        result = self.__executor.result(timeout, self.parent_task)
         return result
 
-    async def result_async(self, timeout: float | int = None, parent_task: 'Task' = None) -> Any | None:
+    async def result_async(self, timeout: float | int = None) -> Any | None:
         """
         异步获取任务结果（非阻塞等待）
 
-        :param timeout: 超时时间（秒），0表示无限等待，None表示立即返回（不等待）
-        :param parent_task: 关联父任务，父任务停止时自动停止当前任务
+        :param timeout: 超时时间（秒），0表示无限等待，None表示立即返回（不等待）,内部每0.1秒检查一次
         :return: 任务结果，超时、失败或未启动时返回None
 
         使用示例:
@@ -1567,7 +1759,7 @@ class Task:
             - 该方法不会阻塞线程池工作线程，适合在异步池中调用
             - 父任务应该在异步池中运行，子任务在线程池中运行，避免死锁
         """
-        result = await self.__executor.result_async(timeout, parent_task)
+        result = await self.__executor.result_async(timeout, self.parent_task)
         return result
 
     def stop(self) -> bool:
@@ -1575,18 +1767,40 @@ class Task:
         state = False
         if self.__state.isRunning:
             self.__state.set_stopped()
-            self.__executor.cancel_future()
-        self.stop_signal.emit(state)
+            state = self.__executor.cancel_future()
+        for sub_task in self.__sub_tasks.copy():
+            sub_task.stop()
+        self.stop_signal.emit(self)
         return state
 
     def add_done_callback(self, callback: Callable):
         """添加回调函数,默认回传self"""
         self.__executor.add_done_callback(callback)
 
+    def __parent_task_stop_slot(self, task: 'Task'):
+        """父任务停止信号处理"""
+        if task == self.parent_task:
+            self.stop()
+        else:
+            logger.debug(f'不是父任务: {task.name},忽略停止处理')
+
+    def __parent_task_clear_slot(self, task: 'Task'):
+        """父任务清理信号处理"""
+        if task == self.parent_task:
+            self.clear()
+        else:
+            logger.debug(f'不是父任务: {task.name},忽略清理处理')
+
     def __finished_slot(self):
         """任务执行后发送完成信号"""
         self.__state.set_finished()
         self.finish_signal.emit(self)
+
+    def progress_emit(self, progress: TaskProgress):
+        """任务进度更新信号"""
+        if isinstance(progress, TaskProgress) and self.progress != progress:
+            self.progress.set_progress(progress)
+        self.progress_signal.emit(self)
 
     def clear(self):
         """
@@ -1603,19 +1817,32 @@ class Task:
         - 会自动停止正在运行的任务
         - 会断开所有TaskSignal的连接
         """
+        if self.__state.isClear:
+            return
         # 1. 停止正在运行的任务
         if self.__state.isRunning:
             self.stop()
-        # 2. 清理执行器
+        # 2. 发送清理信号
+        self.__signal.clear_signal.emit(self)
+        for sub_task in self.__sub_tasks.copy():
+            sub_task.clear()
+        # 3. 清理执行器
         self.__executor.clear()
-        # 3. 断开所有信号连接
+        # 4. 断开所有信号连接
         if not self.__signal.is_shared:
             self.__signal.clear()
-        # 4. 清理任务管理器引用 注意：外部传入的task_manage不由这里清理,只清理内部创建的单线程管理器
+        # 解除父任务链接
+        self.set_parent_task(None)
+        # 5. 清理任务管理器引用 注意：外部传入的task_manage不由这里清理,只清理内部创建的单线程管理器
         if self.__need_delete_task_manage:
-            self.__task_manage.stop()
-            self.__task_manage = None
-        # 5. 标记为已清理
+            try:
+                if self.__task_manage is not None:
+                    self.__task_manage.stop()
+            except Exception as e:
+                logger.exception(f"{self.__class__.__name__}.clear 释放任务管理器错误: {e}")
+            finally:
+                self.__task_manage = None
+        # 6. 标记为已清理
         self.__state.set_clear()
         self.name = f"{self.name}_CLEANED"
 
@@ -1634,3 +1861,13 @@ class Task:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.clear()
         return False
+
+
+if __name__ == '__main__':
+    task_a = Task(lambda: print("task_a"))
+    task_b = Task(lambda: print("task_b"))
+    task_c = Task(lambda: print("task_c"))
+    task_b.set_parent_task(task_a)
+    # task_b.clear()
+    task_c.set_parent_task(task_a)
+    print(task_a.stop_signal.__len__())

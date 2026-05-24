@@ -13,7 +13,7 @@ from pathlib import Path
 from queue import Queue, Empty
 from threading import Lock, Thread, RLock
 from weakref import WeakSet, ReferenceType
-from typing import Callable, Optional, Union, Any
+from typing import Callable, Optional, Union, Any, Iterable
 # 桌面端Qt库
 from PySide6.QtCore import QTimer, Signal, QEvent, QPoint, QThread, QObject, QSize
 from PySide6.QtGui import QShortcut, QKeySequence, Qt, QGuiApplication, QPalette, QColor
@@ -39,18 +39,20 @@ from Fun.QtWidget import (
     ImageWidget, TableCell, TableRow, get_exist_dir, get_exist_files, FluentWidgetBase, FluentWidgetFromUI,
     LoadBarDialog, LoadRingDialog, SidebarWidget, MainWidget, ImageCell, ProgressRingButton,
     info_bar_decorator, teaching_tip_decorator, debouncer_timer, TableDataCell,
-    throttle_qtimer_decorator, throttle_reuse_timer_decorator
+    throttle_qtimer_decorator, throttle_reuse_timer_decorator, debouncer_reuse_timer
 )
 from Fun.BaseTools import (
     File, Get, FileBase, AsyncJson, AsyncHTTPManage, AsyncChunkDownloader,
     Time, ReuseTimer, ImageProcess, ImageLoad, ImageEnum,
     Task, TaskManageBase, TaskProgress, TaskSignal, TaskManage,
     singleton_decorator, Str, Tools, CapturePythonTerminal, Terminal,
-    copy_text_to_clipboard, LogClass, TaskAsyncManage, TaskSignalParams
+    copy_text_to_clipboard, LogClass, TaskAsyncManage, TaskSignalParams,
+    TaskOrchestrator, TaskChain, ParallelTaskGroup
 )
 
 from SubAPI.DataManage import SEARCH_DATA, IMAGE_INFO, KEY_WORD, CONFIG_DATA
 from SubAPI.Settings import (
-    GlobalValue, DataConfig, WallHavenConfig as Config, SignalConfig
+    GlobalValue, DataConfig, WallHavenConfig as Config, SignalConfig,
+    GeneralConfig,
 )
 from SubAPI.Settings.GlobalValue import ImageDataBase

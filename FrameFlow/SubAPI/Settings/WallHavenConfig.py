@@ -69,14 +69,20 @@ class SearchParams:
         return SearchParams(self.to_dict())
 
     def __repr__(self):
-        return str(self.to_dict())
+        return f'{self.__class__.__name__}({self.to_dict()})'
 
     def __str__(self):
-        return str(self.to_dict())
+        return (f'{self.__class__.__name__} 参数:\n\t'
+                f'关键词={self.q}\n\t'
+                f'类别={self.categories}\n\t'
+                f'级别={self.purity}\n\t'
+                f'排序={self.sorting}\n\t'
+                f'顺序={self.order}\n\t'
+                f'页码={self.page}')
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
         # 比较指定属性
-        attrs = ['q', 'purity', 'categories']
+        attrs = ['q', 'purity', 'categories', 'sorting', 'order']
         return all(getattr(self, attr) == getattr(other, attr) for attr in attrs)

@@ -302,11 +302,13 @@ class _ThrottleHelper:
 
         # 执行原函数
         try:
-            try:
-                print('节流函数执行:', args, kwargs)
-                self.func(*args, **kwargs)
-            except TypeError:
-                self.func()
+            args_num = check_function_needs_args(self.func, False)
+            if args_num == 0:  # 没有参数
+                func_result = self.func()
+            elif args_num == 1:  # 有一个参数,只传递一个参数,可能是函数的self参数
+                func_result = self.func(args[0])
+            else:  # 有多个参数
+                func_result = self.func(*args, **kwargs)
         except Exception as e:
             logger.exception(f'节流函数执行错误: {e} 参数{args, kwargs}')
 

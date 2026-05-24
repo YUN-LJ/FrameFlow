@@ -186,9 +186,9 @@ class KeyWordTableData(ImageTableData):
         self.dataChange.connect(self.chooseChangeLazy)
         self.dataRefresh.connect(self.chooseChangeLazy)
         self._load_choose_key = False  # 本地选择关键词是否已加载
-        KEY_WORD.load_callback(lambda _: self.refreshDataLazy())
-        KEY_WORD.change_signal.connect(lambda _: self.refreshDataLazy())
-        IMAGE_INFO.load_callback(lambda _: Task(self.__load_choose_keys, GlobalValue.GLOBAL_TASK_MANAGE).start())
+        KEY_WORD.load_callback(self.refreshDataLazy)
+        KEY_WORD.change_signal.connect(self.refreshDataLazy)
+        IMAGE_INFO.load_callback(lambda: Task(self.__load_choose_keys, GlobalValue.GLOBAL_TASK_MANAGE).start())
 
     def __load_choose_keys(self):
         while not self.column_choose_name in self._dataframe.columns: time.sleep(1)
