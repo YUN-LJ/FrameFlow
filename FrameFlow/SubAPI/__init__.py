@@ -18,6 +18,7 @@
     使用多进程池任务时,直接传递给模块级函数,函数内不要使用任何全局变量
 """
 from queue import Empty
+from enum import Enum
 from multiprocessing import current_process, Process, Queue, Pipe
 from SubAPI.Settings import GlobalValue
 from Fun.BaseTools import LogClass, LogManager
@@ -125,35 +126,76 @@ def start_desktop(func, client_queue: Queue, server_queue: Queue, console_level=
     put_queue(server_queue, 'exit')
 
 
+def start_cmd(func, client_queue: Queue, server_queue: Queue, console_level='WARNING'):
+    """
+    启动cmd窗口应用
+    :param func:启动函数,需要返回顶层窗口
+    :param client_queue:客户端队列,由客户端处理的事件,格式(任务类型枚举值,*args,**kwargs)
+    :param server_queue:服务端队列,由服务端处理的事件,格式(任务类型枚举值,*args,**kwargs)
+    :param console_level:控制台输出日志级别
+    """
+    from Fun.BaseTools import FileBase
+    # ---准备阶段---
+    logger.info('准备cmd窗口应用')
+    GlobalValue.CLIENT_QUEUE = client_queue
+    GlobalValue.SERVER_QUEUE = server_queue
+    FileBase(GlobalValue.IMAGE_CACHE_DIR).ensure_exists()
+    # ---启动阶段---
+    func()
+    # 设置全模块日志控制台输出级别, 默认为WARNING
+    LogManager().set_console_output(console_level=console_level)
+    # ---清理阶段---
+    logger.info('cmd窗口应用退出')
+    put_queue(server_queue, 'exit')
+
+
+class StartEnum:
+    class UI(Enum):
+        CMD = 'cmd'
+        DESKTOP = 'desktop'
+
+    class LogLevel(Enum):
+        DEBUG = 'DEBUG'
+        INFO = 'INFO'
+        WARNING = 'WARNING'
+        ERROR = 'ERROR'
+        CRITICAL = 'CRITICAL'
+
+
 class StartAPI:
     """启动接口"""
 
-    def __init__(self, ui_type='desktop', func=None, console_level='WARNING'):
+    def __init__(self,
+                 ui_type: StartEnum.UI = StartEnum.UI.DESKTOP,
+                 func=None,
+                 console_level: StartEnum.LogLevel = StartEnum.LogLevel.WARNING):
         """
         启用后端API事件服务
-        :param ui_type:ui类型
+        :param ui_type:ui类型,默认桌面端
         :param func:启动函数,默认不启动UI
-        :param console_level:控制台输出日志级别
+        :param console_level:控制台输出日志级别,默认警告级别
         """
         self.ui_type = ui_type
         self.func = func
         self.console_level = console_level
         self.client_queue = Queue()  # 客户端
         self.server_queue = Queue()  # 服务端
-        if ui_type == 'desktop':
+        if ui_type.value == 'desktop':
             self.process_func = start_desktop
+        elif ui_type.value == 'cmd':
+            self.process_func = start_cmd
         self.client_process = Process(
             target=self.process_func,
             args=(func, self.client_queue, self.server_queue, console_level)
         )
         # 设置全模块日志控制台输出级别, 默认为WARNING
-        LogManager().set_console_output(console_level=console_level)
+        LogManager().set_console_output(console_level=console_level.value)
         GlobalValue.CLIENT_QUEUE = self.client_queue
         GlobalValue.SERVER_QUEUE = self.server_queue
 
     def start_thread(self):
         """线程模式"""
-        self.process_func(self.func, self.client_queue, self.server_queue, self.console_level)
+        self.process_func(self.func, self.client_queue, self.server_queue, self.console_level.value)
         exit_handler()  # 退出事件
 
     def start(self):

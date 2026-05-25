@@ -303,7 +303,9 @@ class AsyncJson(Task):
                  headers: dict = None,
                  timeout: aiohttp.ClientTimeout = None,
                  retry_count=3,
-                 enable_limit=True):
+                 enable_limit=True,
+                 method="GET",
+                 data=None, ):
         """
         异步获取Json文件
         :param url: 请求的URL
@@ -312,6 +314,8 @@ class AsyncJson(Task):
         :param headers: 请求头,默认无
         :param timeout: 超时时间,默认请查看AsyncHTTPManage.default_timeout设置
         :param enable_limit:是否启用限速,该参数只在AsyncHTTPManage启用了限速时生效,默认启用,禁用则会绕过AsyncHTTPManage设置的速率限制
+        :param method:请求类型,GET/POST,默认GET
+        :param data:表单数据
         """
         super().__init__(self.__execute, async_manager)
         self.url = url
@@ -321,13 +325,23 @@ class AsyncJson(Task):
         self.retry_count = retry_count
         self.timeout = async_manager.default_timeout if timeout is None else timeout
         self.enable_limit = enable_limit
+        self.method = method.upper()
+        self.data = data
         # 请求后的状态和结果
         self.status_code = 0
+
+    def set_data(self, data):
+        self.data = data
 
     @property
     def request_args(self) -> dict:
         """实际请求时的关键词参数"""
-        return {'headers': self.headers, 'params': self.params, 'timeout': self.timeout}
+        headers = {'headers': self.headers,
+                   'params': self.params,
+                   'timeout': self.timeout}
+        if self.data is not None:
+            headers['data'] = self.data
+        return headers
 
     async def __execute(self) -> dict:
         """异步请求,无结果时返回空字典"""
@@ -340,7 +354,14 @@ class AsyncJson(Task):
                 # 遵循任务池速率限制
                 if self.enable_limit and not await self.async_manager.wait_for_rate_limit(self):
                     return {}
-                async with session.get(self.url, **kwargs) as response:
+                if self.method == 'GET':
+                    func = session.get
+                elif self.method == 'POST':
+                    func = session.post
+                else:
+                    logger.debug(f"{self.__class__.__name__} 不支持的请求方法: {self.method}")
+                    return {}
+                async with func(self.url, **kwargs) as response:
                     self.status_code = response.status
                     if self.status_code == 200:
                         return await response.json()
