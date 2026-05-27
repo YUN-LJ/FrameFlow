@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     # 只有类的模块 - 使用 from 模块 import *
     from .AsyncHTTP import *
     from .TaskClass import *
+    from .TaskOrch import *
 
 # 声明对外接口
 __all__ = [
@@ -32,10 +33,15 @@ __all__ = [
     # TaskClass 模块中的类
     'TaskManageBase', 'TaskManage', 'TaskProcessManage', 'TaskAsyncManage',
     'Task', 'TaskProgress', 'TaskSignal', 'TaskSignalExecutor',
-    'PriorityPoolExecutorBase', 'PriorityThreadPoolExecutor',
-    'PriorityProcessPoolExecutor', 'PriorityAsyncPoolExecutor',
+    'PriorityPoolExecutorBase', 'PriorityThreadPool',
+    'PriorityProcessPool', 'PriorityAsyncPool', 'TaskExecutor', 'TaskSignalParams',
+    'TaskEnum', 'TaskStateParams',
     # AsyncHTTP 模块中的类
-    'AsyncHTTPManage', 'AsyncJson', 'AsyncChunkDownloader'
+    'AsyncHTTPManage', 'AsyncJson', 'AsyncChunkDownloader',
+    # LogClass 模块中的类
+    'LogConfig', 'LogManager',
+    # TaskOrchestrator模块中的类
+    'TaskChain', 'ParallelTaskGroup', 'TaskOrchestrator'
 ]
 
 import importlib
@@ -74,9 +80,13 @@ _MODULE_MAP = {
     'TaskSignal': '.TaskClass',
     'TaskSignalExecutor': '.TaskClass',
     'PriorityPoolExecutorBase': '.TaskClass',
-    'PriorityThreadPoolExecutor': '.TaskClass',
-    'PriorityProcessPoolExecutor': '.TaskClass',
-    'PriorityAsyncPoolExecutor': '.TaskClass',
+    'PriorityThreadPool': '.TaskClass',
+    'PriorityProcessPool': '.TaskClass',
+    'PriorityAsyncPool': '.TaskClass',
+    'TaskExecutor': '.TaskClass',
+    'TaskSignalParams': '.TaskClass',
+    'TaskEnum': '.TaskClass',
+    'TaskStateParams': '.TaskClass',
     # AsyncHTTP 模块中的类
     'AsyncHTTPManage': '.AsyncHTTP',
     'AsyncJson': '.AsyncHTTP',
@@ -84,6 +94,10 @@ _MODULE_MAP = {
     # LogClass 模块中的类
     'LogConfig': '.LogClass',
     'LogManager': '.LogClass',
+    # TaskOrchestrator 模块中的类
+    'TaskChain': '.TaskOrch',
+    'ParallelTaskGroup': '.TaskOrch',
+    'TaskOrchestrator': '.TaskOrch'
 }
 
 

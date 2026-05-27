@@ -1,4 +1,6 @@
 """关键词模式控制文件"""
+import pandas as pd
+
 from SubAPI.Settings.Desktop.ImageTabel import ImageTableData, ImageTable
 from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import api
@@ -53,7 +55,7 @@ class KeyWordCell(ImageCell):
             self.work_flow.start_signal.bridge_signal(self.thumbStartSignal)
             self.work_flow.finish_signal.bridge_signal(self.thumbFinishedSignal)
             self.work_flow.stop_signal.bridge_signal(self.thumbFinishedSignal)
-            self.work_flow.start()
+            self.work_flow.start(priority=2)
 
     def loadThumb(self):
         self.__load_thumb_timer.start(TIMEOUT)
@@ -73,7 +75,8 @@ class KeyWordCell(ImageCell):
                 if result is not None and self.thumb_url == task.url:
                     self.setImage(result.generate_thumb())
             except Exception as e:
-                task.start(priority=2)
+                # if task.executor.run_count < 3:
+                #     task.start(priority=2)
                 self.setImageText('加载图片失败')
         else:
             self.setImageText('停止加载图片')
@@ -116,7 +119,7 @@ class KeyWordCell(ImageCell):
             self.__load_thumb_timer.stop()
         if self.work_flow is not None:
             self.work_flow.stop()
-            self.work_flow.cleanup()
+            self.work_flow.clear()
 
     def deleteLater(self):
         """确保资源删除干净"""
@@ -155,13 +158,13 @@ class KeyWordRoundMenu(RoundMenu):
     def selectAll(self):
         """全选"""
         self.data_model.selectAll()
-        return True, f"已选择{self.data_model.rowCount()}个关键词", self.parent
+        return True, f"已选择{self.data_model.rowCount()}个关键词", GlobalValue.TOP_WINDOWS
 
     @info_bar_decorator
     def dissectAll(self):
         """取消全选"""
         self.data_model.disSelect()
-        return True, f"已取消选择{self.data_model.rowCount()}个关键词", self.parent
+        return True, f"已取消选择{self.data_model.rowCount()}个关键词", GlobalValue.TOP_WINDOWS
 
     def refreshThumb(self):
         pass
@@ -174,6 +177,7 @@ class KeyWordRoundMenu(RoundMenu):
 class KeyWordTableData(ImageTableData):
     """表格数据"""
 
+    @Time.timer_decorator
     def __init__(self, parent: 'KeyWordTable'):
         super().__init__(parent=parent)
         self.wall_paper_api = api.WallPaperAPI()
@@ -181,8 +185,15 @@ class KeyWordTableData(ImageTableData):
         self._refresh_data_lazy = debouncer_reuse_timer(self.refreshData)
         self.dataChange.connect(self.chooseChangeLazy)
         self.dataRefresh.connect(self.chooseChangeLazy)
-        KEY_WORD.load_callback(lambda _: self.refreshDataLazy())
-        KEY_WORD.change_signal.connect(lambda _: self.refreshDataLazy())
+        self._load_choose_key = False  # 本地选择关键词是否已加载
+        KEY_WORD.load_callback(self.refreshDataLazy)
+        KEY_WORD.change_signal.connect(self.refreshDataLazy)
+        IMAGE_INFO.load_callback(lambda: Task(self.__load_choose_keys, GlobalValue.GLOBAL_TASK_MANAGE).start())
+
+    def __load_choose_keys(self):
+        while not self.column_choose_name in self._dataframe.columns: time.sleep(1)
+        self.chooseData(api.Config.IMAGE_CHOICE_KEY)
+        self._load_choose_key = True
 
     def refreshData(self):
         with KEY_WORD as df:
@@ -210,11 +221,20 @@ class KeyWordTableData(ImageTableData):
         diselect = all_key_word.loc[all_key_word['选择'] == False, '关键词'].tolist()
         if select:
             self.wall_paper_api.select_key(select)
-        if diselect:
+        if diselect and self._load_choose_key:  # 确保本地选择关键词已加载
             self.wall_paper_api.deselect_key(diselect)
 
     def chooseChangeLazy(self):
         self._choose_change_timer.start(TIMEOUT // 50)
+
+    def chooseData(self, key_word: str | list, choose: bool = True):
+        with self.Lock:
+            if self.column_choose_name in self._dataframe.columns:
+                if isinstance(key_word, str):
+                    key_word = [key_word]
+                self._dataframe.loc[self._dataframe['关键词'].isin(key_word), '选择'] = choose
+                self.dataRefresh.emit()
+                return True
 
     def getKeyWordRowIndex(self, key_word) -> int:
         """获取关键词所在行索引"""
@@ -249,28 +269,33 @@ class KeyWordTable(ImageTable):
         self.enableColumnsCountToContents(True, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH)
         self.mouseRightClickedSignal.connect(self.showRoundMenu)
 
+    def _fuzzy_search(self, key_word: str) -> pd.DataFrame | None:
+        with KEY_WORD as df:
+            key_word = key_word.lower()
+            # 先找以key_word开头的
+            mask_start = df['关键词'].str.contains(f'^{re.escape(key_word)}', regex=True, case=False, na=False)
+            if mask_start.any():
+                return df[mask_start]
+            else:
+                # 如果没有开头匹配，找包含key_word的
+                mask_contains = df['关键词'].str.contains(re.escape(key_word), regex=True, case=False, na=False)
+                if mask_contains.any():
+                    return df[mask_contains]
+            return None
+
     def searchKey(self, key_word: str) -> bool:
         with KEY_WORD as df:
             if key_word in df['关键词'].values:  # 精准搜索
                 row_index = df[df['关键词'] == key_word].index[0]
                 self.scrollToTopSlot(row_index // self.columnCount())
                 return True
-            else:  # 模糊搜索
-                key_word = key_word.lower()
-                row_index = None
-                # 先找以key_word开头的
-                mask_start = df['关键词'].str.contains(f'^{re.escape(key_word)}', regex=True, case=False, na=False)
-                if mask_start.any():
-                    row_index = df[mask_start].index[0]
-                else:
-                    # 如果没有开头匹配，找包含key_word的
-                    mask_contains = df['关键词'].str.contains(re.escape(key_word), regex=True, case=False, na=False)
-                    if mask_contains.any():
-                        row_index = df[mask_contains].index[0]
-                if row_index is not None:
-                    self.scrollToTopSlot(row_index // self.columnCount())
-                    return True
-            return False
+        # 模糊搜索
+        df = self._fuzzy_search(key_word)
+        if df is not None:
+            row_index = df.index[0]
+            self.scrollToTopSlot(row_index // self.columnCount())
+            return True
+        return False
 
     def selectCell(self, key_word: str = None):
         """条件选择"""
@@ -282,14 +307,12 @@ class KeyWordTable(ImageTable):
                 for key_word in df['关键词'].tolist():
                     self.selected_cell.append(key_word)
             else:
-                key_word = key_word.lower()
-                # 先找以key_word开头的
-                mask_start = df['关键词'].str.contains(f'^{re.escape(key_word)}', regex=True, case=False, na=False)
-                for index, row_data in df[mask_start].iterrows():
-                    self.selected_cell.append(row_data['关键词'])
+                # 模糊搜索
+                df = self._fuzzy_search(key_word)
+                if df is not None:
+                    self.data_model.chooseData(df['关键词'])
 
-        task = Task(sub_func, GlobalValue.GLOBAL_TASK_MANAGE, args=(key_word,))
-        task.start(priority=1)
+        Thread(target=sub_func, args=(key_word,), daemon=True).start()
 
     def cancelSelectCell(self, key_word: str = None):
         """条件取消选择"""
@@ -301,11 +324,9 @@ class KeyWordTable(ImageTable):
                 for key_word in df['关键词'].tolist():
                     self.selected_cell.remove(key_word)
             else:
-                key_word = key_word.lower()
-                # 先找以key_word开头的
-                mask_start = df['关键词'].str.contains(f'^{re.escape(key_word)}', regex=True, case=False, na=False)
-                for index, row_data in df[mask_start].iterrows():
-                    self.selected_cell.remove(row_data['关键词'])
+                # 模糊搜索
+                df = self._fuzzy_search(key_word)
+                if df is not None:
+                    self.data_model.chooseData(df['关键词'], False)
 
-        task = Task(sub_func, GlobalValue.GLOBAL_TASK_MANAGE, args=(key_word,))
-        task.start(priority=1)
+        Thread(target=sub_func, args=(key_word,), daemon=True).start()

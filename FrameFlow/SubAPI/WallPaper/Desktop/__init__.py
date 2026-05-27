@@ -63,8 +63,8 @@ class WallPaperSlot:
         signal.pausePlaySignal.connect(self.pausePlaySignal)
         signal.playImageSignal.connect(self.playImageSignal)
         self.wallpaper_api.start_signal.connect(lambda _: signal.startPlaySignal.emit())
-        self.wallpaper_api.pause_signal.connect(lambda _: (print(_), signal.pausePlaySignal.emit()))
-        self.wallpaper_api.play_image_signal.connect(lambda value: signal.playImageSignal.emit(value))
+        self.wallpaper_api.pause_signal.connect(signal.pausePlaySignal.emit)
+        self.wallpaper_api.play_image_signal.connect(signal.playImageSignal.emit)
 
     @info_bar_decorator
     def lineEdit_search(self, key_word=None):
@@ -77,13 +77,16 @@ class WallPaperSlot:
     def startPlaySignal(self):
         self.parent.pushButton_play.setIcon(FIF.PAUSE)
 
-    def pausePlaySignal(self):
-        icon = FIF.PAUSE if self.parent.pushButton_play._icon == FIF.PLAY else FIF.PLAY
+    def pausePlaySignal(self, paused: bool):
+        """paused:是否暂停"""
+        icon = FIF.PLAY if paused else FIF.PAUSE
         self.parent.pushButton_play.setIcon(icon)
 
     def pushButton_play(self):
-        if not self.wallpaper_api.image_play.isRunning:
+        if not self.wallpaper_api.isRunning:
             self.wallpaper_api.start()
+        elif self.wallpaper_api.isPause:
+            self.wallpaper_api.resume()
         else:
             self.wallpaper_api.pause()
 

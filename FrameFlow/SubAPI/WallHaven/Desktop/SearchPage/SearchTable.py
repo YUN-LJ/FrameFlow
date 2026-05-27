@@ -132,7 +132,7 @@ class SearchCell(ImageCell):
             self.__load_thumb_timer.stop()
         if self.work_flow is not None:
             self.work_flow.stop()
-            self.work_flow.cleanup()
+            self.work_flow.clear()
 
     def viewImage(self):
         def sub_func(key_word):

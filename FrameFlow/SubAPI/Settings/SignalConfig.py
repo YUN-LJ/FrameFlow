@@ -61,7 +61,7 @@ class WallPaperSignal:
     class MainSignal(QObject):
         """主窗口对外暴露的信号"""
         startPlaySignal = Signal()  # 播放开始信号
-        pausePlaySignal = Signal()  # 播放停止信号
+        pausePlaySignal = Signal(bool)  # 播放停止信号
         playImageSignal = Signal(object)  # 播放的图片信号ImageProcessTask
 
     main_signal = MainSignal()

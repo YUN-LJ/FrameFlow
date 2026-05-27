@@ -22,7 +22,7 @@ class AsyncHTTPManage(TaskAsyncManage):
     - 所有异步操作通过 submit_task 提交到父类异步池
     - 支持API速率限制控制
     - 在启用API速率限制时带有速率信号,发送当前已经请求的次数rate_limit_count_signal
-    - 在启用API速率限制时带有API受限信号,发送当前速率达到上限信号rate_limit_signal
+    - 在启用API速率限制时带有API受限信号,发送当前速率达到上限信号rate_limit_signal 发送最大限制和需要等待时间
     """
     connect_limit = 48  # 连接池总大小
     host_limit = 16  # 同一主机最大连接数
@@ -47,7 +47,7 @@ class AsyncHTTPManage(TaskAsyncManage):
 
         # 速率控制配置
         self.rate_limit = rate_limit  # 速率最大限制
-        self.rate_period = rate_period  # 请求次数
+        self.rate_period = rate_period  # 窗口限制
         self._request_timestamps = []
         self._rate_lock = None  # 在事件循环中初始化
         self._lock = Lock()  # 线程锁
@@ -164,8 +164,8 @@ class AsyncHTTPManage(TaskAsyncManage):
 
             # 调试信息（可选）
             if len(self._request_timestamps) % 10 == 0:
-                logger.info(f"当前请求计数: {len(self._request_timestamps)}/"
-                            f"{self.rate_limit} (窗口: {self.rate_period}秒)")
+                logger.debug(f"当前请求计数: {len(self._request_timestamps)}/"
+                             f"{self.rate_limit} (窗口: {self.rate_period}秒)")
 
     async def _wait_with_check(self, wait_time: float, parent_task=None) -> bool:
         """
@@ -174,9 +174,9 @@ class AsyncHTTPManage(TaskAsyncManage):
         :param parent_task: 父任务对象，用于检查isRunning状态
         :return: True表示等待完成，False表示被中断
         """
-        self.rate_limit_signal.emit(self.rate_limit)
-        logger.info(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
-                    f"等待 {wait_time:.1f} 秒...")
+        self.rate_limit_signal.emit((self.rate_limit, int(wait_time)))
+        logger.debug(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
+                     f"等待 {wait_time:.1f} 秒...")
 
         # 分段等待，每1秒检查一次父任务状态
         elapsed = 0.0
@@ -184,7 +184,7 @@ class AsyncHTTPManage(TaskAsyncManage):
         while elapsed < wait_time:
             # 检查父任务是否仍在运行
             if parent_task is not None and not parent_task.isRunning:
-                logger.info(f"API速率限制等待被中断: {parent_task.name}已停止")
+                logger.debug(f"API速率限制等待被中断: {parent_task.name}已停止")
                 return False
 
             # 计算本次睡眠时长（不超过剩余时间和检查间隔）
@@ -202,9 +202,9 @@ class AsyncHTTPManage(TaskAsyncManage):
         :param parent_task: 父任务对象，用于检查isRunning状态
         :return: True表示等待完成，False表示被中断
         """
-        self.rate_limit_signal.emit(self.rate_limit)
-        logger.info(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
-                    f"等待 {wait_time:.1f} 秒...")
+        self.rate_limit_signal.emit((self.rate_limit, int(wait_time)))
+        logger.debug(f"API速率限制: 已达 {self.rate_limit}次/{self.rate_period}秒，"
+                     f"等待 {wait_time:.1f} 秒...")
 
         # 分段等待，每1秒检查一次父任务状态
         elapsed = 0.0
@@ -212,7 +212,7 @@ class AsyncHTTPManage(TaskAsyncManage):
         while elapsed < wait_time:
             # 检查父任务是否仍在运行
             if parent_task is not None and not parent_task.isRunning:
-                logger.info(f"API速率限制等待被中断: {parent_task.name}已停止")
+                logger.debug(f"API速率限制等待被中断: {parent_task.name}已停止")
                 return False
 
             # 计算本次睡眠时长（不超过剩余时间和检查间隔）
@@ -296,8 +296,15 @@ class AsyncHTTPManage(TaskAsyncManage):
 class AsyncJson(Task):
     """异步请求Json文件"""
 
-    def __init__(self, url: str, async_manager: 'AsyncHTTPManage', params: dict = None,
-                 headers: dict = None, timeout: aiohttp.ClientTimeout = None, retry_count=3):
+    def __init__(self,
+                 url: str,
+                 async_manager: AsyncHTTPManage,
+                 params: dict = None,
+                 headers: dict = None,
+                 timeout: aiohttp.ClientTimeout = None,
+                 enable_limit=True,
+                 method="GET",
+                 data=None):
         """
         异步获取Json文件
         :param url: 请求的URL
@@ -305,43 +312,60 @@ class AsyncJson(Task):
         :param async_manager:异步请求管理类
         :param headers: 请求头,默认无
         :param timeout: 超时时间,默认请查看AsyncHTTPManage.default_timeout设置
+        :param enable_limit:是否启用限速,该参数只在AsyncHTTPManage启用了限速时生效,默认启用,禁用则会绕过AsyncHTTPManage设置的速率限制
+        :param method:请求类型,GET/POST,默认GET
+        :param data:表单数据
         """
         super().__init__(self.__execute, async_manager)
         self.url = url
         self.params = params
         self.headers = headers
         self.async_manager = async_manager
-        self.retry_count = retry_count
         self.timeout = async_manager.default_timeout if timeout is None else timeout
+        self.enable_limit = enable_limit
+        self.method = method.upper()
+        self.data = data
         # 请求后的状态和结果
         self.status_code = 0
+
+    def set_data(self, data):
+        self.data = data
 
     @property
     def request_args(self) -> dict:
         """实际请求时的关键词参数"""
-        return {'headers': self.headers, 'params': self.params, 'timeout': self.timeout}
+        headers = {'headers': self.headers,
+                   'params': self.params,
+                   'timeout': self.timeout}
+        if self.data is not None:
+            headers['data'] = self.data
+        return headers
 
     async def __execute(self) -> dict:
         """异步请求,无结果时返回空字典"""
-        retry_count = 0  # 当前重试次数
         kwargs = self.request_args  # 请求参数
         session = self.async_manager.session  # 连接对象
-        tetry_time = round(random.uniform(*self.async_manager.default_retry_time), 2)  # 重试等待时间
-        while self.isRunning and retry_count < self.retry_count:
-            try:
-                # 遵循任务池速率限制
-                if not await self.async_manager.wait_for_rate_limit(self):
-                    return {}
-                async with session.get(self.url, **kwargs) as response:
-                    self.status_code = response.status
-                    if self.status_code == 200:
-                        return await response.json()
-            except Exception as e:
-                retry_count += 1
-                logger.warning(f"{self.__class__.__name__} 第{retry_count}次请求失败: "
-                               f"{self.url} {tetry_time}秒后重试 错误: {e}")
-            await asyncio.sleep(tetry_time)
-        return {}
+        try:
+            # 遵循任务池速率限制
+            if self.enable_limit and not await self.async_manager.wait_for_rate_limit(self):
+                return {}
+            if self.method == 'GET':
+                func = session.get
+            elif self.method == 'POST':
+                func = session.post
+            else:
+                logger.debug(f"{self.__class__.__name__} 不支持的请求方法: {self.method}")
+                return {}
+
+            # 发起请求
+            async with func(self.url, **kwargs) as response:
+                self.status_code = response.status
+                if self.status_code == 200:
+                    return await response.json()
+
+        except Exception as e:
+            logger.exception(f'任务请求: {self.name} 错误:{e}')
+            return {}
 
 
 class AsyncChunkDownloader(Task):
@@ -349,7 +373,10 @@ class AsyncChunkDownloader(Task):
     支持异步分块下载文件
     支持指定块数量或块大小
     分块下载时将进入限制并发
-    注意:分块下载时每一块都属于一次独立的请求
+    注意:
+        分块下载时每一块都属于一次独立的请求
+        对于服务器来讲属于并发下载
+        如果对同一服务器多文件采用并发下载有可能导致连接被重置
     """
     default_temp_dir = os.path.join(Get.run_dir(), 'async_download_temp')
     single_read_size = 1024 * 1024 * 1  # 单次读取大小,默认1MB
@@ -359,9 +386,15 @@ class AsyncChunkDownloader(Task):
     # 单个文件下载的最大连接数量,注意该限制仅针对单个文件,协程池的最大工作数量决定最终并行数量
     num_work_max = 10
 
-    def __init__(self, url: str, async_manager: 'AsyncHTTPManage',
-                 num_chunks: int = None, params: dict = None, headers: dict = None,
-                 timeout: aiohttp.ClientTimeout = None, retry_count=3):
+    def __init__(self,
+                 url: str,
+                 async_manager: 'AsyncHTTPManage',
+                 num_chunks: int = None,
+                 params: dict = None,
+                 headers: dict = None,
+                 timeout: aiohttp.ClientTimeout = None,
+                 num_work_max: int = None,
+                 enable_limit: bool = True):
         """
         异步下载文件（支持分块并发）
         :param url: 请求的URL
@@ -371,6 +404,8 @@ class AsyncChunkDownloader(Task):
         :param headers: 请求头
         :param timeout: 超时设置
         :param retry_count:重试次数
+        :param num_work_max:最大并发数量,默认使用全局配置
+        :param enable_limit:是否启用限速,该参数只在AsyncHTTPManage启用了限速时生效,默认启用,禁用则会绕过AsyncHTTPManage设置的速率限制
         """
         super().__init__(self.__execute, async_manager)
         self.url = url
@@ -380,12 +415,12 @@ class AsyncChunkDownloader(Task):
         self.chunk_size = 0  # 实际每个块的大小
         self.async_manager = async_manager
         self.temp_dir = self.default_temp_dir  # 缓存目录
-        self.retry_count = retry_count  # 重试次数
+        self.enable_limit = enable_limit
         self.support_chunk = False  # 是否支持分块下载
         self.file_size = 0  # 文件大小
         self.file_bytesio = None  # 下载的文件
         self.file_chunk_bytesio: dict[int, BytesIO] = {}  # 分块下载的文件
-        self.semaphore = asyncio.Semaphore(self.num_work_max)  # 限制并发
+        self.semaphore = asyncio.Semaphore(num_work_max or self.num_work_max)  # 限制并发
         self.timeout = async_manager.default_timeout if timeout is None else timeout
         self.status_code = 0
 
@@ -442,7 +477,7 @@ class AsyncChunkDownloader(Task):
                 chunks = max(min_chunks, (self.file_size + self.chunk_size_max - 1) // self.chunk_size_max)
                 # 再次确保不超过最大块数限制
                 chunks = min(chunks, self.chunk_num_max)
-        logger.info(f'{self.url} 分块数量为: {chunks}')
+        logger.debug(f'{self.url} 分块数量为: {chunks}')
         return chunks
 
     @property
@@ -468,7 +503,7 @@ class AsyncChunkDownloader(Task):
     async def get_file_size(self, session) -> int:
         """获取文件大小"""
         # 遵循任务池速率限制
-        if not await self.async_manager.wait_for_rate_limit(self):
+        if self.enable_limit and not await self.async_manager.wait_for_rate_limit(self):
             return 0
 
         async with session.head(self.url) as response:
@@ -481,7 +516,7 @@ class AsyncChunkDownloader(Task):
                 raise ValueError(f"{self.__class__.__name__} {self.url} 无法获取文件大小")
             return file_size
 
-    async def progress_emit(self):
+    async def progress_monitor(self):
         """进度监控"""
         last_finished = self.progress.finished
         last_time = time.time()
@@ -523,7 +558,7 @@ class AsyncChunkDownloader(Task):
         else:
             file_size = self.file_size
         # 遵循任务池速率限制
-        if not await self.async_manager.wait_for_rate_limit():
+        if self.enable_limit and not await self.async_manager.wait_for_rate_limit():
             return None
         # 请求
         async with session.get(url, **kwargs) as response:
@@ -566,7 +601,7 @@ class AsyncChunkDownloader(Task):
             if not self.isRunning:
                 return chunk_num, None
             try:
-                logger.info(f'{url} 开始下载第{chunk_num}块: {start}-{end} 大小为{end - start + 1}')
+                logger.debug(f'{url} 开始下载第{chunk_num}块: {start}-{end} 大小为{end - start + 1}')
                 chunk_file_bytesio = await self.download_one(session, url, kwargs)
                 if isinstance(chunk_file_bytesio, BytesIO):
                     self.file_chunk_bytesio[chunk_num] = chunk_file_bytesio
@@ -579,8 +614,10 @@ class AsyncChunkDownloader(Task):
         if not self.isRunning:
             return None
         start_time = time.time()
+
+        # 下载前准备
         session = self.async_manager.session
-        logger.info(f'{Path(self.url).name} 获取请求头')
+        logger.debug(f'{Path(self.url).name} 获取请求头')
         try:
             self.file_size = await self.get_file_size(session)  # 获取文件大小
             if self.file_size == 0:
@@ -590,37 +627,36 @@ class AsyncChunkDownloader(Task):
         except ValueError:
             return None
         self.progress.total = self.file_size  # 设置进度最大值
+
         # 启动进度监控任务
-        progress_task = asyncio.create_task(self.progress_emit())
+        progress_task = asyncio.create_task(self.progress_monitor())
+
         # 支持分块下载并且文件大小大于最小限制
         chunks_list = self.chunks_list
-        retry_count = 0
-        logger.info(f'{Path(self.url).name} 开始下载')
-        while self.isRunning and retry_count < self.retry_count:
-            try:
-                if self.support_chunk and len(chunks_list) > 1:
-                    # 并发下载所有块
-                    await asyncio.gather(
-                        *[self.download_chunk(session, self.url, start, end, i)
-                          for start, end, i in chunks_list])
-                    if len(self.file_chunk_bytesio) == len(chunks_list):
-                        self.file_bytesio = self.merge_file()
-                        break
-                    else:
-                        raise ValueError(f"分块下载数量不对: "
-                                         f"当前获取数量{len(self.file_chunk_bytesio)}个块 "
-                                         f"预计获取分块数量{len(chunks_list)}个块")
+        logger.debug(f'{Path(self.url).name} 开始下载')
+
+        # 下载文件
+        try:
+            if self.support_chunk and len(chunks_list) > 1:
+                # 并发下载所有块
+                await asyncio.gather(
+                    *[self.download_chunk(session, self.url, start, end, i)
+                      for start, end, i in chunks_list])
+                if len(self.file_chunk_bytesio) == len(chunks_list):
+                    self.file_bytesio = self.merge_file()
                 else:
-                    chunks_files = await self.download_one(session, self.url, self.request_args)
-                    if isinstance(chunks_files, BytesIO):
-                        self.file_bytesio = chunks_files
-                        break
-                    else:
-                        raise ValueError(f"下载失败")
-            except Exception as e:
-                retry_count += 1
-                logger.exception(f"{self.__class__.__name__}.__execute 下载失败: 第{retry_count}次 错误: {e}")
-            await asyncio.sleep(round(random.uniform(*self.async_manager.default_retry_time), 2))
+                    raise ValueError(f"分块下载数量不对: "
+                                     f"当前获取数量{len(self.file_chunk_bytesio)}个块 "
+                                     f"预计获取分块数量{len(chunks_list)}个块")
+            else:
+                chunks_files = await self.download_one(session, self.url, self.request_args)
+                if isinstance(chunks_files, BytesIO):
+                    self.file_bytesio = chunks_files
+                else:
+                    raise ValueError(f"下载失败")
+        except Exception as e:
+            logger.exception(f"任务{self.name} 下载失败 错误: {e}")
+
         # 停止进度监控任务
         progress_task.cancel()
         success = '下载失败'

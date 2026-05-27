@@ -16,7 +16,7 @@ class DownloadTableProgressCell(QWidget):
         self.progress.setTextVisible(True)
         self.label = CaptionLabel(self)
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setContentsMargins(0, 15, 0, 15)
         self.layout.addWidget(self.progress)
         self.layout.addWidget(self.label)
 
@@ -110,10 +110,10 @@ class DownloadTableData(DataFrameModelBase):
         self.setColumnCount(4)
         self.__parent = parent
         self.table_data = DownloadWorkFlowManage
-        self.__refresh_data_timer = ReuseTimer(TIMEOUT // 1000, self.refreshData)
-        self.__refresh_data_timer.setSingleShot(True)
-        DownloadWorkFlowManage.appendWorkFlowSignal.connect(lambda _: self.refreshDataLazy())
-        DownloadWorkFlowManage.removeWorkFlowSignal.connect(lambda _: self.refreshDataLazy())
+        self.__refresh_data_timer = debouncer_reuse_timer(self.refreshData)
+        self.__refresh_data_timer.name = 'DownloadTableData_refresh_data_timer'
+        DownloadWorkFlowManage.appendWorkFlowSignal.connect(self.refreshDataLazy)
+        DownloadWorkFlowManage.removeWorkFlowSignal.connect(self.refreshDataLazy)
         # 首次加载
         self.__bind_signal = False  # 是否绑定信号
         self.refreshDataLazy()
@@ -124,14 +124,16 @@ class DownloadTableData(DataFrameModelBase):
             image_id = task.params.image_id
             row = self.getImageIDRowIndex(image_id)
             # 连接其余信号
-            task.progress_signal.connect(lambda progress, iid=image_id: progress_slot(iid, progress))
-            task.finish_signal.bridge_signal(self.finishedSignal)
-            task.stop_signal.connect(lambda _, t=task: stop_slot(t))
+            task.progress_signal.connect(progress_slot, enable_strict_repeat=True)
+            task.finish_signal.bridge_signal(self.finishedSignal, enable_strict_repeat=True)
+            task.stop_signal.connect(stop_slot, enable_strict_repeat=True)
             self.setCellData(row, 3, 1)  # 设置按钮状态为停止任务
 
-        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 1000)
-        def progress_slot(image_id: str, value: TaskProgress):
+        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 50)
+        def progress_slot(task: DownloadWorkFlow):
             """任务进度"""
+            image_id = task.params.image_id
+            value = task.progress
             row = self.getImageIDRowIndex(image_id)
             size_text = f'{value.finished / 1024 / 1024:0.2f}MB/{value.total / 1024 / 1024:0.2f}MB' if value.total / 1024 / 1024 > 1 else f'{value.finished / 1024:0.2f}KB/{value.total / 1024:0.2f}KB'
             rate_text = f'速度:{value.rate / 1024 / 1024:0.2f}MB/S' if value.rate / 1024 / 1024 > 1.2 else f'速度:{value.rate / 1024:0.2f}KB/S'
@@ -143,20 +145,23 @@ class DownloadTableData(DataFrameModelBase):
         @info_bar_decorator
         def finished_slot(task: DownloadWorkFlow):
             """任务完成"""
-            image_id = task.params.image_id
-            row = self.getImageIDRowIndex(image_id)
+            if isinstance(task, DownloadWorkFlow):
+                image_id = task.params.image_id
+                row = self.getImageIDRowIndex(image_id)
 
-            if task.result() is not None:
-                if row > -1:
-                    self.setCellData(row, 2, '100;下载完成')
-                    self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
-                SignalConfig.WallHavenSignal.search_signal.refreshViewSignal.emit()
-                return True, f'{image_id}下载完成', self.__parent
-            else:
-                if row > -1:
-                    self.setCellData(row, 2, '0;下载失败')
-                    self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
-                return False, f'{image_id}下载失败', self.__parent
+                if task.result() is not None:
+                    if row > -1:
+                        self.setCellData(row, 2, '100;下载完成')
+                        self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
+                    SignalConfig.WallHavenSignal.search_signal.refreshViewSignal.emit()
+                    task.clear()  # 清理资源
+                    return True, f'{image_id}下载完成', self.__parent
+                else:
+                    if row > -1:
+                        self.setCellData(row, 2, '0;下载失败')
+                        self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
+                    return False, f'{image_id}下载失败', self.__parent
+            return None, None, None
 
         def stop_slot(task: DownloadWorkFlow):
             """任务停止"""
@@ -167,11 +172,14 @@ class DownloadTableData(DataFrameModelBase):
 
         if not self.__bind_signal:
             self.finishedSignal.connect(finished_slot)
+            self.__bind_signal = True
         data = []
         # 处理任务信号
         for work_flow in DownloadWorkFlowManage.get_all_work_flow_by_sorted():
             # 连接任务信号
-            work_flow.start_signal.connect(start_slot)
+            work_flow.start_signal.connect(start_slot, enable_strict_repeat=True)
+            if work_flow.state.isRunning:
+                start_slot(work_flow)
             data.append(work_flow.params.image_id)
         # 更新数据
         data = pd.DataFrame(data, columns=['图像ID'])
@@ -211,7 +219,7 @@ class DownloadTableData(DataFrameModelBase):
         super().refreshData()
 
     def refreshDataLazy(self):
-        self.__refresh_data_timer.start(TIMEOUT // 1000)
+        self.__refresh_data_timer.start(TIMEOUT // 500)
 
     def getImageIDRowIndex(self, image_id: str) -> int:
         """获取图像ID所在行索引，找不到返回-1"""
@@ -303,12 +311,16 @@ class DownloadTable(TableWidgetBase):
     def startDownload(self):
         """外部调用开始任务"""
         for image_id in self.data_model.getAllImageID(True):
-            DownloadWorkFlowManage.get_work_flow(image_id).start()
+            work_flow = DownloadWorkFlowManage.get_work_flow(image_id)
+            if work_flow is not None:
+                work_flow.start()
 
     def stopDownload(self):
         """外部调用停止任务"""
         for image_id in self.data_model.getAllImageID(True):
-            DownloadWorkFlowManage.get_work_flow(image_id).stop()
+            work_flow = DownloadWorkFlowManage.get_work_flow(image_id)
+            if work_flow is not None:
+                work_flow.stop()
 
     def deleteDownload(self, image_ids: list | str = None):
         """

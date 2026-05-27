@@ -262,18 +262,14 @@ class SearchSlot:
             api.Config.USE_NETWORK = False
 
 
+def start():
+    win = SearchPage()
+    win.show()
+    return win
+
+
 if __name__ == '__main__':
-    from SubAPI import start_desktop
-    from SubAPI.WallHaven.Desktop.DownloadPage import DownloadPage
+    from SubAPI import StartAPI
 
-
-    def start():
-        global download
-        download = DownloadPage()
-        win = SearchPage()
-        win.show()
-        # download.show()
-        return win
-
-
-    start_desktop(start)
+    start_api = StartAPI(func=start, console_level='DEBUG')
+    start_api.start_thread()

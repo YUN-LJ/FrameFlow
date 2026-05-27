@@ -66,18 +66,8 @@ def start():
 
 
 if __name__ == '__main__':
-    from SubAPI import start_desktop, global_value_init
-    from Fun.BaseTools import LogClass
+    from SubAPI import StartAPI, StartEnum
 
-    logger = LogClass.get_logger(__name__, console_level='WARNING')
-    # from Fun.BaseTools.Get import monitor_threads
-    # from threading import Thread
-    #
-    # Thread(target=monitor_threads, daemon=True).start()
-    # 初始化全局变量
-    logger.info('程序启动')
-    global_value_init()
-    # 处理启动参数
     process_startup_parameters()
-    start_desktop(start)
-    logger.info('程序结束')
+    start_api = StartAPI(func=start, console_level=StartEnum.LogLevel.WARNING)
+    start_api.start_thread()

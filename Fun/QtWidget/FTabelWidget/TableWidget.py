@@ -524,7 +524,10 @@ class TableWidgetBase(TableWidget):
         """计算可见范围内某列的最小宽度"""
         visible_rows = self.getVisibleRow()
         # 获取列宽内容需要的大小
-        header_data = self._model.headerData()[col].split("\n")
+        try:
+            header_data = self._model.headerData()[col].split("\n")
+        except IndexError:
+            return 0
         max_width = max([self._calculate_text_width(text) for text in header_data])
         for row in visible_rows:
             text = self._model.data(row, col)

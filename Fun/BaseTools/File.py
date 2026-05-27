@@ -195,6 +195,45 @@ class FileBase:
                 return size / 1024 / 1024
         return 0
 
+    def folder_size(self, unit='MB') -> float:
+        """
+        获取文件夹总大小
+        
+        :param unit: 单位 ('B', 'KB', 'MB', 'GB')
+        :return: 文件夹总大小
+        """
+        if not self.is_dir:
+            return 0
+        
+        total_size = 0
+        
+        def _calculate_size(dir_path: str):
+            nonlocal total_size
+            try:
+                with os.scandir(dir_path) as entries:
+                    for entry in entries:
+                        try:
+                            if entry.is_file(follow_symlinks=False):
+                                total_size += entry.stat().st_size
+                            elif entry.is_dir(follow_symlinks=False):
+                                _calculate_size(entry.path)
+                        except (OSError, FileNotFoundError):
+                            continue
+            except (OSError, PermissionError):
+                pass
+        
+        _calculate_size(self.path)
+        
+        if unit == 'B':
+            return total_size
+        elif unit == 'KB':
+            return total_size / 1024
+        elif unit == 'MB':
+            return total_size / 1024 / 1024
+        elif unit == 'GB':
+            return total_size / 1024 / 1024 / 1024
+        return total_size
+
     def open_use_explorer(self):
         """在资源管理器打开文件并选中"""
         subprocess.Popen(f'explorer /select, {self.path}')

@@ -115,8 +115,8 @@ class LikeTableData(DataFrameModelBase):
         self.__data_change_timer = ReuseTimer(TIMEOUT // 1000, self._load_key_word)
         self.__data_change_timer.setSingleShot(True)
         # 绑定数据加载和改变信号
-        KEY_WORD.load_callback(lambda _: self._data_change_lazy())
-        KEY_WORD.change_signal.connect(lambda _: self._data_change_lazy())
+        KEY_WORD.load_callback(self._data_change_lazy)
+        KEY_WORD.change_signal.connect(self._data_change_lazy)
 
     def _select_workflow(self, row, col, value):
         """选择后端工作流"""
@@ -128,23 +128,19 @@ class LikeTableData(DataFrameModelBase):
                 self.work_flow.del_task(row_data['关键词'], row_data['分级码'], row_data['类别码'])
 
     def _create_work_flow(self):
-        def current_task_start_slot(task: UpdateWorkFlow | api.KeyWordTask):
-            if isinstance(task, UpdateWorkFlow):
-                key_word = task.key_word
-                text = '更新开始'
-                self.__parent.scrollToTopSignal.emit(key_word)
-                row = self.getKeyWordRowIndex(key_word)
-                col = self.columnCount() - 1
-                self.setCellData(row, col, f'0;{text}')
-            elif isinstance(task, api.KeyWordTask):
-                key_word = task.params.q
-                text = '对比完成'
-                row = self.getKeyWordRowIndex(key_word)
-                col = self.columnCount() - 1
-                self.setCellData(row, col, f'0;{text}')
+        def current_task_start_slot(task: UpdateWorkFlow):
+            key_word = task.key_word
+            text = '更新开始'
+            self.__parent.scrollToTopSignal.emit(key_word)
+            row = self.getKeyWordRowIndex(key_word)
+            col = self.columnCount() - 1
+            self.setCellData(row, col, f'0;{text}')
 
-        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 1000)
+        @throttle_reuse_timer_decorator(timeout=TIMEOUT // 50)
         def current_task_progress_slot(task: UpdateWorkFlow):
+            """任务进度"""
+            if not task.state.isRunning:
+                return
             text = f'搜索中' if task.get_progress_state == task.SEARCH_STATE else '下载中'
             row = self.getKeyWordRowIndex(task.key_word)
             col = self.columnCount() - 1
@@ -161,8 +157,7 @@ class LikeTableData(DataFrameModelBase):
             if task.result():
                 self.setCellData(row, 0, False)
 
-        def current_task_stop_slot(_):
-            task = self.work_flow.current_task
+        def current_task_stop_slot(task: UpdateWorkFlow):
             if task is None:
                 return
             row = self.getKeyWordRowIndex(task.key_word)
@@ -176,10 +171,10 @@ class LikeTableData(DataFrameModelBase):
         self.work_flow.finish_signal.bridge_signal(signal.finishSignal)
         self.work_flow.stop_signal.bridge_signal(signal.stopSignal)
 
-        self.work_flow.current_task_start_signal.connect(current_task_start_slot)
-        self.work_flow.current_task_progress_signal.connect(current_task_progress_slot)
-        self.work_flow.current_task_finish_signal.connect(current_task_finish_slot)
-        self.work_flow.current_task_stop_signal.connect(current_task_stop_slot)
+        self.work_flow.sub_task_signal.start_signal.connect(current_task_start_slot)
+        self.work_flow.sub_task_signal.progress_signal.connect(current_task_progress_slot)
+        self.work_flow.sub_task_signal.finish_signal.connect(current_task_finish_slot)
+        self.work_flow.sub_task_signal.stop_signal.connect(current_task_stop_slot)
 
     def _load_key_word(self):
         with KEY_WORD as df:

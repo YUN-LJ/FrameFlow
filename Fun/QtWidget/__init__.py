@@ -1,6 +1,9 @@
 """Qt组件包"""
+import time
 from typing import TYPE_CHECKING, Callable
+from Fun.BaseTools import LogClass
 
+logger = LogClass.get_logger(__name__, console_level='WARNING')
 if TYPE_CHECKING:
     from . import FTabelView, FTabelWidget
     from .FWidget import *
@@ -145,17 +148,17 @@ def info_bar_decorator(func):
                 func_result = func(*args, **kwargs)
             result, content, parent = func_result
         except Exception as e:
-            print(f"info_bar_decorator:被装饰的函数执行错误: {e}")
+            logger.exception(f"info_bar_decorator:被装饰的函数执行错误: {e}")
             return None, None, None
         if result is None:
             return None, None, None
         icon = InfoBarIcon.SUCCESS if result else InfoBarIcon.ERROR
         title = '成功' if result else '失败'
         if parent.isVisible():
-            QTimer.singleShot(0, lambda: InfoBar.new(
+            InfoBar.new(
                 icon=icon, title=title, content=content, orient=Qt.Horizontal,
                 isClosable=True, position=InfoBarPosition.TOP,
-                duration=1500, parent=parent))
+                duration=1500, parent=parent)
 
         return result, title, content  # 必须返回被装饰函数的结果
 
@@ -179,7 +182,7 @@ def teaching_tip_decorator(func):
                 func_result = func(*args, **kwargs)
             result, content, target, parent = func_result
         except Exception as e:
-            print(f"teaching_tip_decorator:被装饰的函数执行错误: {e}")
+            logger.exception(f"teaching_tip_decorator:被装饰的函数执行错误: {e}")
             return None, None, None, None
         if result is None:
             return None, None, None, None
@@ -233,8 +236,6 @@ def throttle_reuse_timer_decorator(timeout: float = 0.05):
         - 不依赖 Qt 事件循环，性能更好
         - 每个实例有独立的定时器，状态隔离
     """
-    from weakref import WeakKeyDictionary
-    from Fun.BaseTools.Time import ReuseTimer
 
     def decorator(func):
         # 使用弱引用字典存储每个实例的节流助手，避免内存泄漏
@@ -258,7 +259,6 @@ def throttle_reuse_timer_decorator(timeout: float = 0.05):
                 wrapper._module_helper.trigger(*args, **kwargs)
 
         # 保留原函数的元信息
-        from functools import wraps
         wrapper = wraps(func)(wrapper)
 
         return wrapper
@@ -302,12 +302,15 @@ class _ThrottleHelper:
 
         # 执行原函数
         try:
-            if args or kwargs:
-                self.func(*args, **kwargs)
-            else:
-                self.func()
+            args_num = check_function_needs_args(self.func, False)
+            if args_num == 0:  # 没有参数
+                func_result = self.func()
+            elif args_num == 1:  # 有一个参数,只传递一个参数,可能是函数的self参数
+                func_result = self.func(args[0])
+            else:  # 有多个参数
+                func_result = self.func(*args, **kwargs)
         except Exception as e:
-            print(f"节流函数执行错误: {e}")
+            logger.exception(f'节流函数执行错误: {e} 参数{args, kwargs}')
 
 
 class _QTimerThrottleHelper(QObject):
