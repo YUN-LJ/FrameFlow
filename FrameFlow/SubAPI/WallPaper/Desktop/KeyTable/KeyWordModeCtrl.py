@@ -75,8 +75,8 @@ class KeyWordCell(ImageCell):
                 if result is not None and self.thumb_url == task.url:
                     self.setImage(result.generate_thumb())
             except Exception as e:
-                if task.executor.run_count < 3:
-                    task.start(priority=2)
+                # if task.executor.run_count < 3:
+                #     task.start(priority=2)
                 self.setImageText('加载图片失败')
         else:
             self.setImageText('停止加载图片')

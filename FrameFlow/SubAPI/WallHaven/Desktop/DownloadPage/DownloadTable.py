@@ -145,21 +145,23 @@ class DownloadTableData(DataFrameModelBase):
         @info_bar_decorator
         def finished_slot(task: DownloadWorkFlow):
             """任务完成"""
-            image_id = task.params.image_id
-            row = self.getImageIDRowIndex(image_id)
+            if isinstance(task, DownloadWorkFlow):
+                image_id = task.params.image_id
+                row = self.getImageIDRowIndex(image_id)
 
-            if task.result() is not None:
-                if row > -1:
-                    self.setCellData(row, 2, '100;下载完成')
-                    self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
-                SignalConfig.WallHavenSignal.search_signal.refreshViewSignal.emit()
-                task.clear()  # 清理资源
-                return True, f'{image_id}下载完成', self.__parent
-            else:
-                if row > -1:
-                    self.setCellData(row, 2, '0;下载失败')
-                    self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
-                return False, f'{image_id}下载失败', self.__parent
+                if task.result() is not None:
+                    if row > -1:
+                        self.setCellData(row, 2, '100;下载完成')
+                        self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
+                    SignalConfig.WallHavenSignal.search_signal.refreshViewSignal.emit()
+                    task.clear()  # 清理资源
+                    return True, f'{image_id}下载完成', self.__parent
+                else:
+                    if row > -1:
+                        self.setCellData(row, 2, '0;下载失败')
+                        self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
+                    return False, f'{image_id}下载失败', self.__parent
+            return None, None, None
 
         def stop_slot(task: DownloadWorkFlow):
             """任务停止"""

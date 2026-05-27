@@ -101,7 +101,6 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         params = DownloadWorkFlow.Params(
             self.current_data['id'], key_word=self.current_data['关键词'], url=self.current_data['远程路径'], save=False
         )
-        params.image_info_task.finish_signal.bridge_signal(self.finishedSignal)
         self.work_flow = DownloadWorkFlow(params)
         self.work_flow.setSignal(self.startSignal, self.progressSignal, self.finishedSignal)
         self.work_flow.start(priority=2)
@@ -116,14 +115,14 @@ class ImageDialog(Ui_Image, MessageBoxBase):
         self.image_widget.set_text('加载中...')
         self.image_widget.setMinimumHeight(0)
 
-    def __progress(self, value: TaskProgress):
+    def __progress(self, value: DownloadWorkFlow):
         self.progressBar.setValue(value.get_progress())
 
-    def __finished(self, value: DownloadWorkFlow | ImageInfoTask):
+    def __finished(self, value: ImageInfoTask | DownloadWorkFlow):
         if isinstance(value, ImageInfoTask):
             if value.result() is not None:
                 self.displayTags(value.result())
-        else:
+        elif isinstance(value, DownloadWorkFlow):
             if value.result() is not None and value.params.image_id == self.current_data['id']:
                 self.progressBar.hide()
                 self.image_widget.set_image(value.result().image.get_bytesIO())

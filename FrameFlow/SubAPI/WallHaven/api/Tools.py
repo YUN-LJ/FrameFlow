@@ -1,4 +1,6 @@
 """WallHaven工具类"""
+import pandas as pd
+
 from SubAPI.WallHaven.ImportPack import *
 
 logger = LogClass.get_logger(__name__, console_level='WARNING')
@@ -144,6 +146,63 @@ def get_search_params() -> Config.SearchParams:
 def get_search_history() -> list[str]:
     """获取搜索历史数据"""
     return Config.SEARCH_HISTORY.copy()
+
+
+def _transformation_search_data(data: dict, params: dict) -> pd.DataFrame | None:
+    """将搜索数据转为pd.DataFrame格式"""
+    meta = data['meta']  # 元数据信息
+    results = data['data']  # 搜索结果
+    if results:
+        # 处理搜索数据
+        data = [[result['id'],  # id
+                 params['q'],  # 关键词
+                 Config.CATEGORY_DICT[result['category']],  # 分类
+                 Config.PURITY_DICT[result['purity']],  # 分级
+                 int(result['file_size']),  # 大小
+                 Config.TYPE_DICT[result['file_type']],  # 扩张名
+                 int(result['dimension_x']),  # 长
+                 int(result['dimension_y']),  # 宽
+                 float(result['ratio']),  # 比例
+                 int(result['views']),  # 预览量
+                 int(result['favorites']),  # 收藏量
+                 result['path'],  # 远程路径
+                 result['thumbs']["original"],  # 略缩图_原
+                 result['thumbs']["large"],  # 略缩图_大
+                 result['thumbs']["small"],  # 略缩图_小
+                 pd.to_datetime(result['created_at']),  # 日期
+                 int(meta['current_page']),  # 当前页码
+                 int(meta['last_page']),  # 总页数
+                 int(meta['total']),  # 总数
+                 params['categories'],  # 类别码
+                 params['purity'],  # 分级码
+                 ] for result in results]
+        return pd.DataFrame(data, columns=DataConfig.search_columns).astype(DataConfig.search_dtype)
+
+
+def _transformation_image_info_data(data: dict) -> pd.DataFrame | None:
+    """将图像数据转为pd.DataFrame格式"""
+    result = data['data']
+    if result:
+        data = [[result['id'],  # id
+                 '',  # 关键词
+                 Config.CATEGORY_DICT[result['category']],  # 类别
+                 Config.PURITY_DICT[result['purity']],  # 分类
+                 int(result['file_size']),  # 大小
+                 Config.TYPE_DICT[result['file_type']],  # 扩展名
+                 int(result['dimension_x']),  # 长
+                 int(result['dimension_y']),  # 宽
+                 float(result['ratio']),  # 比例
+                 int(result['views']),  # 预览量
+                 int(result['favorites']),  # 收藏量
+                 '',  # 本地路径
+                 result['path'],  # 远程路径
+                 result['thumbs']["original"],  # 略缩图_原
+                 result['thumbs']["large"],  # 略缩图_大
+                 result['thumbs']["small"],  # 略缩图_小
+                 pd.to_datetime(result['created_at']),  # 日期
+                 ';'.join([tag['name'] for tag in result['tags']])  # 文件的标签信息,  # 标签
+                 ]]
+        return pd.DataFrame(data, columns=DataConfig.image_info_columns).astype(DataConfig.image_info_dtype)
 
 
 class ImageData(ImageDataBase):
@@ -307,121 +366,76 @@ class AsyncAPI:
         self.headers = Config.HEADERS if Config.API_KEY else None
         self.response_task: Union[AsyncJson, AsyncChunkDownloader, None] = None  # 内部请求
 
+    def _create_async_json(self, retry_should=None):
+        self.response_task = AsyncJson(
+            self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE,
+            self.params, self.headers)
+        self.response_task.set_parent_task(self.task)  # 设置父任务
+        self.response_task.set_retry_count(self.retry_count)  # 设置重试次数
+        if retry_should is not None:
+            self.response_task.set_retry_should(retry_should)  # 设置重试条件
+
+    def _create_async_download(self, num_chunks=None, retry_should=None):
+        num_chunks = num_chunks or 1
+        self.response_task = AsyncChunkDownloader(
+            self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE,
+            num_chunks=num_chunks, params=self.params,
+            headers=self.headers, enable_limit=False)
+        self.response_task.set_parent_task(self.task)  # 设置父任务
+        self.response_task.set_retry_count(self.retry_count)  # 设置重试次数
+        if retry_should is not None:
+            self.response_task.set_retry_should(retry_should)  # 设置重试条件
+
+    def _retry_should(self, result):
+        if self.response_task.status_code == 429:
+            logger.info(f'{self.task.name} 请求达到限制,正在重试...')
+            return False
+        elif result is None:
+            logger.info(f'{self.task.name} 获取数据失败,正在重试...')
+            return False
+        else:
+            return True
+
+    def _start_async_json(self) -> dict | None:
+        # 创建任务
+        if self.response_task is None:
+            self._create_async_json(self._retry_should)
+
+        # 执行任务
+        if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
+            return None
+        data: Optional[dict] = self.response_task.start(
+            timeout=0, priority=3)
+        self.response_task.clear()
+        return data
+
     def get_search_data(self) -> pd.DataFrame | None:
         """获取搜索数据"""
-        retry_count = 0
-        if self.response_task is None:
-            self.response_task = AsyncJson(
-                self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE,
-                self.params, self.headers, retry_count=self.retry_count)
-            self.response_task.set_parent_task(self.task)
-        data: Union[pd.DataFrame, list, None] = None
-        while self.task.isRunning and retry_count < self.__class__.retry_count:
-            if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
-                return None
-            data = self.response_task.start(0, 3)
-            if data:
-                break
-            elif self.response_task.status_code == 429:
-                logger.info(f'{self.task.name} 请求达到限制,正在重试...')
-                time.sleep(3)
-                continue
-            else:
-                return None
-        if data is None: return None
-        meta = data['meta']
-        results = data['data']
-        if not results: return None
-        # 处理搜索数据
-        data = [[result['id'],  # id
-                 self.params['q'],  # 关键词
-                 Config.CATEGORY_DICT[result['category']],  # 分类
-                 Config.PURITY_DICT[result['purity']],  # 分级
-                 int(result['file_size']),  # 大小
-                 Config.TYPE_DICT[result['file_type']],  # 扩张名
-                 int(result['dimension_x']),  # 长
-                 int(result['dimension_y']),  # 宽
-                 float(result['ratio']),  # 比例
-                 int(result['views']),  # 预览量
-                 int(result['favorites']),  # 收藏量
-                 result['path'],  # 远程路径
-                 result['thumbs']["original"],  # 略缩图_原
-                 result['thumbs']["large"],  # 略缩图_大
-                 result['thumbs']["small"],  # 略缩图_小
-                 pd.to_datetime(result['created_at']),  # 日期
-                 int(meta['current_page']),  # 当前页码
-                 int(meta['last_page']),  # 总页数
-                 int(meta['total']),  # 总数
-                 self.params['categories'],  # 类别码
-                 self.params['purity'],  # 分级码
-                 ] for result in results]
-        return pd.DataFrame(data, columns=DataConfig.search_columns).astype(DataConfig.search_dtype)
+        data = self._start_async_json()
+        # 处理任务结果
+        if data:
+            return _transformation_search_data(data, self.params)
 
     def get_download_data(self, progress_callback: Callable) -> BytesIO | None:
         """获取文件数据"""
-        retry_count = 0
         if self.response_task is None:
-            self.response_task = AsyncChunkDownloader(
-                self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE, num_chunks=1,
-                params=self.params, headers=self.headers, enable_limit=False)
-            self.response_task.set_parent_task(self.task)
+            self._create_async_download(retry_should=self._retry_should)
+
         self.response_task.signal.progress_signal.connect(progress_callback)
-        while self.task.isRunning and retry_count < self.__class__.retry_count:
-            if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
-                return None
-            data: Optional[BytesIO] = self.response_task.start(0, 3)
-            if data is not None:
-                return data
-            elif self.response_task.status_code == 429:
-                logger.info(f'{self.task.name} 请求达到限制,正在重试...')
-                time.sleep(3)
-                continue
-            else:
-                return None
+
+        if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
+            return None
+        data: Optional[BytesIO] = self.response_task.start(
+            timeout=0, priority=3)
+        if data is not None:
+            return data
 
     def get_image_info_data(self) -> pd.DataFrame | None:
         """获取图像信息数据"""
-        retry_count = 0
-        if self.response_task is None:
-            self.response_task = AsyncJson(
-                self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE, self.params, self.headers)
-            self.response_task.set_parent_task(self.task)
-        data: Union[pd.DataFrame, list, None] = None
-        while self.task.isRunning and retry_count < self.__class__.retry_count:
-            if not GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.wait_for_rate_limit_sync(self.task):
-                return None
-            data = self.response_task.start(0, 3)
-            if data:
-                break
-            if self.response_task.status_code == 429:
-                logger.info(f'{self.task.name} 请求达到限制,正在重试...')
-                time.sleep(3)
-                continue
-            else:
-                return None
-        if data is None: return None
-        result = data['data']
-        if not result: return None
-        data = [[result['id'],  # id
-                 '',  # 关键词
-                 Config.CATEGORY_DICT[result['category']],  # 类别
-                 Config.PURITY_DICT[result['purity']],  # 分类
-                 int(result['file_size']),  # 大小
-                 Config.TYPE_DICT[result['file_type']],  # 扩展名
-                 int(result['dimension_x']),  # 长
-                 int(result['dimension_y']),  # 宽
-                 float(result['ratio']),  # 比例
-                 int(result['views']),  # 预览量
-                 int(result['favorites']),  # 收藏量
-                 '',  # 本地路径
-                 result['path'],  # 远程路径
-                 result['thumbs']["original"],  # 略缩图_原
-                 result['thumbs']["large"],  # 略缩图_大
-                 result['thumbs']["small"],  # 略缩图_小
-                 pd.to_datetime(result['created_at']),  # 日期
-                 ';'.join([tag['name'] for tag in result['tags']])  # 文件的标签信息,  # 标签
-                 ]]
-        return pd.DataFrame(data, columns=DataConfig.image_info_columns).astype(DataConfig.image_info_dtype)
+        data = self._start_async_json()
+
+        if data is not None:
+            return _transformation_image_info_data(data)
 
 
 class RequestAPI:

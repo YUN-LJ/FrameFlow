@@ -82,11 +82,11 @@ def exit_handler():
     WH_save_config()  # 保存wallhaven配置
     WP_save_config()  # 保存壁纸配置
     DATA_MANAGE.stop()  # 关闭数据管理
-    GlobalValue.GLOBAL_TASK_MANAGE.stop()
-    GlobalValue.GLOBAL_Task_PROCESS_MANAGE.stop()
-    GlobalValue.GLOBAL_TASK_ASYNC_MANAGE.stop()
-    GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.stop()
-    TaskManageBase.stop_all()
+    # GlobalValue.GLOBAL_TASK_MANAGE.stop()
+    # GlobalValue.GLOBAL_Task_PROCESS_MANAGE.stop()
+    # GlobalValue.GLOBAL_TASK_ASYNC_MANAGE.stop()
+    # GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.stop()
+    TaskManageBase.stop_all()  # 关闭全部任务管理类
     cache_dir = FileBase(IMAGE_CACHE_DIR)
     if cache_dir.folder_size() > 50:
         cache_dir.delete()  # 删除缓存文件夹
@@ -180,9 +180,9 @@ class StartAPI:
         self.console_level = console_level
         self.client_queue = Queue()  # 客户端
         self.server_queue = Queue()  # 服务端
-        if ui_type.value == 'desktop':
+        if ui_type == StartEnum.UI.DESKTOP:
             self.process_func = start_desktop
-        elif ui_type.value == 'cmd':
+        elif ui_type == StartEnum.UI.CMD:
             self.process_func = start_cmd
         self.client_process = Process(
             target=self.process_func,

@@ -52,12 +52,17 @@ class BasePriorityPool:
         self._scheduler_thread = threading.Thread(target=self._scheduler_loop, daemon=True)
         self._scheduler_thread.start()
 
-    def submit(self, fn: Callable, *args, priority: int = 5, **kwargs) -> Future:
+    def submit(self,
+               fn: Callable,
+               *args,
+               priority: int = 5,
+               **kwargs) -> Future:
         """
         提交任务
         :param fn: 可调用对象
         :param args: 位置参数
         :param priority: 优先级(1-10，1最高，默认5)
+        :param retry_count:重试次数,默认为0即不重试
         :param kwargs: 关键字参数
         :return: Future对象
         """
@@ -201,7 +206,6 @@ class BasePriorityPool:
 
     def _cancel_pending_futures(self):
         """取消队列中等待的任务"""
-        pending_futures = []
         while not self._task_queue.empty():
             try:
                 item = self._task_queue.get_nowait()
@@ -284,6 +288,175 @@ class PriorityProcessPool(BasePriorityPool):
         self._executor.shutdown(wait=wait, cancel_futures=cancel_futures)
 
 
+# class PriorityAsyncPool(BasePriorityPool):
+#     """优先级异步协程池
+#
+#     特性:
+#     - 只接受异步函数(async def)
+#     - 使用独立的事件循环线程
+#     - 支持优先级调度
+#     """
+#
+#     def __init__(self, max_workers: Optional[int] = None):
+#         self._max_workers = max_workers or os.cpu_count()
+#         self._task_queue = PriorityQueue()
+#         self._seq = 0
+#         self._shutdown = False
+#         self._shutdown_lock = threading.Lock()
+#
+#         # 异步池专用：信号量控制并发
+#         self._semaphore = None
+#         self._running_tasks = set()
+#         self._running_lock = threading.Lock()
+#
+#         # 创建事件循环线程
+#         self._loop = asyncio.new_event_loop()
+#         self._loop_thread = threading.Thread(
+#             target=self._run_event_loop,
+#             daemon=True
+#         )
+#         self._loop_thread.start()
+#
+#         # 等待事件循环就绪并初始化信号量
+#         while not hasattr(self, '_loop_ready'):
+#             threading.Event().wait(0.01)
+#
+#         # 在事件循环中创建信号量
+#         future = asyncio.run_coroutine_threadsafe(
+#             self._init_semaphore(),
+#             self._loop
+#         )
+#         future.result()
+#
+#         # 启动调度线程
+#         self._scheduler_thread = threading.Thread(
+#             target=self._scheduler_loop,
+#             daemon=True
+#         )
+#         self._scheduler_thread.start()
+#
+#     def _run_event_loop(self):
+#         """运行事件循环"""
+#         asyncio.set_event_loop(self._loop)
+#         self._loop_ready = True
+#         try:
+#             self._loop.run_forever()
+#         finally:
+#             self._loop.close()
+#
+#     async def _init_semaphore(self):
+#         """初始化信号量"""
+#         self._semaphore = asyncio.Semaphore(self._max_workers)
+#
+#     def submit(self, fn: Callable, *args, priority: int = 5, **kwargs) -> Future:
+#         """
+#         提交异步任务
+#         :param fn: 异步函数(async def)
+#         """
+#         if not asyncio.iscoroutinefunction(fn):
+#             raise TypeError(f"异步池只接受异步函数，但收到了: {fn.__name__ if hasattr(fn, '__name__') else fn}")
+#
+#         return super().submit(fn, *args, priority=priority, **kwargs)
+#
+#     def _submit_to_executor(self, fn: Callable, args: tuple, kwargs: dict) -> Future:
+#         """
+#         提交到异步执行器
+#         注意：异步池返回的是包装后的Future，不是真正的执行器Future
+#         """
+#         # 创建内部Future用于跟踪
+#         internal_future = Future()
+#
+#         # 创建异步任务包装器
+#         async def task_wrapper():
+#             # 获取信号量控制并发
+#             await self._semaphore.acquire()
+#             try:
+#                 # 执行用户异步函数
+#                 result = await fn(*args, **kwargs)
+#                 return result
+#             finally:
+#                 self._semaphore.release()
+#
+#         # 提交到事件循环
+#         coro = task_wrapper()
+#         asyncio.run_coroutine_threadsafe(coro, self._loop)
+#
+#         # 异步池的特殊处理：直接标记为运行中
+#         # 实际运行状态由信号量控制
+#         internal_future.set_result(None)
+#
+#         return internal_future
+#
+#     def _scheduler_loop(self):
+#         """异步池调度循环（重写以处理异步特殊性）"""
+#         while True:
+#             if self._shutdown and self._task_queue.empty():
+#                 break
+#
+#             # 检查是否还有并发槽位
+#             with self._running_lock:
+#                 running_count = len(self._running_tasks)
+#
+#             if running_count >= self._max_workers:
+#                 threading.Event().wait(0.01)
+#                 continue
+#
+#             try:
+#                 item = self._task_queue.get_nowait()
+#             except Empty:
+#                 threading.Event().wait(0.01)
+#                 continue
+#
+#             priority, seq, fn, args, kwargs, user_future = item
+#
+#             if user_future.cancelled():
+#                 continue
+#
+#             # 记录运行中的任务
+#             task_id = id(user_future)
+#             with self._running_lock:
+#                 self._running_tasks.add(task_id)
+#
+#             # 创建异步任务（使用默认参数立即捕获当前变量）
+#             async def run_and_callback(
+#                     fn=fn, args=args, kwargs=kwargs, user_future=user_future, task_id=task_id
+#             ):
+#                 try:
+#                     await self._semaphore.acquire()
+#                     try:
+#                         result = await fn(*args, **kwargs)
+#                         if not user_future.cancelled():
+#                             user_future.set_result(result)
+#                     finally:
+#                         self._semaphore.release()
+#                 except Exception as e:
+#                     if not user_future.cancelled():
+#                         user_future.set_exception(e)
+#                 finally:
+#                     with self._running_lock:
+#                         self._running_tasks.discard(task_id)
+#
+#             # 提交到事件循环
+#             asyncio.run_coroutine_threadsafe(run_and_callback(), self._loop)
+#
+#     def _on_task_done(self, executor_future: Future, user_future: Future):
+#         """异步池不需要此回调"""
+#         pass
+#
+#     def _shutdown_executor(self, wait: bool, cancel_futures: bool):
+#         """关闭异步池"""
+#         # 停止事件循环
+#         if self._loop.is_running():
+#             self._loop.call_soon_threadsafe(self._loop.stop)
+#
+#         # 等待事件循环线程结束
+#         if wait and self._loop_thread.is_alive():
+#             self._loop_thread.join(timeout=5)
+#
+#     def running_count(self) -> int:
+#         """获取运行中的任务数"""
+#         with self._running_lock:
+#             return len(self._running_tasks)
 class PriorityAsyncPool(BasePriorityPool):
     """优先级异步协程池
 
@@ -300,10 +473,17 @@ class PriorityAsyncPool(BasePriorityPool):
         self._shutdown = False
         self._shutdown_lock = threading.Lock()
 
+        # 添加关闭完成事件
+        self._shutdown_complete = threading.Event()
+
         # 异步池专用：信号量控制并发
         self._semaphore = None
         self._running_tasks = set()
         self._running_lock = threading.Lock()
+
+        # 添加待取消的任务集合
+        self._pending_cancel = set()
+        self._cancel_lock = threading.Lock()
 
         # 创建事件循环线程
         self._loop = asyncio.new_event_loop()
@@ -338,55 +518,46 @@ class PriorityAsyncPool(BasePriorityPool):
         try:
             self._loop.run_forever()
         finally:
+            # 清理未完成的任务，避免警告
+            pending = asyncio.all_tasks(self._loop)
+            for task in pending:
+                task.cancel()
+
+            # 运行一轮循环让取消生效
+            if pending:
+                self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
             self._loop.close()
 
     async def _init_semaphore(self):
         """初始化信号量"""
         self._semaphore = asyncio.Semaphore(self._max_workers)
 
+    @staticmethod
+    def is_async_callable(obj):
+        """判断对象是否可异步调用"""
+        if asyncio.iscoroutinefunction(obj):
+            return True
+        if callable(obj) and hasattr(obj, '__call__'):
+            return asyncio.iscoroutinefunction(obj.__call__)
+        return False
+
     def submit(self, fn: Callable, *args, priority: int = 5, **kwargs) -> Future:
         """
         提交异步任务
         :param fn: 异步函数(async def)
         """
-        if not asyncio.iscoroutinefunction(fn):
+        if not self.is_async_callable(fn):
             raise TypeError(f"异步池只接受异步函数，但收到了: {fn.__name__ if hasattr(fn, '__name__') else fn}")
 
         return super().submit(fn, *args, priority=priority, **kwargs)
 
-    def _submit_to_executor(self, fn: Callable, args: tuple, kwargs: dict) -> Future:
-        """
-        提交到异步执行器
-        注意：异步池返回的是包装后的Future，不是真正的执行器Future
-        """
-        # 创建内部Future用于跟踪
-        internal_future = Future()
-
-        # 创建异步任务包装器
-        async def task_wrapper():
-            # 获取信号量控制并发
-            await self._semaphore.acquire()
-            try:
-                # 执行用户异步函数
-                result = await fn(*args, **kwargs)
-                return result
-            finally:
-                self._semaphore.release()
-
-        # 提交到事件循环
-        coro = task_wrapper()
-        asyncio.run_coroutine_threadsafe(coro, self._loop)
-
-        # 异步池的特殊处理：直接标记为运行中
-        # 实际运行状态由信号量控制
-        internal_future.set_result(None)
-
-        return internal_future
-
     def _scheduler_loop(self):
         """异步池调度循环（重写以处理异步特殊性）"""
         while True:
-            if self._shutdown and self._task_queue.empty():
+            # 检查关闭状态
+            if self._shutdown and self._task_queue.empty() and len(self._running_tasks) == 0:
+                self._shutdown_complete.set()
                 break
 
             # 检查是否还有并发槽位
@@ -405,8 +576,15 @@ class PriorityAsyncPool(BasePriorityPool):
 
             priority, seq, fn, args, kwargs, user_future = item
 
+            # 检查是否已取消
             if user_future.cancelled():
                 continue
+
+            # 检查是否在待取消列表中
+            with self._cancel_lock:
+                if user_future in self._pending_cancel:
+                    self._pending_cancel.discard(user_future)
+                    continue
 
             # 记录运行中的任务
             task_id = id(user_future)
@@ -418,19 +596,32 @@ class PriorityAsyncPool(BasePriorityPool):
                     fn=fn, args=args, kwargs=kwargs, user_future=user_future, task_id=task_id
             ):
                 try:
+                    # 获取信号量
                     await self._semaphore.acquire()
                     try:
+                        # 再次检查取消状态
+                        if user_future.cancelled():
+                            return
+                        # 执行用户异步函数
                         result = await fn(*args, **kwargs)
+                        # 检查取消状态后再设置结果
                         if not user_future.cancelled():
                             user_future.set_result(result)
                     finally:
                         self._semaphore.release()
+                except asyncio.CancelledError:
+                    # 任务被取消，不设置异常
+                    if not user_future.cancelled():
+                        user_future.cancel()
                 except Exception as e:
                     if not user_future.cancelled():
                         user_future.set_exception(e)
                 finally:
                     with self._running_lock:
                         self._running_tasks.discard(task_id)
+                    # 通知调度线程有槽位释放
+                    with self._idle_condition:
+                        self._idle_condition.notify()
 
             # 提交到事件循环
             asyncio.run_coroutine_threadsafe(run_and_callback(), self._loop)
@@ -440,19 +631,96 @@ class PriorityAsyncPool(BasePriorityPool):
         pass
 
     def _shutdown_executor(self, wait: bool, cancel_futures: bool):
-        """关闭异步池"""
+        """关闭异步池（改进版）"""
+
+        if cancel_futures:
+            # 取消所有待执行的任务
+            self._cancel_pending_futures()
+
+        # 等待调度线程完成所有任务
+        if wait:
+            # 设置关闭标志并等待调度线程完成
+            self._shutdown = True
+            self._shutdown_complete.wait(timeout=10)
+
+            # 等待调度线程结束
+            if self._scheduler_thread.is_alive():
+                self._scheduler_thread.join(timeout=2)
+
         # 停止事件循环
         if self._loop.is_running():
+            # 获取所有运行中的任务并取消
+            future = asyncio.run_coroutine_threadsafe(
+                self._cancel_all_tasks(),
+                self._loop
+            )
+            try:
+                future.result(timeout=5)
+            except Exception:
+                pass
+
+            # 停止事件循环
             self._loop.call_soon_threadsafe(self._loop.stop)
 
         # 等待事件循环线程结束
         if wait and self._loop_thread.is_alive():
             self._loop_thread.join(timeout=5)
 
+    async def _cancel_all_tasks(self):
+        """取消所有运行中的任务"""
+        # 获取当前循环中的所有任务
+        tasks = [t for t in asyncio.all_tasks(self._loop)
+                 if t is not asyncio.current_task()]
+
+        # 取消所有任务
+        for task in tasks:
+            task.cancel()
+
+        # 等待所有任务取消完成
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def _cancel_pending_futures(self):
+        """取消队列中等待的任务（重写）"""
+        with self._cancel_lock:
+            while not self._task_queue.empty():
+                try:
+                    item = self._task_queue.get_nowait()
+                    user_future = item[-1]
+                    if not user_future.done():
+                        user_future.cancel()
+                        self._pending_cancel.add(user_future)
+                except Empty:
+                    break
+
     def running_count(self) -> int:
         """获取运行中的任务数"""
         with self._running_lock:
             return len(self._running_tasks)
+
+    def shutdown(self, wait: bool = True, cancel_futures: bool = False):
+        """
+        关闭任务池（重写基类方法）
+        :param wait: 是否等待所有任务完成
+        :param cancel_futures: 是否取消待执行的任务
+        """
+        with self._shutdown_lock:
+            if self._shutdown:
+                return
+            self._shutdown = True
+
+        # 取消待执行任务
+        if cancel_futures:
+            self._cancel_pending_futures()
+
+        # 等待调度线程完成
+        if wait:
+            self._shutdown_complete.wait(timeout=10)
+            if self._scheduler_thread.is_alive():
+                self._scheduler_thread.join(timeout=2)
+
+        # 关闭执行器
+        self._shutdown_executor(wait, cancel_futures)
 
 
 class TaskManageBase:
@@ -519,7 +787,17 @@ class TaskManageBase:
 
     def _pool_submit(self, task: 'Task', priority=5):
         func, args, kwargs = task.executor.get_func()
-        return self.pool.submit(func, *args, priority=priority, **kwargs)
+        if task.retry_count > 0:
+            task_retry = TaskRetry(
+                func=func,
+                args=args,
+                kwargs=kwargs,
+                retry_count=task.retry_count,
+                retry_should=task.retry_should
+            )
+            return self.pool.submit(task_retry, priority=priority)
+        else:
+            return self.pool.submit(func, *args, priority=priority, **kwargs)
 
     def stop(self):
         """停止"""
@@ -603,6 +881,20 @@ class TaskAsyncManage(TaskManageBase):
 
     def create_pool(self, num_work: int):
         return PriorityAsyncPool(max_workers=num_work)
+
+    def _pool_submit(self, task: 'Task', priority=5):
+        func, args, kwargs = task.executor.get_func()
+        if task.retry_count > 0:
+            task_retry = TaskRetryAsync(
+                func=func,
+                args=args,
+                kwargs=kwargs,
+                retry_count=task.retry_count,
+                retry_should=task.retry_should
+            )
+            return self.pool.submit(task_retry, priority=priority)
+        else:
+            return self.pool.submit(func, *args, priority=priority, **kwargs)
 
 
 # 信号类
@@ -865,6 +1157,90 @@ class TaskSignal:
 
 
 # 任务类及其属性类
+class TaskRetry:
+    """支持重试的工作函数包装器"""
+
+    def __init__(self,
+                 func,
+                 args: tuple = None,
+                 kwargs: dict = None,
+                 retry_count: int = 0,
+                 retry_should: Callable = None):
+        """
+        重试任务函数,任务函数或者retry_should函数发生异常时之间返回,不再重试
+        :param func:任务函数
+        :param args:参数
+        :param kwargs:参数
+        :param retry_count:重试次数,默认为0即不重试
+        :param retry_should:重试条件,默认通过判断func返回值是None则重试,否则不重试
+                            如果指定重试条件判断函数,True表示不重试,False表示重试
+        """
+        self.__func = func
+        self.__args = args or ()
+        self.__kwargs = kwargs or {}
+        self.__last_result = None  # 任务执行结果
+        self.__retry_count = retry_count
+        self.__retry_should = retry_should
+
+    def __execute(self) -> Any | None:
+        for count in range(self.__retry_count + 1):
+            try:
+                self.__last_result = self.__func(*self.__args, **self.__kwargs)
+                # 判断是否重试
+                if self.__retry_should is None:
+                    if self.__last_result is not None:
+                        break
+                else:
+                    if self.__retry_should(self.__last_result):
+                        break
+                logger.debug(f"任务 {self.__func.__name__} 第{count + 1}次重试")
+            except Exception as e:
+                logger.exception(f"任务 {self.__func.__name__} 第{count + 1}次重试异常: {e}")
+                break
+        return self.__last_result
+
+    async def __execute_async(self) -> Any | None:
+        for count in range(self.__retry_count + 1):
+            try:
+                self.__last_result = await self.__func(*self.__args, **self.__kwargs)
+                # 判断是否重试
+                if self.__retry_should is None:
+                    if self.__last_result is not None:
+                        break
+                else:
+                    if self.__retry_should(self.__last_result):
+                        break
+                logger.debug(f"任务 {self.__func.__name__} 第{count + 1}次重试")
+            except Exception as e:
+                logger.exception(f"任务 {self.__func.__name__} 第{count + 1}次重试异常: {e}")
+                break
+        return self.__last_result
+
+    def set_retry_count(self, retry_count: int):
+        """设置重试次数"""
+        self.__retry_count = retry_count
+
+    def set_retry_should(self, retry_should: Callable):
+        """
+        设置重试判断函数
+        返回Ture表示不重试,False表示重试
+        """
+        self.__retry_should = retry_should
+
+    def __call__(self):
+        return self.__execute()
+
+    def __await__(self):
+        return self.__execute_async()
+
+
+class TaskRetryAsync(TaskRetry):
+    """伪装成异步函数的类,支持重试的工作函数包装器"""
+
+    async def __call__(self):
+        return await self.__await__()
+
+
 class TaskEnum:
     """任务枚举统一入口"""
 
@@ -1133,7 +1509,12 @@ class TaskExecutor:
     5. 提供 __call__ 方法供线程/进程池调用
     """
 
-    def __init__(self, func: Callable, task: 'Task', args: tuple | Any = (), kwargs: dict = None, name: str = None):
+    def __init__(self,
+                 func: Callable,
+                 task: 'Task',
+                 args: tuple | Any = (),
+                 kwargs: dict = None,
+                 name: str = None):
         """
         初始化任务执行器
         :param func: 任务函数
@@ -1412,6 +1793,13 @@ class Task:
         传入参数后调用start方法(具有同步和异步,以及是否阻塞的等)
         使用完后最好显示调用clear方法清理资源
         或使用with语句+阻塞等待方法来使用(退出时自动清理资源)
+    重试设置说明:
+        重试实现是将任务函数通过TaskRetry包装后的一个整体
+        执行重试期间不受Task类状态影响(理论上应该是处于RUNNING状态)
+        如果需要停止任务时打断重试可以在自定义的retry_should函数中检查任务状态
+    多进程问题:
+        如果func或retry_should函数不是模块级函数或者是类方法/静态方法之类的
+        任务可能无法使用多进程完成
     信号说明:
         如果没有特殊声明,默认发送自身
         start_signal,开始信号,发送自身
@@ -1440,7 +1828,9 @@ class Task:
                  kwargs: dict = None,
                  parent_task: 'Task' = None,
                  signal: TaskSignalParams = None,
-                 progress: TaskProgress = None):
+                 progress: TaskProgress = None,
+                 retry_count: int = 0,
+                 retry_should: Callable = None):
         """
         :param func:任务函数或任务执行器
         :param task_manage:任务池,不传入时内部创建一个单线程任务池,启用use_process时使用子进程任务池
@@ -1451,9 +1841,16 @@ class Task:
         :param parent_task:关联的父对象,任务启动会检查父对象是否被停止或清理,父对象停止或清理会同步关闭子任务或清理子任务
         :param signal:传入指定的信号参数,默认内部创建独立的信号
         :param progress:传入指定的进度参数,默认内部创建独立的进度参数
+        :param retry_should:重试条件,默认通过判断func返回值的bool值为False时重试
+                            如果指定重试条件判断函数,True表示不重试,False表示重试
         """
         # 创建执行器
-        self.__executor = func if isinstance(func, TaskExecutor) else TaskExecutor(func, self, args, kwargs, name)
+        if isinstance(func, TaskExecutor):
+            self.__executor = func
+        else:
+            self.__executor = TaskExecutor(func, self, args, kwargs, name)
+        self.__retry_count = retry_count
+        self.__retry_should = retry_should
         self.__executor.add_done_callback(self.__finished_slot)  # 任务完成信号槽
         # 创建任务管理器
         self.__need_delete_task_manage = False  # 是否需要删除任务管理器
@@ -1478,7 +1875,7 @@ class Task:
         if parent_task is not None:
             self.set_parent_task(parent_task)
 
-    # 只读属性
+    # ----------基本属性----------
     @property
     def name(self) -> str:
         return self.__executor.name
@@ -1486,6 +1883,14 @@ class Task:
     @name.setter
     def name(self, value: str):
         self.__executor.name = value
+
+    @property
+    def retry_count(self) -> int:
+        return self.__retry_count
+
+    @property
+    def retry_should(self) -> Optional[Callable] | None:
+        return self.__retry_should
 
     @property
     def parent_task(self) -> Optional['Task'] | None:
@@ -1548,15 +1953,14 @@ class Task:
         return self.__signal.clear_signal
 
     @property
+    def sub_tasks(self) -> WeakSet:
+        return self.__sub_tasks.copy()
+
     def get_progress(self) -> int:
         """获取百分制进度"""
         return self.__progress.get_progress()
 
-    @property
-    def sub_tasks(self) -> WeakSet:
-        return self.__sub_tasks.copy()
-
-    # 设置方法
+    # ----------设置方法----------
     def set_result(self, result) -> bool:
         """
         设置任务结果，必须在任务结束后才可设置
@@ -1625,11 +2029,23 @@ class Task:
         else:
             logger.warning(f'父任务信号与该任务信号一致 父任务{parent_task.name}.signal == 子任务{self.name}.signal')
 
+    def set_retry_count(self, retry_count: int):
+        """设置重试次数"""
+        self.__retry_count = retry_count
+
+    def set_retry_should(self, retry_should: Callable):
+        """
+        设置重试判断函数
+        返回Ture表示不重试,False表示重试
+        """
+        self.__retry_should = retry_should
+
     def add_sub_task(self, sub_task: 'Task'):
         if not isinstance(sub_task, Task):
             raise TypeError("参数 sub_task 必须为 Task 类型")
         self.__sub_tasks.add(sub_task)
 
+    # ----------任务运行类方法----------
     def __call__(self):
         """返回执行函数,必须调用该函数"""
         return self.__executor()

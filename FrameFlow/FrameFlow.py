@@ -66,8 +66,8 @@ def start():
 
 
 if __name__ == '__main__':
-    from SubAPI import StartAPI
+    from SubAPI import StartAPI, StartEnum
 
     process_startup_parameters()
-    start_api = StartAPI(func=start, console_level='WARNING')
+    start_api = StartAPI(func=start, console_level=StartEnum.LogLevel.WARNING)
     start_api.start_thread()

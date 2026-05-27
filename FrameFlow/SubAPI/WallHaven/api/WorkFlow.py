@@ -19,6 +19,7 @@ class ThumbWorkFlow(Task):
 
     async def __execute(self) -> ImageData | None:
         task = DownloadTask(self.url, GlobalValue.GLOBAL_TASK_MANAGE, self.use_network, self.use_cache)
+        task.set_retry_count(3)  # 设置重试次数
         self.image_id = task.image_id
         task.start_signal.bridge_signal(self.start_signal)
         task.progress_signal.bridge_signal(self.progress_signal)
@@ -116,6 +117,8 @@ class DownloadWorkFlow(Task):
     """
     下载任务流(重构版)
     使用TaskOrchestrator简化任务链管理
+    注意:完成信号发射每个子任务的完成
+        即按顺序发射ImageInfoTask->DownloadTask->DownloadWorkFlow
     """
 
     class Params:
@@ -185,25 +188,25 @@ class DownloadWorkFlow(Task):
         """
         使用编排器简化的执行逻辑
         """
-
-        def step_one():
-            return self.params.image_info_task
-
         try:
-            orchestrator = TaskOrchestrator(f"Download_{self.params.image_id}", max_retries=3)
+            orchestrator = TaskChain(f"Download_{self.params.image_id}")
 
             # 第一步:获取图像信息
-            orchestrator.chain(step_one)
+            orchestrator.add(self.params.image_info_task)
 
             # 第二步:下载图像
-            orchestrator.chain(self._create_download_task)
+            orchestrator.add_factories(self._create_download_task)
 
             # 第三步:保存图像(如果需要)
             if self.params.save:
-                orchestrator.chain(self._create_save_task)
+                orchestrator.add_factories(self._create_save_task)
+
             # 连接信号
             orchestrator.sub_task_signal.progress_signal.connect(
                 lambda task: self.progress_emit(task.progress))
+            orchestrator.sub_task_signal.finish_signal.connect(
+                lambda task: self.finish_signal.emit(task)
+            )
 
             # 执行编排
             result = await orchestrator.execute(parent_task=self, chain_break=True)
@@ -273,17 +276,28 @@ class DownloadBatchWorkFlow(Task):
         self.max_retries = max_retries
 
     async def __execute(self):
-        orchestrator = TaskOrchestrator(self.name, self.max_concurrent)
+        orchestrator = ParallelTaskGroup(self.name, self.max_concurrent)
+
+        # 提交执行函数
         if self.create_func is None:
-            orchestrator.parallel([
+            orchestrator.add_factories(*[
                 (lambda p=param: DownloadWorkFlow(p)) for param in self.params
-            ], self.max_concurrent)
+            ])
         else:
-            orchestrator.parallel([
+            orchestrator.add_factories(*[
                 (lambda p=param: self.create_func(DownloadWorkFlow(p))) for param in self.params
-            ], self.max_concurrent)
+            ])
+
+        # 连接信号
         orchestrator.sub_task_signal.progress_signal.bridge_signal(self.progress_signal)
-        return await orchestrator.execute(parent_task=self)
+
+        # 等待执行结果
+        result = await orchestrator.execute(parent_task=self)
+
+        # 清理
+        orchestrator.clear()
+
+        return result
 
 
 class UpdateWorkFlow(Task):
@@ -360,17 +374,43 @@ class UpdateWorkFlow(Task):
 
     async def __execute(self) -> bool:
 
+        async def step_one() -> list:
+            """获取远程第一页数据已经更新本地关键词数据和本地全部数据"""
+            orchestrator = ParallelTaskGroup(self.name)
+
+            # 提交任务
+            orchestrator.add_factories(*[
+                # 更新关键词数据,不使用本地数据,确保数据准确性
+                lambda: KeyWordTask(self.search_params, use_cache=False),
+                # 搜索远程第一页数据
+                lambda: SearchTask(self.search_params, use_cache=False),
+                # 获取本地全部数据
+                lambda: SearchTask(self.search_params, search_all=True, use_network=False, use_cache=False),
+            ])
+
+            # 等待结果
+            results = await orchestrator.execute(parent_task=self)
+
+            # 清理
+            orchestrator.clear()
+
+            return results
+
         def step_two() -> pd.DataFrame | None:
             """比对云端数据筛选出需要下载的图像,返回None表示不需要更新"""
             if self.local_all_result is not None:  # 本地存在数据
+
                 # 对比云端数据与本地数据数量和日期是否对的上,云端可能会有图片被删除的情况
-                if (self.remote_first_result.loc[0, '日期'] > self.local_all_result.loc[0, '日期'] or
-                        self.remote_first_result.loc[0, '总数'] > self.local_all_result.loc[0, '总数']):
+                if any((self.remote_first_result.loc[0, '日期'] > self.local_all_result.loc[0, '日期'],
+                        self.remote_first_result.loc[0, '总数'] > self.local_all_result.loc[0, '总数'])):
+
                     if self.remote_all_result is not None:
+
                         # 选出差异图像搜索结果
                         diff_image_search_result = self.remote_all_result[
                             ~self.remote_all_result['id'].isin(self.local_all_result['id'])]
                         return diff_image_search_result
+
                     else:
                         return pd.DataFrame()
             else:
@@ -399,29 +439,24 @@ class UpdateWorkFlow(Task):
             return all(results)
 
         logger.info(f'{self.__class__.__name__} 开始更新:{self.name}')
+
         # 获取远程第一页数据已经更新本地关键词数据和本地全部数据
-        orchestrator = TaskOrchestrator(self.name)
-        orchestrator.parallel([
-            # 更新关键词数据,不使用本地数据,确保数据准确性
-            lambda: KeyWordTask(self.search_params, use_cache=False),
-            # 搜索远程第一页数据
-            lambda: SearchTask(self.search_params, use_cache=False),
-            # 获取本地全部数据
-            lambda: SearchTask(self.search_params, search_all=True, use_network=False, use_cache=False),
-        ])
-        results = await orchestrator.execute(parent_task=self)
-        orchestrator.clear()
+        results = await step_one()
+
+        # 保存第一步结果
         if results[0] is None or results[1] is None:
             return False
         self.remote_first_result = results[1]
         self.local_all_result = results[2]
         self.progress_signal.emit(self)
+
         # 第二步筛选出需要下载的文件
         diff_result = step_two()
         if diff_result is not None:
+            # 第三步,提交下载任务
             if not diff_result.empty:
-                # 提交下载任务
                 return await step_three(diff_result)
+
         logger.info(f'{self.__class__.__name__} 更新成功:{self.name}')
         return True
 
