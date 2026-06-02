@@ -364,7 +364,7 @@ class AsyncJson(Task):
                     return await response.json()
 
         except Exception as e:
-            logger.exception(f'任务请求: {self.name} 错误:{e}')
+            logger.error(f'任务请求: {self.name} 错误:{e}')
             return {}
 
 

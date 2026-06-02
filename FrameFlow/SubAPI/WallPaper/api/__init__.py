@@ -17,7 +17,7 @@ class ImagePlay:
         self._image_qt = ImageQt()  # 壁纸Qt接口管理类
         self._image_process_manage = ImageProcessManage()  # 图像处理进程管理器
         self._play_timer = ReuseTimer(Config.IMAGE_TIME, self._set_wallpaper, '设置壁纸')  # 播放定时器
-        self._submit_timer = ReuseTimer(0, self._submit_image_process, '任务提交')  # 提交图像处理任务定时器
+        self._submit_timer = ReuseTimer(0.5, self._submit_image_process, '任务提交')  # 提交图像处理任务定时器
         # 播放模式
         self._image_key_mode = ImageKeyMode()
 
@@ -62,14 +62,16 @@ class ImagePlay:
             logger.debug(f'图像不在播放列表中 路径:{task.image_path}')
             return False
 
-        while self.isRunning:
-            result = self._image_process_manage.get_result()
+        while self.isRunning and self._play_timer.isRunning:
+            result = self._image_process_manage.get_result(0.1)
             if result is None:  # 图像处理数据为空
                 logger.info('获取图像为空')
-                time.sleep(1)
                 continue
             if Config.IMAGE_PLAY_MODE == Config.IMAGE_KEY_MODE:  # 判断模式
-                if key_mode(result):
+                state = key_mode(result)
+                result.clear()  # 清理资源
+                logger.debug(f'关键词模式 图像设置状态:{state}')
+                if state:
                     break
 
     def set_image_play_time(self, value: float | int):
@@ -106,6 +108,7 @@ class ImagePlay:
         self._play_timer.pause()
         self._submit_timer.pause()
         logger.info('播放已暂停')
+        self._image_process_manage.clear()  # 清空缓冲队列
         self.pause_signal.emit(True)
 
     def resume(self):

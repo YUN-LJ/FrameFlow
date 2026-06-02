@@ -105,7 +105,7 @@ class KeyWordCell(ImageCell):
         self.image_info = api.get_image_info_by_key(self.key_word).sort_values('日期', ignore_index=True)
         self.thumb_url = self.__class__.all_thumb_url.get(self.key_word, None)
         if self.thumb_url is None:
-            self._filterThumbUrl()  # 筛选某一张图片作为略缩图路径
+            self._filterThumbUrl(False)  # 筛选某一张图片作为略缩图路径
         image_info_total = self.image_info.shape[0]
         key_info_total = key_info[KEY_WORD.columns.total]
         self.setTitle(f'总计{image_info_total}/{key_info_total}')

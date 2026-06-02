@@ -34,6 +34,13 @@ key_word_dtype = {'关键词': 'str', '总页数': 'UInt32', '总数': 'UInt32',
 image_history_columns = image_info_columns
 image_history_dtype = image_info_dtype
 
+# desktop端数据列
+download_table_columns = ['选择', '图像ID', '下载进度', '操作']
+download_table_dtype = {'选择': 'bool', '图像ID': 'str', '下载进度': 'str', '操作': 'UInt8'}
+
+like_table_columns = ['选择', *key_word_columns, '更新状态']
+like_table_dtype = {'选择': 'bool', **key_word_dtype, '更新状态': 'str'}
+
 
 class ImageInfoColumns:
 

@@ -119,10 +119,10 @@ class WallPaperSlot:
 
     def playImageSignal(self, task: api.ImageProcessTask):
         finished, total = self.wallpaper_api.image_key_mode.get_play_progress()
-        self.parent.label_progress.setText(f'当前播放进度:{finished}/{total}')
-        self.parent.right_widget.setImage(task.image_original)
         if task.image_info is not None:
             self.parent.right_widget.setTags(task.image_info)
+        self.parent.right_widget.setImage(task.image_original)
+        self.parent.label_progress.setText(f'当前播放进度:{finished}/{total}')
 
 
 if __name__ == '__main__':

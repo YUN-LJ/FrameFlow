@@ -121,9 +121,10 @@ class LikePageSlot:
 
     @info_bar_decorator
     def pushButton_delete(self):
-        select_len = len(self.parent.tableWidget.selected_rows)
-        message = MessageBox('确认删除', f'是否删除{select_len}个？', GlobalValue.TOP_WINDOWS)
-        if message.exec() and self.parent.tableWidget.delKeyWord():
+        select = self.parent.tableWidget.data_model.getAllKeyWord(select=True)
+        content = f'是否删除{','.join(select)}？' if len(select) < 5 else f'是否删除{len(select)}个？'
+        message = MessageBox('确认删除', content, GlobalValue.TOP_WINDOWS)
+        if message.exec() and self.parent.tableWidget.delKeyWord(select):
             return True, '删除成功', self.parent
         return False, '已取消', self.parent
 

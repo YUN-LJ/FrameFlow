@@ -1795,6 +1795,7 @@ class Task:
         或使用with语句+阻塞等待方法来使用(退出时自动清理资源)
     重试设置说明:
         重试实现是将任务函数通过TaskRetry包装后的一个整体
+        重试次数耗尽后返回最后一次执行结果
         执行重试期间不受Task类状态影响(理论上应该是处于RUNNING状态)
         如果需要停止任务时打断重试可以在自定义的retry_should函数中检查任务状态
     多进程问题:
@@ -1841,7 +1842,7 @@ class Task:
         :param parent_task:关联的父对象,任务启动会检查父对象是否被停止或清理,父对象停止或清理会同步关闭子任务或清理子任务
         :param signal:传入指定的信号参数,默认内部创建独立的信号
         :param progress:传入指定的进度参数,默认内部创建独立的进度参数
-        :param retry_should:重试条件,默认通过判断func返回值的bool值为False时重试
+        :param retry_should:重试条件,默认通过判断func返回值是None重试,否则不重试
                             如果指定重试条件判断函数,True表示不重试,False表示重试
         """
         # 创建执行器

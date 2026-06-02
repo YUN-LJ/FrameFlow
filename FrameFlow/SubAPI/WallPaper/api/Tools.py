@@ -96,6 +96,7 @@ def get_image_info_by_tags(tag: str, wait=False) -> pd.DataFrame:
     if wait:
         IMAGE_INFO.is_loaded(0)
     with IMAGE_INFO as df:
+        df: pd.DataFrame
         if df is not None:
             mask_key = df['标签'].str.contains(tag, case=False, na=False, regex=False)
             result = df[mask_key].copy(deep=True).reset_index(drop=True)
@@ -120,6 +121,7 @@ def get_image_info_by_key(key: str | list, wait=False) -> pd.DataFrame:
     if not key:
         return pd.DataFrame()
     with IMAGE_INFO as df:
+        df: pd.DataFrame
         if df is None or df.empty:
             return pd.DataFrame()
         # 构建匹配掩码：只要包含任意一个关键词即匹配
@@ -286,6 +288,7 @@ class ImageQt:
 
 class ImageProcessTask:
     """处理单张图片的缩放操作"""
+    default_screen_size = get_screen_size()
 
     def __init__(self, image_path: str):
         self.image_id = os.path.basename(image_path).split('.')[0]
@@ -293,16 +296,21 @@ class ImageProcessTask:
         self.image_info: Optional[pd.Series] = None  # 图像信息
         self.image_process: Optional[BytesIO] = None  # 处理后的图片
         self.image_original: Optional[BytesIO] = None  # 原图
-        self.screen_size = get_screen_size()
+        self.screen_size = self.default_screen_size
+
+    def clear(self):
+        self.image_info = None
+        self.image_process = None
+        self.image_original = None
 
     def start(self, parent_task: Task = None) -> bool:
-        task = Task(image_process_mul, GlobalValue.GLOBAL_Task_PROCESS_MANAGE,
-                    args=(self.image_path, self.screen_size))
-        result = task.start(0, parent_task=parent_task)
-        if result is not None:
-            self.image_original, self.image_process = result
-            return True
-        return False
+        with Task(image_process_mul, GlobalValue.GLOBAL_Task_PROCESS_MANAGE,
+                  args=(self.image_path, self.screen_size)) as task:
+            result = task.start(0, parent_task=parent_task)
+            if result is not None:
+                self.image_original, self.image_process = result
+                return True
+            return False
 
 
 class ImageProcessManage:
@@ -363,6 +371,19 @@ class ImageProcessManage:
             except Empty:
                 pass
 
+    def clear(self):
+        """清空缓冲队列"""
+        while True:
+            try:
+                self.result_queue.get_nowait()
+            except Empty:
+                break
+        while True:
+            try:
+                self.task_queue.get_nowait()
+            except Empty:
+                break
+
     def start(self):
         """开始图像处理"""
         if not self.isRunning:
@@ -374,6 +395,7 @@ class ImageProcessManage:
         if self.isRunning:
             self.isRunning = False
             self.process.stop()
+            self.clear()
 
 
 class ImageKeyMode:
@@ -424,17 +446,22 @@ class ImageKeyMode:
         with self.__lock:
             if self.play_data.empty:
                 return self.play_data
+
             # 获取筛选后的总数据
             total_data = self.get_filter_data()
+
             # 去除掉已经播放的
             mask_history = ~total_data['本地路径'].isin(self.history_data.data['本地路径'])
             filter_data = total_data[mask_history]
+
             # 如果为空则删除播放历史重新循环
             if filter_data.empty:
                 self.history_data.clear()
                 filter_data = total_data
+
             data = filter_data.sample(n=n) if sample else filter_data.head(n)
             self.history_data.add_data(data)
+
             return data
 
     def get_image_play_info(self, image_path: str) -> pd.Series | None:

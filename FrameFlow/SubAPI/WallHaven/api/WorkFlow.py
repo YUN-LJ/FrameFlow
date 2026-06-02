@@ -115,7 +115,7 @@ class DownloadWorkFlowManage:
 
 class DownloadWorkFlow(Task):
     """
-    下载任务流(重构版)
+    下载任务流,任务成功后返回ImageData实例,否则返回None
     使用TaskOrchestrator简化任务链管理
     注意:完成信号发射每个子任务的完成
         即按顺序发射ImageInfoTask->DownloadTask->DownloadWorkFlow
@@ -180,7 +180,7 @@ class DownloadWorkFlow(Task):
             super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_ASYNC_MANAGE,
                              name='DownloadWorkFlow', use_async=True)
             self.params = params
-            self.image_data = None
+            self.image_data: Optional[ImageData] = None
             self.append_time = time.time()
             DownloadWorkFlowManage.append_work_flow(self)
 
@@ -189,7 +189,7 @@ class DownloadWorkFlow(Task):
         使用编排器简化的执行逻辑
         """
         try:
-            orchestrator = TaskChain(f"Download_{self.params.image_id}")
+            orchestrator = TaskChain(f"{self.__class__.name}_{self.params.image_id}")
 
             # 第一步:获取图像信息
             orchestrator.add(self.params.image_info_task)
@@ -214,7 +214,11 @@ class DownloadWorkFlow(Task):
             # 清理编排器
             orchestrator.clear()
 
-            return result if isinstance(result, ImageData) else self.image_data
+            # 返回结果
+            if result:
+                return self.image_data
+            else:
+                return None
 
         except Exception as e:
             logger.exception(f'{self.__class__.__name__} {self.params.image_id} 执行失败 {e}')
@@ -227,17 +231,16 @@ class DownloadWorkFlow(Task):
         download_task = DownloadTask(self.params.url)
         return download_task
 
-    def _create_save_task(self, image_data):
+    def _create_save_task(self, image_data: ImageData):
         """创建保存任务的工厂函数"""
         if image_data is not None:
             self.image_data = image_data
             local_path = self.params.image_info['本地路径'].values[0]
             if not local_path or not FileBase(local_path).exists:
                 save_task = Task(
-                    image_data.save_image,
+                    self.image_data.save_image,
                     GlobalValue.GLOBAL_TASK_MANAGE,
-                    args=(self.params.save_path, self.params.cover)
-                )
+                    args=(self.params.save_path, self.params.cover, self.params.image_info))
                 return save_task
         return None
 
@@ -259,7 +262,7 @@ class DownloadBatchWorkFlow(Task):
 
     def __init__(self,
                  params: Iterable[DownloadWorkFlow.Params],
-                 create_func: Callable = None,
+                 create_func: Callable[[DownloadWorkFlow], DownloadWorkFlow] = None,
                  max_concurrent: int = 4,
                  max_retries: int = 3):
         """
@@ -276,7 +279,7 @@ class DownloadBatchWorkFlow(Task):
         self.max_retries = max_retries
 
     async def __execute(self):
-        orchestrator = ParallelTaskGroup(self.name, self.max_concurrent)
+        orchestrator = ParallelTaskGroup(f'{self.__class__.__name__}_{self.name}', self.max_concurrent)
 
         # 提交执行函数
         if self.create_func is None:
@@ -422,21 +425,28 @@ class UpdateWorkFlow(Task):
             with self.__lock:
                 self.all_work_flow.clear()
             logger.debug(f'{self.__class__.__name__} 提交下载任务:{self.key_word}')
+
             # 提交下载任务
             download_batch_work_flow = DownloadBatchWorkFlow(
                 [DownloadWorkFlow.Params(row['id'], self.key_word, url=row['远程路径'])
                  for index, row in diff_image_search_result.iterrows()],  # 下载参数
                 self._create_func  # 创建下载任务函数
             )
-            with self.__lock:
-                self.progress.finished = 1
+
+            # 设置进度数据
+            self.progress.finished = 0
             self.progress.total = len(diff_image_search_result)
             self.progress_signal.emit(self)  # 通知外部进入下载阶段
+
             # 等待下载任务完成
             logger.debug(f'{self.__class__.__name__} 等待下载任务:{self.name}')
-            results = await download_batch_work_flow.start_async(0, parent_task=self)
+            results: Optional[list] = await download_batch_work_flow.start_async(0, parent_task=self)
+            # 清理
             self.__clear_all_work_flow()
-            return all(results)
+            if results is not None:
+                return all(results)
+            else:
+                return False
 
         logger.info(f'{self.__class__.__name__} 开始更新:{self.name}')
 
@@ -503,18 +513,15 @@ class UpdateWorkFlow(Task):
         self.timeout = time.time()
 
     def __download_finished(self, work_flow: DownloadWorkFlow):
-        """任务完成后如果成功则会计数,如果失败则会重试,同一任务重试次数超过3次则会终止本次更新"""
-        if self.isRunning:
+        """任务完成后如果成功则会计数,如果失败则会终止本次更新"""
+        if self.isRunning and isinstance(work_flow, DownloadWorkFlow):
             if work_flow.result() is not None:
-                self.timeout = time.time()
                 self.progress.finished += 1
                 self.progress_signal.emit(self)
-                with self.__lock:
+            with self.__lock:
+                if work_flow in self.all_work_flow:
                     self.all_work_flow.remove(work_flow)
-            elif work_flow.countRun < 3:
-                work_flow.start()
-            else:
-                self.stop()
+            DownloadWorkFlowManage.del_work_flow(work_flow.params.image_id)
 
     def __clear_all_work_flow(self):
         """清除所有任务"""
@@ -558,6 +565,10 @@ class SerialUpdateWorkFlow(Task):
         """任务排序"""
         self.task_list.sort(key=lambda x: x[0])
 
+    @staticmethod
+    def __retry_should(result):
+        return result
+
     async def __execute(self) -> bool:
         logger.info(f'{self.__class__.__name__} 批量更新任务开始执行 队列长度{len(self.task_list)}')
         while self.isRunning:
@@ -569,20 +580,17 @@ class SerialUpdateWorkFlow(Task):
                         key_word, purity, categories = self.task_list[0]
                     self.current_task = UpdateWorkFlow(key_word, purity, categories)
                     self.current_task.set_signal(self.sub_task_signal)
-                # 同一任务重试三次后则删除并继续
-                elif self.current_task.executor.run_count >= 3:
-                    self.del_task(self.current_task.key_word, self.current_task.purity, self.current_task.categories)
-                    self.current_task.clear()
-                    self.current_task = None
-                    await asyncio.sleep(0.1)
-                    continue
+                    self.current_task.set_retry_count(3)  # 设置重试次数3次
+                    self.current_task.set_retry_should(self.__retry_should)  # 设置重试判断条件
+
                 # 执行任务,任务完成后,如果成功则计数并从任务队列中移除
-                elif await self.current_task.start_async(0, parent_task=self):
-                    self.progress.finished += 1
-                    self.progress_signal.emit(self.progress)
-                    self.del_task(self.current_task.key_word, self.current_task.purity, self.current_task.categories)
-                    self.current_task.clear()
-                    self.current_task = None
+                await self.current_task.start_async(0, parent_task=self)
+                self.progress.finished += 1
+                self.progress_signal.emit(self.progress)
+                self.del_task(self.current_task.key_word, self.current_task.purity, self.current_task.categories)
+                self.current_task.clear()
+                self.current_task = None
+
             except IndexError:
                 logger.info(f'{self.__class__.__name__} 队列已空,任务执行完毕')
                 return True

@@ -1,4 +1,6 @@
 """下载界面控制文件"""
+import pandas as pd
+
 from SubAPI.WallHaven.ImportPack import *
 from SubAPI.WallHaven import api
 from SubAPI.WallHaven.api.WorkFlow import UpdateWorkFlow, SerialUpdateWorkFlow
@@ -107,7 +109,6 @@ class LikeTableData(DataFrameModelBase):
     def __init__(self, parent: 'LikeTable' = None):
         super().__init__(parent=parent)
         self.__parent = parent
-        self.setColumnCount(len(DataConfig.key_word_columns) + 2)
         # 创建后端工作流
         self._create_work_flow()
         self.dataChange.connect(self._select_workflow)
@@ -117,6 +118,15 @@ class LikeTableData(DataFrameModelBase):
         # 绑定数据加载和改变信号
         KEY_WORD.load_callback(self._data_change_lazy)
         KEY_WORD.change_signal.connect(self._data_change_lazy)
+
+    def default_dataframe(self, data=None) -> pd.DataFrame:
+        return pd.DataFrame(data, columns=DataConfig.like_table_columns).astype(DataConfig.like_table_dtype)
+
+    def transformation_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        """将image_ids列表转为标准的DataFrame格式"""
+        data.insert(0, '选择', False)
+        data['更新状态'] = '0;'
+        return data.astype(DataConfig.like_table_dtype)
 
     def _select_workflow(self, row, col, value):
         """选择后端工作流"""
@@ -177,35 +187,23 @@ class LikeTableData(DataFrameModelBase):
         self.work_flow.sub_task_signal.stop_signal.connect(current_task_stop_slot)
 
     def _load_key_word(self):
+        # 获取新数据
         with KEY_WORD as df:
             if df.empty:
                 return
             data = df.copy(deep=True)
-        with self._lock:
-            if not self._dataframe.empty:
-                # 使用表合并，以关键词为关键列，data表为主
-                data = pd.merge(
-                    data,
-                    self._dataframe[['关键词', '选择', '更新状态']],
-                    on='关键词',
-                    how='left'
-                )
-                # 对于合并后缺失的值，使用默认值填充
-                if '选择' in data.columns:
-                    data['选择'] = data['选择'].fillna(False).astype(bool)
-                else:
-                    data['选择'] = False
-
-                if '更新状态' in data.columns:
-                    data['更新状态'] = data['更新状态'].fillna('0;')
-                else:
-                    data['更新状态'] = '0;'
-                # 确保"选择"列在第一列，"更新状态"列在最后列
-                columns = ['选择'] + [col for col in data.columns if col not in ['选择', '更新状态']] + ['更新状态']
-                data = data[columns]
-            else:
-                data.insert(0, '选择', False)
-                data['更新状态'] = '0;'
+        data = self.transformation_data(data)  # 自带默认值
+        # 更新数据
+        with self.Lock:
+            # 设置行索引,创建新的数据表(如果使用inplace会导致数据丢失)
+            new_index = data.set_index(DataConfig.like_table_columns[1])
+            old_index = self.DataFrame.set_index(DataConfig.like_table_columns[1])
+            # 更新数据
+            new_index.update(old_index)
+            # 删除行索引
+            data = new_index.reset_index()
+            # 调整列序号
+            data = data[DataConfig.like_table_columns]
         self.setDataFrame(data)
 
     def _data_change_lazy(self):
@@ -213,8 +211,11 @@ class LikeTableData(DataFrameModelBase):
 
     def getKeyWordRowIndex(self, key_word) -> int:
         """获取关键词所在行索引"""
-        with self._lock:
-            return self._dataframe[self._dataframe['关键词'] == key_word].index[0]
+        with self.Lock:
+            try:
+                return self.DataFrame[self.DataFrame['关键词'] == key_word].index[0]
+            except IndexError:
+                return -1
 
     def getWorkFlowArgs(self, key_word) -> tuple[str, int, int]:
         """根据关键词获取后端工作流参数"""
@@ -322,7 +323,8 @@ class LikeTable(TableWidgetBase):
     def searchKeyWord(self, key_word) -> bool:
         with KEY_WORD as df:
             if key_word in df['关键词'].values:  # 精准搜索
-                self.scrollToTopSlot(key_word)
+                row_index = df[df == key_word].index[0]
+                self.scrollToTopSlot(row_index)
                 return True
             else:  # 模糊搜索
                 key_word = key_word.lower()

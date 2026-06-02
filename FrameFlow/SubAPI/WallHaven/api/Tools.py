@@ -1,6 +1,4 @@
 """WallHaven工具类"""
-import pandas as pd
-
 from SubAPI.WallHaven.ImportPack import *
 
 logger = LogClass.get_logger(__name__, console_level='WARNING')
@@ -258,8 +256,9 @@ class ImageData(ImageDataBase):
     @property
     def image_info(self) -> pd.DataFrame | None:
         """从本地数据内获取图像详细信息"""
-        if IMAGE_INFO.data is not None:
-            with IMAGE_INFO as df:
+        with IMAGE_INFO as df:
+            if df is not None:
+                df: pd.DataFrame
                 data = df[df['id'] == self.image_id].copy(deep=True)
                 if not data.empty:
                     return data
@@ -279,13 +278,21 @@ class ImageData(ImageDataBase):
             IMAGE_INFO.del_row(self.image_id)
             FileBase(image_path).delete()
 
-    def save_image(self, save_path: str = None, cover=False) -> bool:
+    def save_image(self, save_path: str = None, cover=False, image_info: pd.DataFrame = None) -> bool:
         """
         保存图像文件
         :param save_path: 保存路径,文件夹
-        :param cover:是否覆盖,默认不覆盖
+        :param cover: 是否覆盖,默认不覆盖
+        :param image_info: 图像信息,不传入则去全局数据内查找
         :return 是否保存成功
         """
+        if image_info is not None:
+            image_dir = Path(Config.SAVE_DIR) / image_info['分级'].values[0] / image_info['类别'].values[0]
+            image_dir.mkdir(parents=True, exist_ok=True)
+            image_path = image_dir / f'{image_info['id'].values[0]}{image_info['文件扩展名'].values[0]}'
+            save_path = str(image_path)
+            IMAGE_INFO.add_data(image_info)
+
         if save_path is None:
             image_path = self.save_path
         else:
@@ -296,6 +303,7 @@ class ImageData(ImageDataBase):
                 raise ValueError(f'{self.__class__.__name__} {self.image_id} 图像信息不存在!')
             image_path = str(Path(save_path) / image_info['分级'].values[0] / image_info['类别'].values[0] /
                              f'{image_info['id'].values[0]}{image_info['文件扩展名'].values[0]}')
+
         if image_path:
             # 写入图像信息
             with IMAGE_INFO as df:
@@ -370,6 +378,8 @@ class AsyncAPI:
         self.response_task = AsyncJson(
             self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE,
             self.params, self.headers)
+
+        self.response_task.name = self.url
         self.response_task.set_parent_task(self.task)  # 设置父任务
         self.response_task.set_retry_count(self.retry_count)  # 设置重试次数
         if retry_should is not None:
@@ -381,6 +391,8 @@ class AsyncAPI:
             self.url, GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE,
             num_chunks=num_chunks, params=self.params,
             headers=self.headers, enable_limit=False)
+
+        self.response_task.name = self.url
         self.response_task.set_parent_task(self.task)  # 设置父任务
         self.response_task.set_retry_count(self.retry_count)  # 设置重试次数
         if retry_should is not None:
@@ -651,6 +663,7 @@ class SearchTask(TaskBase):
             self.progress.total = int(result.loc[0, '总页数'])
             self.progress.finished = 1
             self.progress_signal.emit(self)
+
             # 提交全部子任务
             all_sub_task: list[SearchTask] = []
             for page in range(2, result.loc[0, '总页数'] + 1):
@@ -662,6 +675,7 @@ class SearchTask(TaskBase):
                 self.add_sub_task(sub_task)
                 sub_task.start(priority=2)
                 all_sub_task.append(sub_task)
+
             # 等待子任务完成
             while self.progress.finished < self.progress.total: time.sleep(0.1)
             if self.isRunning:
@@ -673,12 +687,16 @@ class SearchTask(TaskBase):
                     else:
                         logger.warning(f'搜索失败的页码{task.params.page}')
                     task.clear()
+
+                # 记录搜索信息
                 if self.use_network:
                     logger.info(f'{self.params.q} 全部搜索完成,'
                                 f'服务器预计数据量为{result.loc[0, '总数']},'
                                 f'实际数据量为{result.shape[0]}.')
                 else:
                     logger.info(f'{self.params.q} 搜索完成,数据量为{result.shape[0]}.')
+
+                # 返回结果
                 return result
 
     def __search_local(self) -> pd.DataFrame | None:

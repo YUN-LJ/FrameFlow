@@ -76,7 +76,7 @@ def start():
 
 
 if __name__ == '__main__':
-    from SubAPI import StartAPI
+    from SubAPI import StartAPI,StartEnum
 
-    start_api = StartAPI(func=start, console_level='DEBUG')
+    start_api = StartAPI(func=start, console_level=StartEnum.LogLevel.DEBUG)
     start_api.start_thread()
