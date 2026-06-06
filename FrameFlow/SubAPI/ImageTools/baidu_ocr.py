@@ -121,90 +121,33 @@
 #         return None
 '----------------------------------------------------------------------------'
 # acess_token 大概能被设计成读写锁的形式？只有一个写锁，其余都是读锁？还是说没必要，因为在同一个进程中，分出线程，并各自管理session
+import string
 import sys
 from pathlib import Path
 import threading
 import time
-from typing import Tuple
+from typing import Any, List, Tuple
 import inspect
+from attr import dataclass
 import requests
 
 import random
 import asyncio
-from logging import Logger
+import logging
 
 
 sys.path.insert(0,r'D:\WorkDirectory\PythonProject\FrameFlow')  # 往上找到 PythonProject
 # 必须先修改 LogConfig 的三个值，然后才能导入任何依赖 Fun.BaseTools 的模块
+from FrameFlow.SubAPI.ImageTools import payload_base
 from Fun.BaseTools.LogClass import LogConfig
 LogConfig.LOG_DIR = Path.cwd() / 'config'           # 改到当前目录下的 config
 LogConfig.LOG_FILE = LogConfig.LOG_DIR / 'app.log'
 LogConfig.ERROR_LOG_FILE = LogConfig.LOG_DIR / 'error.log'
 
-from Fun.BaseTools.AsyncHTTP import Task,aiohttp,AsyncHTTPManage
+from Fun.BaseTools.AsyncHTTP import AsyncJson, Task,aiohttp,AsyncHTTPManage
 
-logger = Logger(__name__)
-class AsyncJson(Task):
-    """异步请求Json文件"""
+logger = logging.getLogger(__name__)
 
-    def __init__(self, url: str, async_manager: 'AsyncHTTPManage', params: dict = None,
-                 headers: dict = None, timeout: aiohttp.ClientTimeout = None, retry_count=3):
-        """
-        异步获取Json文件
-        :param url: 请求的URL
-        :param params:请求参数
-        :param async_manager:异步请求管理类
-        :param headers: 请求头,默认无
-        :param timeout: 超时时间,默认请查看AsyncHTTPManage.default_timeout设置
-        """
-        super().__init__(self.__execute, async_manager)
-        self.url = url
-        self.params = params
-        self.headers = headers
-        self.async_manager = async_manager
-        self.retry_count = retry_count
-        self.timeout = async_manager.default_timeout if timeout is None else timeout
-        # 请求后的状态和结果
-        self.status_code = 0
-
-    @property
-    def request_args(self) -> dict:
-        """实际请求时的关键词参数"""
-        return {'headers': self.headers, 'params': self.params, 'timeout': self.timeout}
-
-    async def __execute(self) -> dict:
-        """异步请求,无结果时返回空字典"""
-        retry_count = 0  # 当前重试次数
-        kwargs = self.request_args  # 请求参数
-        session = self.async_manager.session  # 连接对象
-        tetry_time = round(random.uniform(*self.async_manager.default_retry_time), 2)  # 重试等待时间
-        while self.isRunning and retry_count < self.retry_count:
-            try:
-                # 遵循任务池速率限制
-                if not await self.async_manager.wait_for_rate_limit(self):
-                    return {}
-                async with session.get(self.url, **kwargs) as response:
-                    self.status_code = response.status
-                    if self.status_code == 200:
-                        return await response.json()
-            except Exception as e:
-                retry_count += 1
-                logger.warning(f"{self.__class__.__name__} 第{retry_count}次请求失败: "
-                               f"{self.url} {tetry_time}秒后重试 错误: {e}")
-            await asyncio.sleep(tetry_time)
-        return {}
-
-
-# i = AsyncJson("", AsyncHTTPManage())
-# public_names = [name for name in dir(i) if not name.startswith('_')]
-
-# for name in public_names:
-#     attr = getattr(i, name)
-#     if callable(attr):
-#         print(f"方法: {name}")
-#     else:
-#         print(f"属性: {name}")
-# exit()
 class AccessTokenManager:
     def __init__(self,http_client:AsyncHTTPManage,api_url,api_key,secret_key):
         self._http = http_client
@@ -215,7 +158,7 @@ class AccessTokenManager:
         self.__expires_at = 0
         self.__lock = asyncio.Lock()
     async def get_valid_token(self):
-        async with self.__lock():
+        async with self.__lock:
             if self.__token and time.time()+300 < self.__expires_at:
                 return self.__token
             await self.__refresh_token()
@@ -253,57 +196,152 @@ class AccessTokenManager:
                     raise ConnectionError(f"刷新token失败，重试{max_retries}后仍失败：{e}")
                 wait_sec = random.uniform(1,2**attemp)
                 await asyncio.sleep(wait_sec)
-                
+class ImageLoader:
+    @staticmethod
+    def load(filepath)->bytes:
+        """从普通图片文件加载二进制数据"""
+        path = Path(filepath)
+        if not path.exists():
+            raise FileNotFoundError(f"图片文件不存在: {filepath}")
+        with open(path, 'rb') as f:
+            return f.read()
+    def load_into_self(self) -> bytes:
+        """将图片数据加载到 self.data 并返回"""
+        self.data = self.load(self.filepath)
+        return self.data
+class ImageLoader2:
+    """从 Excel (.xlsx) 的指定工作表中提取所有浮动图片的二进制数据"""
 
-                  
+    def __init__(self, xlsx_path: str):
+        """
+        :param xlsx_path: Excel 文件路径
+        """
+        self.xlsx_path = Path(xlsx_path)
+        if not self.xlsx_path.exists():
+            raise FileNotFoundError(f"Excel 文件不存在: {xlsx_path}")
+        # 可以在这里初始化提取器（延迟加载也可以）
+        self._extractor = None  # 懒加载
+
+    def _get_extractor(self):
+        if self._extractor is None:
+            # 假设你的 ExcelImageExtractor 在当前作用域可用
+            # 如果不在同一个文件，请导入：from your_module import ExcelImageExtractor
+            from extractor import ExcelImageExtractor  # 修改为实际导入路径
+            self._extractor = ExcelImageExtractor(self.xlsx_path)
+        return self._extractor
+
+    def get_float_images(self, sheet_name: str) -> List[Tuple[int, bytes]]:
+        """
+        获取指定工作表中所有的浮动图片（按行号排序）
+        :param sheet_name: 工作表名称
+        :return: 列表，元素为 (行号, 图片二进制数据)  行号从1开始
+        """
+        extractor = self._get_extractor()
+        # 假设 extractor.get_float_images 返回 List[Tuple[int, bytes]]
+        images = extractor.get_float_images(sheet_name)
+        if not images:
+            logger.info(f"工作表 '{sheet_name}' 中没有找到浮动图片")
+            return []
+        # 按行号排序，保证稳定性
+        images.sort(key=lambda x: x[0])
+        return images
+        
+
+
+class BasePayload:
+    def _img2base64(raw:str)->str:
+        """
+        将提供的图片，转换成需要的格式，存储进返回对象中
+        """
+        pass
+    def _bool2str(v:bool)->str:
+        """将bool类型的数值转换成对应的小写字符串"""
+        return "true" if v else "false"
+
 
         
 class OCRBase:
-    # def __init__(self, url: str, async_manager: 'AsyncHTTPManage', params: dict = None,
-    #              headers: dict = None, timeout: aiohttp.ClientTimeout = None, retry_count=3):
-    #     """
-    #     异步获取Json文件
-    #     :param url: 请求的URL
-    #     :param params:请求参数
-    #     :param async_manager:异步请求管理类
-    #     :param headers: 请求头,默认无
-    #     :param timeout: 超时时间,默认请查看AsyncHTTPManage.default_timeout设置
-    #     """
-    #     super().__init__(self.__execute, async_manager)
-    #     self.url = url
-    #     self.params = params
-    #     self.headers = headers
-    #     self.async_manager = async_manager
-    #     self.retry_count = retry_count
-    #     self.timeout = async_manager.default_timeout if timeout is None else timeout
-    #     # 请求后的状态和结果
-    #     self.status_code = 0
+    OCR_ERR_DICT = {
+        1: "未知错误",
+        2: "服务暂不可用",
+        3: "不支持的OpenAPI方法",
+        4: "集群超限额",
+        6: "无权限访问数据",
+        14: "IAM鉴权失败",
+        17: "每天请求量超限额",
+        18: "QPS超限额",
+        19: "请求总量超限额",
+        100: "无效的参数",
+        110: "Access token无效或已失效",
+        111: "Access token已过期",
+        216100: "请求中包含非法参数",
+        216101: "缺少必须的参数",
+        216102: "请求了不支持的服务",
+        216103: "参数过长",
+        216110: "appid不存在",
+        216200: "图片为空",
+        216201: "图片格式错误",
+        216202: "图片大小错误",
+        216630: "识别错误",
+        216631: "识别银行卡错误",
+        216633: "识别身份证错误",
+        216634: "检测错误",
+        282000: "服务器内部错误",
+        282003: "缺少参数: {param}",
+        282005: "批量处理错误",
+        282006: "批量任务数量超限",
+        282110: "URL参数不存在",
+        282111: "URL格式非法",
+        282112: "URL下载超时",
+        282113: "URL返回无效参数",
+        282114: "URL长度错误",
+        283501: "授权文件不匹配",
+        283502: "BundleId不匹配",
+        283503: "授权文件不存在",
+        283507: "签名MD5不匹配",
+        283602: "时间戳不正确",
+    }
     def __init__(
         self,
         url:str,
-        access_token :str,
+        access_token_manager :AccessTokenManager,
         headers: dict = None,
-        data: dict = None,
+        payload: dict = None,
         params: dict = None,
         timeout: Tuple[int, int] = None,
         session: requests.Session = None,
-
         enable_rate_limit: bool = True,
         rate_limit_per_sec: int = 2,
-        # 需要传入的参数
-        
     ):
         self.session = session or requests.Session()
-        
+        self.access_token_manager = access_token_manager
         # 限流相关（线程安全）
         self.enable_rate_limit = enable_rate_limit
         self.rate_limit_per_sec = rate_limit_per_sec
         self._last_request_time = 0
         self._rate_lock = threading.Lock()
-        super().__init__(self, url, async_manager, params,headers, timeout, retry_count=3)
-    pass
+    async def get_access_token(self)->str:
+        return await self.access_token_manager.get_valid_token()
+    def get_ocr_response(self)->requests.Response:
+        return ?
+    def get_ocr_error_msg(self,err_code:int)->str:
+        return self.OCR_ERR_DICT.get(err_code)
+    
+
 class BankcardOCR:
     """身份证OCR类"""
+    # Payload类需求
+    # image图片文件：不提供默认值
+    # url：不提供默认值
+    # location: 基本类型，不进行配置
+    # detect_quality:基本类型，不进行配置
+    # 额外需求：本地文件的文件路径，用于从本地读取图片
+
+    # 
+
+
+
+
     # 类常量 - 可配置的固定文本项
     DEFAULT_TIMEOUT = (5, 10)          # (连接超时, 读取超时)
     DEFAULT_CONTENT_TYPE = "application/x-www-form-urlencoded"
@@ -323,12 +361,36 @@ class BankcardOCR:
     
     # 可选：重试次数
     MAX_RETRIES = 3
-
+    @dataclass
+    class Payload(BasePayload):
+        image:str
+        """图像数据，base64编码后进行urlencode，需去掉编码头data:image/jpeg;base64"""
+        url:str 
+        """图片完整URL，URL长度不超过1024字节 当image字段存在时url字段失效 请注意关闭URL防盗链"""
+        location:bool  = False
+        """是否返回银行卡号的字段位置坐标，默认为 false"""
+        detect_quality:bool = False
+        """是否开启银行卡质量类型（清晰模糊、边框/四角不完整）检测功能，默认不开启"""
+        
+        def to_request_dict(self)->dict:
+            """将Payload转换为API所需的字典格式"""
+            result = {
+                "location":self._bool2str(self.location),
+                "detect_quality":self._bool2str(self.detect_quality)
+            }
+            if self.image:
+                result["image"] = self._img2base64(self.image)
+            elif self.url:
+                result["url"] = self.url
+            else:
+                raise ValueError("至少提供image或url中的一个参数")
+            return result
+        
     def __init__(
         self,
         url: str,
         headers: dict = None,
-        data: dict = None,
+        payload: dict = None,
         params: dict = None,
         timeout: Tuple[int, int] = None,
         session: requests.Session = None,
@@ -342,33 +404,32 @@ class BankcardOCR:
 
         :param url:                      API 基础地址（不含 query string）
         :param headers:                  请求头（如 API Key）
-        :param data:                     请求体（POST 提交的 JSON 或表单数据）
+        :param payload:                     请求体（POST 提交的 JSON 或表单数据）
         :param params:                   URL 查询参数字典（GET 方式的固定参数）
         :param timeout:                  超时 (connect, read)，默认使用类常量
         :param session:                  可复用的 requests.Session
-        :param access_token_param_name:  传递 access_token 的 query 参数名
+        :param access_token:  传递 access_token 的 query 参数名
         :param enable_rate_limit:        是否启用限流
         :param rate_limit_per_sec:       每秒最大请求数（限流用）
         """
         self.url = url.rstrip('/')
         self.headers = headers or {"content-type": "application/x-www-form-urlencoded"}
-        self.data = data or {}
-        self.params = params or {}
-        self.timeout = timeout or self.DEFAULT_TIMEOUT
+        self.payload = self.Payload()
+        self.params = params or config.params
+        self.timeout = timeout or config.DEFAULT_TIMEOUT
         self.session = session or requests.Session()
-        self.access_token_param_name = access_token_param_name
+        self.access_token = None
         
         # 限流相关（线程安全）
         self.enable_rate_limit = enable_rate_limit
         self.rate_limit_per_sec = rate_limit_per_sec
         self._last_request_time = 0
         self._rate_lock = threading.Lock()
-    def _bankcard_ocr(self,img_base64, access_token):
+    def lumbda1(self,img_base64):
 
-        payload = {"image": img_base64}
-        request_url = self.url + self.params.xxx()
+        request_url = f"{self.url}?{self.params.__repr__()}"
         response = self.session.post(
-            request_url, data=payload, headers=self.headers, timeout=(5, 10)
+            request_url, data=self.payload, headers=self.headers, timeout=(5, 10)
         )
         return response
     def response_handle(self,jsonobject):

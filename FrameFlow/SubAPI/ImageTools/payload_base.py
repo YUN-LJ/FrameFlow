@@ -1,7 +1,7 @@
 from typing import Type,Any
 import base64
 
-class BasePayload():
+class PayloadBase():
     """请求调用时提供的请求体参数"""
     def __init__(self):
         self.image = 'image='
