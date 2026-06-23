@@ -1,22 +1,20 @@
+from bisect import bisect_left
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
 import logging
-from pathlib import Path
+import posixpath
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, Union
 from xml.etree import ElementTree as ET
 import zipfile
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+# 2. 创建一个控制台处理器，并设置其级别
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)  # 关键：处理器的级别也要设为DEBUG
 
-@dataclass
-class ExtractionRule:
-    """提取规则"""
-
-    path: str  # 相对于上下文的XPath
-    attributes: Optional[Dict[str, str]]  # 属性映射 {目标字段名:属性名}
-    children: Optional[List["ExtractionRule"]] = None  # 子规则，嵌套用
-    text_field: Optional[str] = None  # 存到哪个字段
-    multiple: bool = False  # 是否匹配多个元素，返回列表
-    transform: Optional[Callable[[Any], Any]] = None  # 可选的值转换函数
+# 3. 将处理器添加到记录器
+logger.addHandler(console_handler)
 
 
 class ExcelFloatImageExtractor:
@@ -27,113 +25,15 @@ class ExcelFloatImageExtractor:
         "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
         "pkg": "http://schemas.openxmlformats.org/package/2006/relationships",
     }
-    EXTRACTION_RULES: Dict[str, ExtractionRule] = {
-        "workbook": ExtractionRule(
-            path="main:sheet",
-            attributes={"name": "name", "sheet_rid": "r:id"},
-            multiple=True,
-        ),  # <sheet name="Sheet1 (2)" sheetId="2" r:id="rId1"/>
-        "workbook_rel": ExtractionRule(
-            path="r:Relationship",
-            attributes={"rid": "Id", "target": "Target"},
-            multiple=True,
-        ),  # .rel文件默认命名空间为r, 元素名Relationship,属性名Id和Target <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-        "sheet": ExtractionRule(
-            path="main:drawing", attributes={"drawing_rid": "r:id"}, multiple=False
-        ),  # <drawing r:id="rId1"/>
-        "sheet_rel": ExtractionRule(
-            path="r:Relationship",
-            attributes={"drid": "Id", "target": "Target"},
-            multiple=True,
-        ),  # <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
-        "drawing_twocellanchor": ExtractionRule(
-            path="xdr:twoCellAnchor",
-            multiple=True,
-            children=[
-                ExtractionRule(
-                    path="xdr:from",
-                    children=[
-                        ExtractionRule(path="xdr:col", text_field="col"),
-                        ExtractionRule(path="xdr:colOff", text_field="colOff"),
-                        ExtractionRule(path="xdr:row", text_field="row"),
-                        ExtractionRule(path="xdr:rowOff", text_field="rowOff"),
-                    ],
-                ),
-                ExtractionRule(
-                    path="xdr:to",
-                    children=[
-                        ExtractionRule(path="xdr:col", text_field="col"),
-                        ExtractionRule(path="xdr:colOff", text_field="colOff"),
-                        ExtractionRule(path="xdr:row", text_field="row"),
-                        ExtractionRule(path="xdr:rowOff", text_field="rowOff"),
-                    ],
-                ),
-                ExtractionRule(
-                    path=".//a:blip",
-                    attributes={"embed_rid": "r:embed"},
-                ),
-            ],
-        ),
-        "drawing_onecellanchor": ExtractionRule(
-            path="xdr:oneCellAnchor",
-            multiple=True,
-            children=[
-                ExtractionRule(
-                    path="xdr:from",
-                    children=[
-                        ExtractionRule(path="xdr:col", text_field="col"),
-                        ExtractionRule(path="xdr:colOff", text_field="colOff"),
-                        ExtractionRule(path="xdr:row", text_field="row"),
-                        ExtractionRule(path="xdr:rowOff", text_field="rowOff"),
-                    ],
-                ),
-                ExtractionRule(
-                    path="xdr:ext",
-                    attributes={"cx": "cx", "cy": "cy"},
-                ),
-                ExtractionRule(
-                    path=".//a:blip",
-                    attributes={"embed_rid": "r:embed"},
-                ),
-            ],
-        ),
-        "drawing_absoluteanchor": ExtractionRule(
-            path="xdr:absoluteAnchor",
-            multiple=True,
-            children=[
-                ExtractionRule(
-                    path="xdr:pos",
-                    attributes={"x": "x", "y": "y"},
-                ),
-                ExtractionRule(
-                    path="xdr:ext",
-                    attributes={"cx": "cx", "cy": "cy"},
-                ),
-                ExtractionRule(
-                    path=".//a:blip",
-                    attributes={"embed_rid": "r:embed"},
-                ),
-            ],
-        ),
-        "drawing_rel": ExtractionRule(
-            path="pkg:Relationship",
-            attributes={"rid": "Id", "target": "Target"},
-            multiple=True,
-        ),  # <Relationship Id="rId8" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image8.jpeg"/>
-    }
-
-    def __init__(self, source: Union[str, Path, BinaryIO], image_cache_size: int = 4):
+    def __init__(self, source: str):
         self._source = source
         self._zip_file: zipfile.ZipFile = None  # 延迟打开
 
+        # self._sheet_drawing_cache:Dict[str,str]={}
+        # self._draw_anchors_cache:Dict[str,List[str]] = {}
+
         self._image_cache: Dict[str, bytes] = {}
         self._image_cache_order: List[str] = []
-        self._image_cache_size = image_cache_size
-
-        # 工作表级缓存：因为cached_property不能缓存带有参数的函数，所以简单使用装饰器作为缓存
-        self._sheet_drawing_cache:Dict[str,str]={}
-        self._draw_anchors_cache:Dict[str,List[str]] = {}
-
 
     "------------------上下文管理------------------------------------------"
 
@@ -150,235 +50,300 @@ class ExcelFloatImageExtractor:
         self._zip_file = zipfile.ZipFile(self._source)
 
     "------------------工具函数------------------------------------------"
-
-    def _extract_from_xml(
-        self,
-        extract_strategy: str,
-        source: str,
-    ) -> list:
-        """通用XML属性提取函数"""
-        if self._zip_file is None:
-            raise RuntimeError("must use in 'with' block")
-        if extract_strategy not in self.EXTRACTION_RULES:
-            raise ValueError(f"Unknown extract strategy:{extract_strategy}")
-
-        zf = self._zip_file
-        tree = ET.parse(zf.open(source))
-        root = tree.getroot()
-
-        rule: ExtractionRule = self.EXTRACTION_RULES.get(extract_strategy)
-        return self.extract_by_rule(root, rule, self.NAMESPACES)
-
-    @classmethod
-    def extract_by_rule(
-        cls, root: ET.Element, rule: ExtractionRule, namespaces: Dict[str, str]
-    ):
-        elements = root.findall(rule.path, namespaces)
-        if not elements:
-            return [] if rule.multiple else None
-        if rule.multiple:
-            return [cls.extract_single(e, rule, namespaces) for e in elements]
-        return cls.extract_single(elements[0], rule, namespaces)
-
-    @classmethod
-    def extract_single(
-        cls, elem: ET.Element, rule: ExtractionRule, namespaces: Dict[str, str]
-    ):
-        result = {}
-        if rule.attributes:
-            for field, attr_name in rule.attributes.items():
-                value = elem.get(attr_name)
-                if value is not None:
-                    result[field] = value
-        if rule.text_field is not None:
-            result[rule.text_field] = elem.text
-
-        if rule.children:
-            for child_rule in rule.children:
-                child_result = cls.extract_by_rule(elem, child_rule, namespaces)
-                if child_result is not None:
-                    if isinstance(child_result, dict):
-                        result.update(child_result)
-                    else:
-                        key = child_rule.path.split(":")[-1].split("/")[-1]
-                        result[key] = child_result
-
-        if rule.transform and result:
-            result = rule.transform(result)
-
-        return result
-
     @staticmethod
     def _get_relative_file(source) -> str:
         """从传入的xml文件获取对应的.rel关系文件"""
-        source_dir = Path(source).parent
-        source_name = Path(source).name
-        rels_path = source_dir / "_rels" / f"{source_name}.rels"
-        return str(rels_path)
+        source_dir = posixpath.dirname(source)
+        source_name = posixpath.basename(source)
+        rels_path = posixpath.join(source_dir, "_rels", source_name + ".rels")
+        return ExcelFloatImageExtractor._normalize_zip_path(rels_path)
+
+    # @staticmethod
+    # def path_resolve(path: str) -> str:
+    #     path = path.replace("\\", "/")
+    #     return path
 
     @staticmethod
-    def path_resolve(path: Union[str, Path]) -> str:
-        path = path.replace("\\", "/")
-        return path
+    def _normalize_zip_path(path:str)->str:
+        raw = str(path).replace("\\", "/")
 
-    "---------------------簿级缓存-----------------------------------------"
+        normalized = posixpath.normpath(raw)
 
+        if normalized.startswith("/"):
+            normalized = normalized.lstrip("/")
+        return normalized
+        
+
+    "---------------------簿级操作-----------------------------------------"
     @cached_property
-    def sheet_name_to_rid(self) -> dict:
-        # <sheet name="Sheet1 (2)" sheetId="2" r:id="rId1"/>
-        items = self._extract_from_xml("workbook", "workbook.xml")
-        return {item["name"]: item["sheet_rid"] for item in items}
+    def sheets(self) -> Dict[str, str]:
+        """返回所有工作表的名称到内部路径的映射，例如 {'Sheet1': 'xl/worksheets/sheet1.xml'}"""
+        if self._zip_file is None:
+            raise RuntimeError("must use in 'with' block")
 
-    @cached_property
-    def sheet_rid_to_path(self) -> dict:
-        items = self._extract_from_xml("workbook_rel", "_rels/workbook.xml.rels")
-        return {item["rid"]: self.path_resolve(item["target"]) for item in items}
+        # 1. 读取 workbook.xml 获取 sheet 名称和 r:id
+        wb_tree = ET.parse(self._zip_file.open('xl/workbook.xml'))
+        wb_root = wb_tree.getroot()
+        sheet_elements = wb_root.findall('.//main:sheet', self.NAMESPACES)
 
-    def get_path_by_sheet_name(self, sheet_name) -> str:
-        rid = self.sheet_name_to_rid.get(sheet_name)
-        if rid is None:
-            raise KeyError
-        path = self.sheet_rid_to_path.get(rid)
-        if path is None:
-            raise KeyError
-        return path
+        # 2. 读取关系文件获取 r:id 到 target 的映射
+        rel_tree = ET.parse(self._zip_file.open('xl/_rels/workbook.xml.rels'))
+        rel_root = rel_tree.getroot()
+        rel_map = {}
+        for rel in rel_root.findall('.//pkg:Relationship', self.NAMESPACES):
+            rid = rel.get('Id')
+            target = rel.get('Target')
+            if rid and target:
+                # 注意 target 是相对路径，需补上 xl/ 前缀
+                rel_map[rid] = self._normalize_zip_path('xl/' + target)
+
+        # 3. 构建字典
+        name_to_path = {}
+        for sheet in sheet_elements:
+            name = sheet.get('name')
+            # 注意命名空间：r:id 的完整名称为 {http://...}id
+            rid = sheet.get(f"{{{self.NAMESPACES['r']}}}id")
+            if name and rid and rid in rel_map:
+                name_to_path[name] = rel_map[rid]
+                # name_to_path.append((name,rel_map[rid]))
+
+        return name_to_path
+        
 
     "表级缓存-----------------------------------------------------"
-    "存曾打开过的sheet的drawing关联信息，因为表一般不会太多，所以全缓存"
+    "存曾打开过的sheet的drawing关联信息，因为表一般不会太多"
+        
+    @lru_cache(maxsize=4) # 最多同时记录四个表的路径
+    def drawings(self,sheet_name:str) -> Optional[str]:
+        """通过单个工作表的名称到内部drawing文件的映射，例如 {'Sheet1': 'xl/drawings/drawing1.xml'}"""
+        if self._zip_file is None:
+            raise RuntimeError("must use in 'with' block")
 
-    
-    def get_drawing_rid(self, sheet_file: str)->str:
-        if sheet_file in self._sheet_drawing_cache:
-            return self._sheet_drawing_cache[sheet_file]
-        item = self._extract_from_xml("sheet", sheet_file)
-        self._sheet_drawing_cache[sheet_file]=item["drawing_rid"]
-        return self._sheet_drawing_cache[sheet_file]
+        # 1. 通过表名得到对应的工作表路径
+        # if sheet_name not in self._sheets:
+        #     logger.warning("不存在相应表格")
+        #     return None # 返回None便于检查重试            
+        # else:
+        #     sheet_path = self._sheets[sheet_name]
+        if sheet_name not in self.sheets:
+            logger.error("不存在对应表")
+            return None
+        else:
+            sheet_path = self.sheets[sheet_name]
+        st_tree = ET.parse(self._zip_file.open(sheet_path))
+        st_root = st_tree.getroot()
+        drawing_elements = st_root.findall('.//main:drawing', self.NAMESPACES)
 
-    
-    def get_drawing_path(self, sheet_rel_file: str) -> str:
-        if sheet_rel_file in self._draw_anchors_cache:
-            return self._draw_anchors_cache[sheet_rel_file]
-        item = self._extract_from_xml("sheet_rel", sheet_rel_file)
-        self._draw_anchors_cache[sheet_rel_file]=self.path_resolve(item["target"])
-        return self._draw_anchors_cache[sheet_rel_file]
+        # 2. 读取关系文件获取 r:id 到 target 的映射
+        rel_tree = ET.parse(self._zip_file.open(self._normalize_zip_path(self._get_relative_file(sheet_path))))
+        rel_root = rel_tree.getroot()
+        rel_map = {}
+        for rel in rel_root.findall('.//pkg:Relationship', self.NAMESPACES):
+            rid = rel.get('Id')
+            target = rel.get('Target')
+            if rid and target:
+                abs_path = posixpath.join(posixpath.dirname(sheet_path),target)
+                rel_map[rid] = self._normalize_zip_path(abs_path)
 
-    def get_drawing_path_by_sheet(self,sheet_file:str):
-        sheet_rel_file = self._get_relative_file(sheet_file)
-        sheet_rid = self.get_drawing_rid(sheet_file)
-        drawing_path = self.get_drawing_path(sheet_rel_file)
+        # 3. 构建字典
+        for drawing in drawing_elements:
+            rid = drawing.get(f"{{{self.NAMESPACES['r']}}}id")
+            if rid and rid in rel_map:
+                return rel_map[rid]
+        return None
+
+    @lru_cache(maxsize=4)
+    def _get_sheet_dimensions(self, sheet_name):
+        """AI编写 可能存在问题"""
+        sheet_path = self.sheets[sheet_name]
+        sheet_tree = ET.parse(self._zip_file.open(sheet_path))
+        sheet_root = sheet_tree.getroot()
+
+        # 读取默认列宽和行高（从 sheetFormatPr）
+        default_col_width = 8.43  # Excel 默认
+        default_row_height = 15   # 磅
+        fmt_pr = sheet_root.find(".//main:sheetFormatPr", self.NAMESPACES)
+        if fmt_pr is not None:
+            default_col_width = float(fmt_pr.get("defaultColWidth", default_col_width))
+            default_row_height = float(fmt_pr.get("defaultRowHeight", default_row_height))
+
+        # 构建列宽映射：col_index -> width (字符数)
+        col_width_map = {}
+        cols = sheet_root.findall(".//main:col", self.NAMESPACES)
+        for col in cols:
+            min_c = int(col.get("min", 1))
+            max_c = int(col.get("max", min_c))
+            width = float(col.get("width", default_col_width))
+            for c in range(min_c, max_c + 1):
+                col_width_map[c] = width  # 相同范围宽度相同
+
+        # 构建列宽前缀（1-based索引）
+        if col_width_map:
+            max_col = max(col_width_map.keys())
+            col_prefix = [0]
+            for i in range(1, max_col + 1):
+                w = col_width_map.get(i, default_col_width)
+                col_prefix.append(col_prefix[-1] + w * 9525)  # 单位转换
+        else:
+            col_prefix = [0]
+
+        # 构建行高映射：row_index -> height (磅)
+        row_height_map = {}
+        rows = sheet_root.findall(".//main:row", self.NAMESPACES)
+        for row in rows:
+            r = int(row.get("r", 1))
+            ht = float(row.get("ht", default_row_height))
+            row_height_map[r] = ht
+
+        # 构建行高前缀（1-based索引）
+        if row_height_map:
+            max_row = max(row_height_map.keys())
+            row_prefix = [0]
+            for i in range(1, max_row + 1):
+                h = row_height_map.get(i, default_row_height)
+                row_prefix.append(row_prefix[-1] + h * 12700)  # 磅 → EMU
+        else:
+            row_prefix = [0]
+
+        return row_prefix, col_prefix
+
+    @lru_cache(maxsize=256) 
+    def images(self, sheet_name: str):
+        if self._zip_file is None:
+            raise RuntimeError("must use in 'with' block")
+        # 1. 通过表名得到对应的drawing文件路径
+        drawing_fp = self.drawings(sheet_name)
+        if drawing_fp is None:
+            logger.error("未找到对应表")
+            return None
+        # 2. 通过drawing文件，得到anchors列表
+        # draw_dir = "xl/drawings"
+        drawing_tree = ET.parse(self._zip_file.open(self._normalize_zip_path(drawing_fp)))
+        drawing_root = drawing_tree.getroot()
+        target_tags = {
+            f"{{{self.NAMESPACES['xdr']}}}oneCellAnchor",
+            f"{{{self.NAMESPACES['xdr']}}}twoCellAnchor",
+            f"{{{self.NAMESPACES['xdr']}}}absoluteAnchor"
+        }
+
+        raw_anchors = [elem for elem in drawing_root.iter() if elem.tag in target_tags]
+        logger.debug(f"找到 {len(raw_anchors)} 个锚点")
+        anchors = []
+        # 表格的行列前缀计算 行高和列宽的前缀和命名数组
+
+        # 解析drawing rel的媒体路径，做成map
+        drawing_rel_tree = ET.parse(self._zip_file.open(self._get_relative_file(drawing_fp)))
+        drawing_rel_root = drawing_rel_tree.getroot()
+        drawing_rels = drawing_rel_root.findall(".//pkg:Relationship",self.NAMESPACES)
+        drawing_rel_map = {}
+        for drawing_rel in drawing_rels:
+            rel_id = drawing_rel.get("Id")
+            target = drawing_rel.get("Target")
+            if rel_id and target:
+                abs_path = posixpath.join(posixpath.dirname(drawing_fp),target)
+                drawing_rel_map[rel_id] = self._normalize_zip_path(abs_path)
         
 
 
 
-    "drawing缓存----------------------------------------------------"
-    "drawing得到的是一大堆锚点的信息与对应的图片链接，本身内存占用不大？保留整个列表？字典？"
+        row_prefix,col_prefix = self._get_sheet_dimensions(sheet_name)
+        for anchor in raw_anchors:
+            # 计算中心点 需要用到
+            tag = anchor.tag.rsplit('}', 1)[-1]
+            if tag == "oneCellAnchor":
+                from_elem = anchor.find(".//xdr:from", self.NAMESPACES)
+                ext_elem = anchor.find(".//xdr:ext", self.NAMESPACES)
+                if from_elem is not None and ext_elem is not None:
+                    row_from = int(from_elem.find(".//xdr:row", self.NAMESPACES).text)
+                    col_from = int(from_elem.find(".//xdr:col", self.NAMESPACES).text)
+                    row_off = int(from_elem.find(".//xdr:rowOff", self.NAMESPACES).text)
+                    col_off = int(from_elem.find(".//xdr:colOff", self.NAMESPACES).text)
+                    cx = int(ext_elem.get("cx"))
+                    cy = int(ext_elem.get("cy"))
+                    center_x = col_prefix[col_from] + col_off + cx // 2
+                    center_y = row_prefix[row_from] + row_off + cy // 2
+                    row = bisect_left(row_prefix, center_y) + 1
+                    col = bisect_left(col_prefix, center_x) + 1
+                else:
+                    row = col = 0
+            elif tag == "twoCellAnchor":
+                row_from = int(anchor.find(".//xdr:from",self.NAMESPACES).find(".//xdr:row",self.NAMESPACES).text)
+                col_from = int(anchor.find(".//xdr:from",self.NAMESPACES).find(".//xdr:col",self.NAMESPACES).text)
+                row_to = int(anchor.find(".//xdr:to",self.NAMESPACES).find(".//xdr:row",self.NAMESPACES).text)
+                col_to = int(anchor.find(".//xdr:to",self.NAMESPACES).find(".//xdr:col",self.NAMESPACES).text)
+                rowoff_from = int(anchor.find(".//xdr:from",self.NAMESPACES).find(".//xdr:rowOff",self.NAMESPACES).text)
+                coloff_from = int(anchor.find(".//xdr:from",self.NAMESPACES).find(".//xdr:colOff",self.NAMESPACES).text)
+                rowoff_to = int(anchor.find(".//xdr:to",self.NAMESPACES).find(".//xdr:rowOff",self.NAMESPACES).text)
+                coloff_to = int(anchor.find(".//xdr:to",self.NAMESPACES).find(".//xdr:colOff",self.NAMESPACES).text)
 
-    
-    def all_anchor(self, drawing_file: str):
-        anchors = []
-        anchors.append(self._extract_from_xml("drawing_twocellanchor", drawing_file))
-        anchors.append(self._extract_from_xml("drawing_onecellanchor", drawing_file))
-        anchors.append(self._extract_from_xml("drawing_absoluteanchor", drawing_file))
+                center_y = round(1/2*(row_prefix[row_to]+rowoff_to+row_prefix[row_from]+rowoff_from))
+                center_x = round(1/2*(col_prefix[col_to]+coloff_to+col_prefix[col_from]+coloff_from))
+                row = bisect_left(row_prefix, center_y) + 1
+                col = bisect_left(col_prefix, center_x) + 1 
+            elif tag == "absoluteAnchor":
+                pos = anchor.find(".//xdr:pos", self.NAMESPACES) 
+                ext = anchor.find(".//xdr:ext", self.NAMESPACES)
+                if pos is not None and ext is not None:
+                    x = int(pos.get("x"))
+                    y = int(pos.get("y"))
+                    cx = int(ext.get("cx"))
+                    cy = int(ext.get("cy"))
+                    center_x = x + cx // 2
+                    center_y = y + cy // 2
+                    row = bisect_left(row_prefix, center_y) + 1
+                    col = bisect_left(col_prefix, center_x) + 1
+                else:
+                    row = 0
+                    col = 0
+            # 一个在使用图片数据时才加载的图片数据
+            bilp = anchor.find(".//a:blip",self.NAMESPACES)
+            rid = bilp.get(f"{{{self.NAMESPACES['r']}}}embed")
+            image_path = drawing_rel_map.get(rid)
+            anchors.append(
+                {
+                    "row":row,
+                    "col":col,
+                    "path":image_path
+                }
+            )
         return anchors
 
-    "image缓存------------------------------------------------------------"
-    "应该会占用较大内存？姑且默认值为4"
-
-    def _get_image_data(self, drawing_path: str, embed_rid: str) -> Optional[bytes]:
-        drawing_rel_path = self._get_relative_file(drawing_path)
-        try:
-            rel_items = self._extract_from_xml("drawing_rel", drawing_rel_path)
-        except (KeyError, FileNotFoundError):
-            return None
-
-        target = None
-        for item in rel_items:
-            if item.get("rid") == embed_rid:
-                target = item.get("target")
-                break
-        if target is None:
-            return None
-
-        base_dir = Path(drawing_path).parent
-        image_path = self.path_resolve(base_dir / target)
-
-        # LRU缓存逻辑
-        if image_path in self._image_cache:
-            # 移动到最近使用
-            self._image_cache_order.remove(image_path)
-            self._image_cache_order.append(image_path)
-            return self._image_cache[image_path]
+    def _get_image_data(self, image_path:str) -> Optional[bytes]:
         if self._zip_file is None:
-            raise RuntimeError("Zip file not opened")
-        try:
-            data = self._zip_file.read(image_path)
-        except KeyError:
-            return None
+            raise RuntimeError("must use in 'with' block")
 
-        # 缓存管理
-        if len(self._image_cache) >= self._image_cache_size:
-            # 淘汰最久未使用的
-            oldest = self._image_cache_order.pop(0)
-            del self._image_cache[oldest]
-
-        self._image_cache[image_path] = data
-        self._image_cache_order.append(image_path)
+        # 无缓存版本
+        # 因为整个工作流只会打开图片一次并读取完数据后关闭，不保留缓存
+        data = self._zip_file.read(image_path)
         return data
 
-    # ------------------ 公共接口 ------------------------------------------
-    def get_floating_images(
-        self, sheet_name: str, include_image_data: bool = True
+    "------------------ 公共接口 ------------------------------------------"
+    def get_single_sheet_floating_images(
+        self, sheet_name: str
     ) -> List[dict]:
         """
         获取指定工作表中的所有浮动图片信息。
-        返回列表，每个元素包含：
-            - type: 锚点类型 ("twoCellAnchor"/"oneCellAnchor"/"absoluteAnchor")
-            - 位置信息 (col, row, colOff, rowOff 等，取决于类型)
-            - image_data (bytes, 可选，仅当 include_image_data=True)
-            - image_path (str, 图片在 zip 中的路径)
         """
-        drawing_path = self._get_drawing_path_by_sheet(sheet_name)
-        if drawing_path is None:
-            return []  # 该表没有浮动图片
+        # 上下文校验
+        if self._zip_file is None:
+            raise RuntimeError("must use in 'with' block")
+        images = self.images(sheet_name)
+        return images
 
-        anchors = self._parse_drawing(drawing_path)
-        result = []
-        for anchor in anchors:
-            embed_rid = anchor.get("embed_rid")
-            if not embed_rid:
-                continue
+if __name__ == "__main__":
+    file_path = "assert/南方科技2标2026.4.26月工资表.xlsx"
+    sheet_name = "Sheet1 (2)"
+    with ExcelFloatImageExtractor(file_path) as extractor:
+        print("成功打开文件")
 
-            info = {
-                "type": anchor["type"],
-            }
-            # 复制位置/尺寸字段
-            for key in ["col", "row", "colOff", "rowOff", "cx", "cy", "x", "y"]:
-                if key in anchor:
-                    info[key] = anchor[key]
+        print("所有工作表：", extractor.sheets)
+        print("目标表的 drawing 文件：", extractor.drawings(sheet_name))
+        anchors = extractor.images(sheet_name)
+        print("解析到的锚点数量：", len(anchors) if anchors else 0)   # 实际个数
 
-            # 获取图片路径
-            drawing_rel_path = self._get_relative_file(drawing_path)
-            try:
-                rel_items = self._extract_from_xml("drawing_rel", drawing_rel_path)
-            except (KeyError, FileNotFoundError):
-                continue
-            target = None
-            for item in rel_items:
-                if item.get("rid") == embed_rid:
-                    target = item.get("target")
-                    break
-            if target is None:
-                continue
-            base_dir = Path(drawing_path).parent
-            image_path = self.path_resolve(base_dir / target)
-            info["image_path"] = image_path
 
-            if include_image_data:
-                data = self._get_image_data(drawing_path, embed_rid)
-                info["image_data"] = data
-            result.append(info)
-
-        return result
-
-        
+        images  = extractor.get_single_sheet_floating_images(sheet_name)
+        for image in images:
+            print(image,end="\n")
+        print("成功结束")
         
