@@ -1,16 +1,15 @@
 """设置界面"""
 import darkdetect
 from PySide6.QtCore import QTimer
-from Fun.QtWidget import FluentWidgetBase
-from PySide6.QtWidgets import QApplication, QWidget
-from SubAPI.Settings.Desktop.DesignFile.SetWidget import Ui_base_sets
-from SubAPI.Settings.Desktop.DesignFile.BaseSet import Ui_base_set_win
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QSpacerItem, QSizePolicy
+
 from Fun.BaseTools import Tools, FileBase, Get, Terminal, CapturePythonTerminal
+from Fun.QtWidget import FluentWidgetBase
 from Fun.QtWidget import MainWidget, AnsiTextEdit
-from qfluentwidgets import HeaderCardWidget
+from SubAPI.Settings.Desktop.SetCard import CardBase, MenuCard, SwitchCard
 
 
-class BaseSetWin(FluentWidgetBase, Ui_base_sets, Ui_base_set_win):
+class BaseSetWin(FluentWidgetBase):
     """设置窗口,调用addSetWidget方法添加可添加其余设置文件"""
 
     def __init__(self, parent=None):
@@ -24,28 +23,44 @@ class BaseSetWin(FluentWidgetBase, Ui_base_sets, Ui_base_set_win):
         self.bind()
 
     def uiInit(self):
-        # 添加主容器
-        self.main_content = QWidget()
-        Ui_base_set_win.setupUi(self, self.main_content)
+        self.main_content = QWidget(self)
+        self.main_layout = QVBoxLayout(self.main_content)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.addWidget(self.main_content)
 
         # 添加基本设置
-        self.base_set_widget = QWidget()
-        Ui_base_sets.setupUi(self, self.base_set_widget)
-        self.addSetWidget(self.base_set_widget, '基本设置')
+        self.base_set_card = MenuCard('基本设置', self)
 
-        # 创建命令行容器
-        self.textEdit = AnsiTextEdit()
-        self.textEdit.setMinimumHeight(200)
-        self.textEdit.set_font_size(12)
-        self.groupBox.viewLayout.addWidget(self.textEdit)
+        self.checkBox_start = SwitchCard('自启动', self)
+        self.checkBox_theme = SwitchCard('主题', self)
+        self.checkBox_terminal = SwitchCard('控制台', self)
 
-        self.checkBox_start.setOffText("关闭")
-        self.checkBox_start.setOnText("开启")
         self.checkBox_theme.setOffText('浅色')
         self.checkBox_theme.setOnText('深色')
         self.checkBox_terminal.setOffText('关闭')
         self.checkBox_terminal.setOnText('显示')
+
+        self.base_set_card.addContentWidget(self.checkBox_start)
+        self.base_set_card.addContentWidget(self.checkBox_theme)
+        self.base_set_card.addContentWidget(self.checkBox_terminal)
+
+        self.addSetCard(self.base_set_card)
+
+        # 创建命令行容器
+        self.terminal_card = MenuCard('日志', self)
+        self.textEdit = AnsiTextEdit()
+        self.textEdit.setMinimumHeight(200)
+        self.textEdit.set_font_size(12)
+        self.terminal_card.addContentWidget(self.textEdit)
+
+        self.addWidget(self.terminal_card)
+
+        # 创建弹簧：宽度20，高度0（自动），水平方向，最小尺寸策略
+        # spacer = QSpacerItem(20, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        # 垂直弹簧：填满垂直剩余空间
+        spacer = QSpacerItem(0, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        self._content_widget.layout().addSpacerItem(spacer)
+
         # 检查是否开机自启动
         if Tools.check_is_start(self.exe_name, 'user'):
             self.checkBox_start.setChecked(True)
@@ -62,22 +77,9 @@ class BaseSetWin(FluentWidgetBase, Ui_base_sets, Ui_base_set_win):
         self.checkBox_start.checkedChanged.connect(self.slot.checkBox_start)
         self.checkBox_terminal.checkedChanged.connect(self.slot.checkBox_terminal)
 
-    def addSetWidget(self, widget: HeaderCardWidget | QWidget, title=None) -> HeaderCardWidget:
-        """
-        param widget:待添加窗口
-        param title:名称,如果不是HeaderCardWidget类则必须指定
-        return :返回被HeaderCardWidget包装后的窗口
-        """
-        if isinstance(widget, HeaderCardWidget):
-            header_widget = widget
-        elif isinstance(widget, QWidget):
-            if title is None:
-                raise ValueError('请指定标题')
-            header_widget = HeaderCardWidget(self)
-            header_widget.setTitle(title)
-            header_widget.viewLayout.addWidget(widget)
-        self.verticalLayout_set_other.addWidget(header_widget)
-        return header_widget
+    def addSetCard(self, card: CardBase):
+        """添加设置卡片"""
+        self.main_layout.addWidget(card)
 
     def __cmd_timer(self):
         """定时获取命令行窗口内容"""

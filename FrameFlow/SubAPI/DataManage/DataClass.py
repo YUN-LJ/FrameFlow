@@ -130,6 +130,11 @@ class KeyWord(DataBase):
             self.set_data(
                 self.data[~self.data['关键词'].isin(key)].reset_index(drop=True))
 
+    def set_update_page(self, key: str, page: int):
+        with self.lock:
+            self.data.loc[self.data['关键词'] == key, '上次更新页码'] = page
+        self.change_signal.emit(self)
+
     def to_excel(self) -> str | None:
         if self.is_loaded():
             save_path = os.path.join(DataConfig.CONFIG_DIR, 'key_word.xlsx')

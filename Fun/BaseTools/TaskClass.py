@@ -1791,7 +1791,8 @@ class Task:
         内部复杂属性都已经差分为独立的类进行管理,如传入TaskSignalParams即内部不会再创建信号
     使用方法说明:
         传入参数后调用start方法(具有同步和异步,以及是否阻塞的等)
-        使用完后最好显示调用clear方法清理资源
+        使用完后最好显示调用clear方法清理资源,调用完清理方法后会导致任务结果全部被清理掉
+        清理时clear_singal会发送自身以及结果
         或使用with语句+阻塞等待方法来使用(退出时自动清理资源)
     重试设置说明:
         重试实现是将任务函数通过TaskRetry包装后的一个整体
@@ -1807,7 +1808,7 @@ class Task:
         progress_signal,进度信号,需要在func函数中自定义
         finish_signal,完成信号,发送自身
         stop_signal,停止信号,发送自身
-        clear_signal,清理信号,发送自身
+        clear_signal,清理信号,发送自身+任务结果(如果没有任务结果则为None)
         自带的信号由独立的单线程维护不用考虑线程安全,
         添加的回调函数由各自任务所在的线程池/进程池维护,需要考虑线程安全
         高耗时任务使用add_done_callback添加回调
@@ -2201,7 +2202,7 @@ class Task:
         else:
             logger.debug(f'不是父任务: {task.name},忽略停止处理')
 
-    def __parent_task_clear_slot(self, task: 'Task'):
+    def __parent_task_clear_slot(self, task: 'Task', result=None):
         """父任务清理信号处理"""
         if task == self.parent_task:
             self.clear()
@@ -2240,7 +2241,7 @@ class Task:
         if self.__state.isRunning:
             self.stop()
         # 2. 发送清理信号
-        self.__signal.clear_signal.emit(self)
+        self.__signal.clear_signal.emit(self, self.result())
         for sub_task in self.__sub_tasks.copy():
             sub_task.clear()
         # 3. 清理执行器

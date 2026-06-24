@@ -151,7 +151,7 @@ class LikeTableData(DataFrameModelBase):
             """任务进度"""
             if not task.state.isRunning:
                 return
-            text = f'搜索中' if task.get_progress_state == task.SEARCH_STATE else '下载中'
+            text = '更新页' if task.isSearch else '下载中'
             row = self.getKeyWordRowIndex(task.key_word)
             col = self.columnCount() - 1
             self.setCellData(row, col,

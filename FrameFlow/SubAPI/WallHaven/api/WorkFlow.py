@@ -1,6 +1,8 @@
 """
 任务工作流,工作流由异步池管理
 """
+import pandas as pd
+
 from SubAPI.WallHaven.api.Tools import *
 
 logger = LogClass.get_logger(__name__, console_level='WARNING')
@@ -202,11 +204,15 @@ class DownloadWorkFlow(Task):
                 orchestrator.add_factories(self._create_save_task)
 
             # 连接信号
+            orchestrator.sub_task_signal.start_signal.connect(
+                lambda task: self.start_signal.emit(task)
+            )  # 开始信号
             orchestrator.sub_task_signal.progress_signal.connect(
-                lambda task: self.progress_emit(task.progress))
+                lambda task: self.progress_emit(task.progress)
+            )  # 进度信号
             orchestrator.sub_task_signal.finish_signal.connect(
                 lambda task: self.finish_signal.emit(task)
-            )
+            )  # 完成信号
 
             # 执行编排
             result = await orchestrator.execute(parent_task=self, chain_break=True)
@@ -215,10 +221,13 @@ class DownloadWorkFlow(Task):
             orchestrator.clear()
 
             # 返回结果
-            if result:
-                return self.image_data
-            else:
-                return None
+            if isinstance(result, ImageData):
+                return result
+            elif isinstance(result, bool):
+                if result:
+                    return self.image_data
+                else:
+                    return None
 
         except Exception as e:
             logger.exception(f'{self.__class__.__name__} {self.params.image_id} 执行失败 {e}')
@@ -264,12 +273,14 @@ class DownloadBatchWorkFlow(Task):
                  params: Iterable[DownloadWorkFlow.Params],
                  create_func: Callable[[DownloadWorkFlow], DownloadWorkFlow] = None,
                  max_concurrent: int = 4,
-                 max_retries: int = 3):
+                 max_retries: int = 3,
+                 lazy_create: bool = True):
         """
         :param params:下载参数列表
         :param create_func:指定创建函数,传入DownloadWorkFlow(用于精细化控制每个下载)
         :param max_concurrent: 最大并发数量,默认为4
         :param max_retries:最大重试次数,默认为3
+        :param lazy_create:惰性创建,默认开启
         """
         super().__init__(self.__execute, GlobalValue.GLOBAL_TASK_ASYNC_MANAGE,
                          name='DownloadBatchWorkFlow', use_async=True)
@@ -277,19 +288,30 @@ class DownloadBatchWorkFlow(Task):
         self.create_func = create_func
         self.max_concurrent = max_concurrent
         self.max_retries = max_retries
+        self.lazy_create = lazy_create
 
     async def __execute(self):
         orchestrator = ParallelTaskGroup(f'{self.__class__.__name__}_{self.name}', self.max_concurrent)
 
         # 提交执行函数
         if self.create_func is None:
-            orchestrator.add_factories(*[
-                (lambda p=param: DownloadWorkFlow(p)) for param in self.params
-            ])
+            if self.lazy_create:
+                orchestrator.add_factories(*[
+                    lambda p=param: DownloadWorkFlow(p) for param in self.params
+                ])
+            else:
+                orchestrator.add_tasks([
+                    DownloadWorkFlow(param) for param in self.params
+                ])
         else:
-            orchestrator.add_factories(*[
-                (lambda p=param: self.create_func(DownloadWorkFlow(p))) for param in self.params
-            ])
+            if self.lazy_create:
+                orchestrator.add_factories(*[
+                    lambda p=param: self.create_func(DownloadWorkFlow(p)) for param in self.params
+                ])
+            else:
+                orchestrator.add_tasks([
+                    self.create_func(DownloadWorkFlow(param)) for param in self.params
+                ])
 
         # 连接信号
         orchestrator.sub_task_signal.progress_signal.bridge_signal(self.progress_signal)
@@ -306,14 +328,16 @@ class DownloadBatchWorkFlow(Task):
 class UpdateWorkFlow(Task):
     """
     更新单个关键词任务流
+        任务流程:判断是否需要更新->依次下载每一页数据->检查数据是否齐全->更新下一页
+        内部搜索数据采用按时间升序排序(这样如果以后有新增数据,只需要更新后续页即可)
     开始信号首次发送UpdateWorkFlow
     开始信号第二次发送KeyWordTask
     进度信号发送UpdateWorkFlow
     完成和停止信号发送UpdateWorkFlow
     """
     TIME_OUT = 75  # 超时时间,当前下载任务长时间不活跃时触发超时信号
-    SEARCH_STATE = 0
-    DOWNLOAD_STATE = 1
+    SEARCH_STATE = 0  # 搜索数据状态
+    DOWNLOAD_STATE = 1  # 下载数据状态
 
     def __init__(self, key_word, purity, categories):
         """
@@ -341,11 +365,7 @@ class UpdateWorkFlow(Task):
         self.timeout = None  # 上一个下载任务完成的时间
         self.all_work_flow: list[DownloadWorkFlow] = []
         self.__lock = Lock()
-        # 外部桥接的信号
-        self._start_signal_set: set[Signal] = set()
-        self._progress_signal_set: set[Signal] = set()
-        self._finish_signal_set: set[Signal] = set()
-        self._stop_signal_set: set[Signal] = set()
+        self._state = self.SEARCH_STATE
 
     def setParams(self, purity, categories):
         """修改搜索参数"""
@@ -354,150 +374,140 @@ class UpdateWorkFlow(Task):
         self.search_params.purity = purity
         self.search_params.categories = categories
 
-    @property
-    def remote_all_result(self) -> pd.DataFrame | None:
-        def progress_emit(value: SearchTask):
-            self.progress.finished = value.progress.finished
-            self.progress.total = value.progress.total
-            self.progress_signal.emit(self)
+    async def _check_update(self) -> bool:
+        """检查是否需要更新"""
+        # 获取新旧数据
+        params = self.search_params.copy()
+        params.page = 1
+        params.sorting = 'desc'
+        with SearchTask(params, use_network=False, use_cache=False) as search_task:
+            old_key_word_data: Optional[pd.DataFrame] = await search_task.start_async(0, parent_task=self)
+        with KeyWordTask(params, use_cache=False) as key_word_task:
+            new_key_word_data: Optional[pd.DataFrame] = await key_word_task.start_async(0, parent_task=self)
 
-        if self.__remote_all_result is None:
-            # 获取远程全部数据
-            remote_all = SearchTask(self.search_params, search_all=True, use_network=True, use_cache=False)
-            remote_all.progress_signal.connect(progress_emit)
-            self.__remote_all_result = remote_all.start(0, parent_task=self)
-        return self.__remote_all_result
-
-    @property
-    def get_progress_state(self) -> int:
-        with self.__lock:
-            if len(self.all_work_flow) > 0:
-                return self.DOWNLOAD_STATE
-        return self.SEARCH_STATE
-
-    async def __execute(self) -> bool:
-
-        async def step_one() -> list:
-            """获取远程第一页数据已经更新本地关键词数据和本地全部数据"""
-            orchestrator = ParallelTaskGroup(self.name)
-
-            # 提交任务
-            orchestrator.add_factories(*[
-                # 更新关键词数据,不使用本地数据,确保数据准确性
-                lambda: KeyWordTask(self.search_params, use_cache=False),
-                # 搜索远程第一页数据
-                lambda: SearchTask(self.search_params, use_cache=False),
-                # 获取本地全部数据
-                lambda: SearchTask(self.search_params, search_all=True, use_network=False, use_cache=False),
-            ])
-
-            # 等待结果
-            results = await orchestrator.execute(parent_task=self)
-
-            # 清理
-            orchestrator.clear()
-
-            return results
-
-        def step_two() -> pd.DataFrame | None:
-            """比对云端数据筛选出需要下载的图像,返回None表示不需要更新"""
-            if self.local_all_result is not None:  # 本地存在数据
-
-                # 对比云端数据与本地数据数量和日期是否对的上,云端可能会有图片被删除的情况
-                if any((self.remote_first_result.loc[0, '日期'] > self.local_all_result.loc[0, '日期'],
-                        self.remote_first_result.loc[0, '总数'] > self.local_all_result.loc[0, '总数'])):
-
-                    if self.remote_all_result is not None:
-
-                        # 选出差异图像搜索结果
-                        diff_image_search_result = self.remote_all_result[
-                            ~self.remote_all_result['id'].isin(self.local_all_result['id'])]
-                        return diff_image_search_result
-
-                    else:
-                        return pd.DataFrame()
-            else:
-                if self.remote_first_result is not None:
-                    return self.remote_first_result
-
-        async def step_three(diff_image_search_result: pd.DataFrame) -> bool:
-            """提交下载任务并等待完成"""
-            with self.__lock:
-                self.all_work_flow.clear()
-            logger.debug(f'{self.__class__.__name__} 提交下载任务:{self.key_word}')
-
-            # 提交下载任务
-            download_batch_work_flow = DownloadBatchWorkFlow(
-                [DownloadWorkFlow.Params(row['id'], self.key_word, url=row['远程路径'])
-                 for index, row in diff_image_search_result.iterrows()],  # 下载参数
-                self._create_func  # 创建下载任务函数
-            )
-
-            # 设置进度数据
-            self.progress.finished = 0
-            self.progress.total = len(diff_image_search_result)
-            self.progress_signal.emit(self)  # 通知外部进入下载阶段
-
-            # 等待下载任务完成
-            logger.debug(f'{self.__class__.__name__} 等待下载任务:{self.name}')
-            results: Optional[list] = await download_batch_work_flow.start_async(0, parent_task=self)
-            # 清理
-            self.__clear_all_work_flow()
-            if results is not None:
-                return all(results)
-            else:
-                return False
-
-        logger.info(f'{self.__class__.__name__} 开始更新:{self.name}')
-
-        # 获取远程第一页数据已经更新本地关键词数据和本地全部数据
-        results = await step_one()
-
-        # 保存第一步结果
-        if results[0] is None or results[1] is None:
+        # 判断是否需要更新
+        if old_key_word_data is None or new_key_word_data is None:
+            return True
+        elif any((new_key_word_data['最新日期'].iloc[0] > old_key_word_data['日期'].iloc[0],
+                  new_key_word_data['总数'].iloc[0] > old_key_word_data['总数'].iloc[0])):
+            return True
+        else:
             return False
-        self.remote_first_result = results[1]
-        self.local_all_result = results[2]
+
+    async def _update_page(self, page: int) -> bool:
+        """下载某一页数据,内容按照升序排序"""
+        params = self.search_params.copy()
+        params.page = page
+        params.sorting = 'asc'  # 升序
+
+        # 获取数据
+        self._state = self.SEARCH_STATE
+        with SearchTask(params, use_cache=False) as search_task:
+            result: Optional[pd.DataFrame] = await search_task.start_async(0, parent_task=self)
+
+        # 筛选后的数据
+        if result is None:
+            return False
+
+        result = self._filter_search_data(result)
+
+        # 下载数据
+        return await self._batch_download(result)
+
+    async def _batch_download(self, search_result: pd.DataFrame) -> bool:
+        """批量下载图像"""
+        # 提交下载任务
+        self._state = self.DOWNLOAD_STATE
+        download_batch_work_flow = DownloadBatchWorkFlow(
+            [DownloadWorkFlow.Params(row['id'], self.key_word, url=row['远程路径'])
+             for index, row in search_result.iterrows()],  # 下载参数
+            self._create_func, lazy_create=False  # 创建下载任务函数
+        )
+        self.progress.finished = 0
+        self.progress.total = len(search_result)
+        results: Optional[list] = await download_batch_work_flow.start_async(0, parent_task=self)
         self.progress_signal.emit(self)
 
-        # 第二步筛选出需要下载的文件
-        diff_result = step_two()
-        if diff_result is not None:
-            # 第三步,提交下载任务
-            if not diff_result.empty:
-                return await step_three(diff_result)
+        download_batch_work_flow.clear()
 
-        logger.info(f'{self.__class__.__name__} 更新成功:{self.name}')
-        return True
+        if results is None:
+            return False
+        else:
+            return all(results)
 
-    def setSignal(self, start_signal: Signal, progress_signal: Signal, finish_signal: Signal, stop_signal: Signal):
-        """设置信号连接"""
-        self.start_signal.connect(start_signal.emit)
-        self.progress_signal.connect(progress_signal.emit)
-        self.finish_signal.connect(finish_signal.emit)
-        self.stop_signal.connect(stop_signal.emit)
-        # 保留记录
-        self._start_signal_set.add(start_signal)
-        self._progress_signal_set.add(progress_signal)
-        self._finish_signal_set.add(finish_signal)
-        self._stop_signal_set.add(stop_signal)
+    @staticmethod
+    def _filter_search_data(search_result: pd.DataFrame) -> pd.DataFrame:
+        """筛选搜索后的数据,剔除掉已经存在的数据"""
+        with IMAGE_INFO as df:
+            # 筛选出search_result中不在IMAGE_INFO的数据
+            filter_search_result = search_result[~search_result['id'].isin(df['id'])]
+            return filter_search_result
 
-    def disSignal(self):
-        """断开信号连接"""
-        for start_signal in self._start_signal_set:
-            self.start_signal.disconnect(start_signal.emit)
-        for progress_signal in self._progress_signal_set:
-            self.progress_signal.disconnect(progress_signal.emit)
-        for finish_signal in self._finish_signal_set:
-            self.finish_signal.disconnect(finish_signal.emit)
-        for stop_signal in self._stop_signal_set:
-            self.stop_signal.disconnect(stop_signal.emit)
+    @property
+    def isSearch(self) -> bool:
+        return self._state == self.SEARCH_STATE
 
-        # 清空集合
-        self._start_signal_set.clear()
-        self._progress_signal_set.clear()
-        self._finish_signal_set.clear()
-        self._stop_signal_set.clear()
+    @property
+    def isDownload(self) -> bool:
+        return self._state == self.DOWNLOAD_STATE
+
+    async def __execute(self) -> bool:
+        logger.info(f'{self.__class__.__name__} 开始更新:{self.name}')
+
+        # 获取上次更新页码和最大页码
+        with KEY_WORD as df:
+            last_update_page = df.loc[df['关键词'] == self.key_word, '上次更新页码'].copy(deep=True)
+            max_page = df.loc[df['关键词'] == self.key_word, '总页数'].copy(deep=True)
+
+            if last_update_page.empty:
+                last_update_page = 1
+            else:
+                last_update_page = int(last_update_page.iloc[0])
+
+            if max_page.empty:
+                logger.warning(f'{self.__class__.__name__} 更新失败:{self.name} 无最大页码')
+                return False
+            else:
+                max_page = int(max_page.iloc[0])
+
+            if last_update_page >= max_page:  # 如果上次更新页码大于等于最大页码则等于最大页码减1
+                last_update_page = max_page - 1
+
+        # 检查是否需要更新
+        if not await self._check_update():
+            KEY_WORD.set_update_page(self.key_word, max_page)
+            logger.info(f'{self.__class__.__name__} 更新成功:{self.name}')
+            return True
+
+        if not self.isRunning:
+            logger.info(f'{self.__class__.__name__} 更新取消:{self.name}')
+            return False
+
+        # 逐页更新
+        for page in range(max(1, last_update_page), max_page + 1):
+            if not self.isRunning:
+                logger.info(f'{self.__class__.__name__} 更新取消:{self.name}')
+                return False
+            state = await self._update_page(page)
+
+            # 发送进度
+            self._state = self.SEARCH_STATE
+            self.progress.finished = page
+            self.progress.total = max_page
+            self.progress_signal.emit(self)
+
+            if state:
+                KEY_WORD.set_update_page(self.key_word, page)
+            else:
+                logger.warning(f'{self.__class__.__name__} 更新失败:{self.name} 第{page}页')
+                return False
+        if not await self._check_update():
+            logger.info(f'{self.__class__.__name__} 更新成功:{self.name}')
+            return True
+        else:
+            KEY_WORD.set_update_page(self.key_word, 1)
+            logger.warning(f'{self.__class__.__name__} 更新失败:{self.name} 数据不完整')
+            return False
 
     def _create_func(self, work_flow: DownloadWorkFlow) -> DownloadWorkFlow:
         """创建一个下载工作流"""
@@ -515,9 +525,8 @@ class UpdateWorkFlow(Task):
     def __download_finished(self, work_flow: DownloadWorkFlow):
         """任务完成后如果成功则会计数,如果失败则会终止本次更新"""
         if self.isRunning and isinstance(work_flow, DownloadWorkFlow):
-            if work_flow.result() is not None:
-                self.progress.finished += 1
-                self.progress_signal.emit(self)
+            self.progress.finished += 1
+            self.progress_signal.emit(self)
             with self.__lock:
                 if work_flow in self.all_work_flow:
                     self.all_work_flow.remove(work_flow)
@@ -604,6 +613,11 @@ class SerialUpdateWorkFlow(Task):
 
 
 if __name__ == '__main__':
+    def progress_slot(task: UpdateWorkFlow):
+        text = '更新页' if task.isSearch else '下载中'
+        print(f'{text}:{task.progress.finished}/{task.progress.total}')
+
+
     from Fun.BaseTools import LogManager
 
     LogManager().set_console_output(console_level='DEBUG')
@@ -611,7 +625,7 @@ if __name__ == '__main__':
     # 批量更新任务示例
     # task_test = UpdateWorkFlow('Potato Godzilla', '111', '001')
     task_test = UpdateWorkFlow('Windows 11', '100', '010')
-    task_test.progress_signal.connect(lambda x: print(x.progress, x.name))
+    task_test.progress_signal.connect(progress_slot)
     task_test.start(0)
 
     # 串行批量更新任务示例

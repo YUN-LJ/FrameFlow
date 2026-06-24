@@ -1,5 +1,6 @@
 """下载界面控制文件"""
 from SubAPI.WallHaven.ImportPack import *
+from SubAPI.WallHaven.api import ImageInfoTask
 from SubAPI.WallHaven.api.WorkFlow import DownloadWorkFlow, DownloadWorkFlowManage
 
 ROW_HEIGHT = 60
@@ -104,7 +105,8 @@ class DownloadRoundMenu(RoundMenu):
 
 class DownloadTableData(DataFrameModelBase):
     """表格数据模型,内部连接了DownloadWorkFlowManage信号"""
-    finishedSignal = Signal(DownloadWorkFlow)  # 内部下载任务完成时的信号
+    # finishedSignal = Signal(DownloadWorkFlow)  # 内部下载任务完成时的信号
+    clearSignal = Signal(DownloadWorkFlow, Any)  # 内部下载任务删除时的信号
 
     def __init__(self, parent: 'DownloadTable' = None):
         super().__init__(parent=parent)
@@ -128,15 +130,21 @@ class DownloadTableData(DataFrameModelBase):
         return data
 
     def refreshData(self):
-        def start_slot(task: DownloadWorkFlow):
+        def start_slot(task: DownloadWorkFlow | ImageInfoTask):
             """任务开始"""
-            image_id = task.params.image_id
-            row = self.getImageIDRowIndex(image_id)
-            # 连接其余信号
-            task.progress_signal.connect(progress_slot, enable_strict_repeat=True)
-            task.finish_signal.bridge_signal(self.finishedSignal, enable_strict_repeat=True)
-            task.stop_signal.connect(stop_slot, enable_strict_repeat=True)
-            self.setCellData(row, 3, 1)  # 设置按钮状态为停止任务
+            if isinstance(task, DownloadWorkFlow):
+                image_id = task.params.image_id
+                row = self.getImageIDRowIndex(image_id)
+                # 连接其余信号
+                task.progress_signal.connect(progress_slot, enable_strict_repeat=True)
+                # task.finish_signal.bridge_signal(self.finishedSignal, enable_strict_repeat=True)
+                task.stop_signal.connect(stop_slot, enable_strict_repeat=True)
+                task.clear_signal.bridge_signal(self.clearSignal, enable_strict_repeat=True)
+                self.setCellData(row, 3, 1)  # 设置按钮状态为停止任务
+            elif isinstance(task, ImageInfoTask):
+                image_id = task.image_id
+                row = self.getImageIDRowIndex(image_id)
+                self.setCellData(row, 2, '0;获取图像信息中...')
 
         @throttle_reuse_timer_decorator(timeout=TIMEOUT // 50)
         def progress_slot(task: DownloadWorkFlow):
@@ -151,14 +159,40 @@ class DownloadTableData(DataFrameModelBase):
                      f'速率:{rate_text} 总进度:{value.get_progress()}%')
             self.setCellData(row, 2, value)  # 设置按钮状态为停止任务
 
+        # @info_bar_decorator
+        # def finished_slot(task: DownloadWorkFlow):
+        #     """任务完成"""
+        #     if isinstance(task, DownloadWorkFlow):
+        #         image_id = task.params.image_id
+        #         row = self.getImageIDRowIndex(image_id)
+        #
+        #         if task.state.isClear:
+        #             return None, None, None
+        #         else:
+        #             result = task.result()
+        #
+        #         if result is not None:
+        #             if row > -1:
+        #                 self.setCellData(row, 2, '100;下载完成')
+        #                 self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
+        #             SignalConfig.WallHavenSignal.search_signal.refreshViewSignal.emit()
+        #             task.clear()  # 清理资源
+        #             return True, f'{image_id}下载完成', self.__parent
+        #         else:
+        #             if row > -1:
+        #                 self.setCellData(row, 2, '0;下载失败')
+        #                 self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
+        #             return False, f'{image_id}下载失败', self.__parent
+        #     return None, None, None
+
         @info_bar_decorator
-        def finished_slot(task: DownloadWorkFlow):
-            """任务完成"""
+        def clear_slot(task: DownloadWorkFlow, result: Any = None):
+            """任务清理"""
             if isinstance(task, DownloadWorkFlow):
                 image_id = task.params.image_id
                 row = self.getImageIDRowIndex(image_id)
 
-                if task.result() is not None:
+                if result is not None:
                     if row > -1:
                         self.setCellData(row, 2, '100;下载完成')
                         self.setCellData(row, 3, 2)  # 设置按钮状态为重试任务
@@ -180,7 +214,8 @@ class DownloadTableData(DataFrameModelBase):
             self.setCellData(row, 3, 0)  # 设置按钮状态为开始任务
 
         if not self.__bind_signal:
-            self.finishedSignal.connect(finished_slot)
+            # self.finishedSignal.connect(finished_slot)
+            self.clearSignal.connect(clear_slot)
             self.__bind_signal = True
         data = []
         # 处理任务信号

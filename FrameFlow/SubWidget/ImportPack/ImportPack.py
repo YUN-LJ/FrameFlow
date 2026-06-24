@@ -4,7 +4,7 @@ import darkdetect
 import pandas as pd, os, time, requests, re, gc, sys
 from queue import Queue, Empty
 from io import BytesIO
-from typing import Callable
+from typing import Callable, Optional
 from threading import Lock, Thread
 # Qt库
 from PySide6.QtCore import QTimer, Signal, QEvent, QPoint, QThread, QObject
@@ -25,7 +25,8 @@ from qfluentwidgets.components.widgets import (
 from Fun.QtWidget import (
     ImageWidget, TableCell, TableRow, TopWidget, LazyLoadMS,
     get_exist_dir, get_exist_files, FluentWidgetBase, info_bar_decorator,
-    debouncer_timer, throttle_reuse_timer_decorator
+    debouncer_timer, throttle_reuse_timer_decorator, TrayIcon,
+    LazyLoadFluentWindow,
 )
 from Fun.BaseTools import (
     Get, File, Str, Tools, FileBase, ImageLoad, CapturePythonTerminal, Terminal

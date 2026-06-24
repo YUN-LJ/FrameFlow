@@ -24,12 +24,14 @@ class SearchPage(FluentWidgetFromUI, Ui_SearchPage):
         self.checkBoxsCategories = [self.checkBox_general, self.checkBox_anime, self.checkBox_people]
         self.checkBoxsPurity = [self.checkBox_sfw, self.checkBox_sketchy, self.checkBox_nsfw]
         self.setStyleSheet("""SearchPage, SearchPage * {background-color: transparent;}""")
-        for checkBox, color in zip(self.checkBoxsPurity, [QColor(0, 255, 0), QColor(255, 255, 0), QColor(170, 0, 0)]):
-            checkBox.setTextColor(color, color)
+        # for checkBox, color in zip(self.checkBoxsPurity, [QColor(0, 255, 0), QColor(255, 255, 0), QColor(170, 0, 0)]):
+        #     checkBox.setTextColor(color, color)
 
     def bind(self):
         """信号连接"""
         self.pushButton_expand.clicked.connect(self.slot.pushButton_expand)
+        self.pushButton_latest.clicked.connect(self.slot.pushButton_latest)
+        self.pushButton_hot.clicked.connect(self.slot.pushButton_hot)
         self.lineEdit.searchSignal.connect(self.slot.lineEdit)
         self.lineEdit.returnPressed.connect(self.slot.lineEdit)
         self.lineEdit.clearSignal.connect(self.slot.clearTable)
@@ -43,9 +45,9 @@ class SearchPage(FluentWidgetFromUI, Ui_SearchPage):
         self.checkBox_use_tags.checkedChanged.connect(self.slot.checkBox_use_tags)
         self.checkBox_use_tags.setChecked(api.Config.USE_TAGS)
         for obj in self.checkBoxsCategories:
-            obj.stateChanged.connect(self.slot.checkBoxsCategories)
+            obj.toggled.connect(self.slot.checkBoxsCategories)
         for obj in self.checkBoxsPurity:
-            obj.stateChanged.connect(self.slot.checkBoxsPurity)
+            obj.toggled.connect(self.slot.checkBoxsPurity)
         # 设置选中状态
         purity = api.get_search_params().purity
         for index, obj in enumerate(self.checkBoxsPurity):
@@ -115,7 +117,8 @@ class SearchSlot:
     def __init__(self, parent: SearchPage, top_parent):
         self.parent = parent
         self.top_parent = top_parent
-        self.search_dialog: LoadBarDialog = None  # 搜索对话框
+        self.search_dialog: Optional[LoadBarDialog] = None  # 搜索对话框
+        self.is_built_search = False  # 是否为内置搜索,搜索热门、最新等启用
         self.signal_connect()
 
         # 防抖器
@@ -128,7 +131,7 @@ class SearchSlot:
         signal.progressSignal.connect(self.__search_progress)
         signal.finishedSignal.connect(self.__search_finished)
         signal.stopSignal.connect(self.__search_stop)
-        signal.searchSignal.connect(self.search)
+        signal.searchSignal.connect(self.submit_search_task)
         self.parent.tableWidget_image.currentPageSignal.connect(self.currentPageSolt)
         self.parent.tableWidget_image.loadNextPageSignal.connect(self.loadNextPageSolt)
 
@@ -142,7 +145,32 @@ class SearchSlot:
         if page <= self.parent.spinBox.maximum():
             self.lineEdit(page)
 
-    def search(self, task: api.SearchTask):
+    def create_search_task(self, text, page=None, sorting=None, add_history=True) -> api.SearchTask:
+        """
+        创建搜索任务
+        :param text:关键词
+        :param page:页码
+        :param sorting:根据什么排序,默认根据添加时间排序,views预览量,favorites收藏量,relevance关系,hot热门
+        :param add_history:添加到历史搜索
+        """
+        page = page or 1
+        sorting = sorting or 'date_added'
+        # 构建搜索参数
+        params = api.get_search_params()
+        params.q = text
+        params.page = page
+        params.sorting = sorting
+        params.purity = self.parent.getPurity()
+        params.categories = self.parent.getCategories()
+        # 创建搜索任务
+        task = api.SearchTask(
+            params,
+            use_network=api.Config.USE_NETWORK,
+            add_history=add_history,
+            enable_tags_search=api.Config.USE_TAGS)
+        return task
+
+    def submit_search_task(self, task: api.SearchTask):
         """发送搜索任务"""
         self.parent.lineEdit.setText(task.params.q)
         api.set_purity(task.params.purity)
@@ -188,7 +216,7 @@ class SearchSlot:
             if self.search_dialog is not None:
                 self.search_dialog.setText('搜索失败!')
 
-    def __search_stop(self, value: bool):
+    def __search_stop(self, value: api.SearchTask):
         QTimer.singleShot(300, self.__close_dialog)
         if self.search_dialog is not None:
             self.search_dialog.setText('已停止搜索')
@@ -196,28 +224,29 @@ class SearchSlot:
     @info_bar_decorator
     def lineEdit(self, value: int | str = None, is_top=False):
         """
+        :param value:参数,int类型为指定页码,str类型为指定搜索关键词
         :param is_top:是否跳转
         """
         if self.search_dialog is not None:
             return None, '等待当前搜索完成', self.top_parent
-        text = value if isinstance(value, str) else self.parent.lineEdit.text()
+        if isinstance(value, str):
+            text = value
+            self.is_built_search = False
+        else:
+            text = self.parent.lineEdit.text()
         page = value if isinstance(value, int) else 1
-        if text:
-            params = api.get_search_params()
-            params.q = text
-            params.page = page
-            params.purity = self.parent.getPurity()
-            params.categories = self.parent.getCategories()
-            task = api.SearchTask(
-                params, use_network=api.Config.USE_NETWORK, add_history=True,
-                enable_tags_search=api.Config.USE_TAGS)
-            self.search(task)
+        if text or self.is_built_search:
+            task = self.create_search_task(text, page)
+            self.submit_search_task(task)
             if is_top:
-                self.parent.tableWidget_image.scrollToTopSignal.emit(page)
+                self.parent.tableWidget_image.scrollToTopSignal.emit(
+                    self.parent.tableWidget_image.pageToRowIndex(page)
+                )
             return None, '等待搜索结果...', self.top_parent
         return False, '请输入关键词', self.top_parent
 
     def clearTable(self):
+        self.is_built_search = False
         SEARCH_DATA.clear()
         self.parent.tableWidget_image.clearContents()
 
@@ -229,6 +258,18 @@ class SearchSlot:
 
     def pushButton_expand(self):
         self.parent.widget_search_params.toggle()
+
+    def pushButton_latest(self):
+        self.is_built_search = True
+        task = self.create_search_task('', add_history=False)
+        self.submit_search_task(task)
+        self.parent.tableWidget_image.scrollToTopSignal.emit(1)
+
+    def pushButton_hot(self):
+        self.is_built_search = True
+        task = self.create_search_task('', sorting='hot', add_history=False)
+        self.submit_search_task(task)
+        self.parent.tableWidget_image.scrollToTopSignal.emit(1)
 
     def checkBoxsCategories(self):
         Categories = []
@@ -247,6 +288,7 @@ class SearchSlot:
         Purity = ''.join(Purity)
         if Purity.count('1') == 1:
             self.parent.checkBoxsPurity[Purity.find('1')].setEnabled(False)
+
         checked = bool(api.Config.API_KEY) if self.parent.checkBox_use_network.isChecked() else True
         self.parent.checkBox_nsfw.setEnabled(checked)
 
@@ -269,7 +311,7 @@ def start():
 
 
 if __name__ == '__main__':
-    from SubAPI import StartAPI
+    from SubAPI import StartAPI, StartEnum
 
-    start_api = StartAPI(func=start, console_level='DEBUG')
+    start_api = StartAPI(func=start, console_level=StartEnum.LogLevel.DEBUG)
     start_api.start_thread()

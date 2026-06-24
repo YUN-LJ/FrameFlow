@@ -1,6 +1,6 @@
 """Qt组件包"""
 import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Optional
 from Fun.BaseTools import LogClass
 
 logger = LogClass.get_logger(__name__, console_level='WARNING')
@@ -15,7 +15,7 @@ __all__ = [
     # 模块(由于该模块中有函数才导出)
     'MainWidget', 'FTabelView', 'FTabelWidget',
     # FWidget 模块中的类
-    'ImageWidget', 'LazyLoadMS', 'TrayIcon', 'EmbeddedWindows', 'EmbeddedPythonTerminal',
+    'ImageWidget', 'LazyLoadMS', 'LazyLoadFluentWindow', 'TrayIcon', 'EmbeddedWindows', 'EmbeddedPythonTerminal',
     'WindowDesktop', 'FluentWidgetBase', 'TerminalWidget', 'AcondaWidget', 'AnsiTextEdit',
     'LoadBarDialog', 'LoadRingDialog', 'SidebarWidget', 'SubWidget', 'TopWidget',
     'FluentWidgetFromUI', 'SidebarWidgetCover', 'SplitterWidget', 'ProgressRingButton',
@@ -35,6 +35,7 @@ _MODULE_MAP = {
     'FTabelWidget': '.',
     # FWidget 模块中的类
     'LazyLoadMS': '.FWidget',
+    'LazyLoadFluentWindow': '.FWidget',
     'SubWidgetBase': '.FWidget',
     'LoadSubWidget': '.FWidget',
     'TopWidget': '.FWidget',
@@ -132,7 +133,7 @@ def get_exist_files(caption: str = None, dir_path: str = None, ext=None) -> list
 
 
 # 气泡提示装饰器,被装饰函数需要返回bool,content,parent
-def info_bar_decorator(func):
+def info_bar_decorator(func: Callable[[...], tuple[bool | None, str, QObject]]):
     """气泡提示装饰器,被装饰函数需要返回bool|None,content,parent"""
 
     def wrapper(*args, **kwargs):
@@ -166,7 +167,7 @@ def info_bar_decorator(func):
 
 
 # 信息提示装饰器,被装饰函数需要返回bool|None,content,target,parent
-def teaching_tip_decorator(func):
+def teaching_tip_decorator(func: Callable[[...], tuple[bool | None, str, QObject, QObject]]):
     """信息提示装饰器,被装饰函数需要返回bool,content,target,parent"""
 
     def wrapper(*args, **kwargs):
@@ -198,7 +199,7 @@ def teaching_tip_decorator(func):
     return wrapper  # 返回包装后的函数
 
 
-def debouncer_timer(func) -> QTimer:
+def debouncer_timer(func: Callable[[], [...]]) -> QTimer:
     """防抖器,依赖QT事件循环"""
     timer = QTimer()
     timer.setSingleShot(True)
@@ -206,7 +207,7 @@ def debouncer_timer(func) -> QTimer:
     return timer
 
 
-def debouncer_reuse_timer(func) -> ReuseTimer:
+def debouncer_reuse_timer(func: Callable[[], [...]]) -> ReuseTimer:
     """防抖器,不依赖QT事件循环"""
     timer = ReuseTimer(0, func)
     timer.setSingleShot(True)

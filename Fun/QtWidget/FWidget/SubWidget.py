@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QApplication
 )
 # 风格组件
-from qfluentwidgets import CardWidget, ScrollArea
+from qfluentwidgets import CardWidget, ScrollArea, SimpleCardWidget
 from screeninfo import get_monitors
 
 
@@ -164,7 +164,7 @@ class FluentWidgetBase(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.addWidget(self._content_scroll)
         # 创建内容容器
-        self._content_widget = CardWidget(self)  # 内部滚动窗口
+        self._content_widget = SimpleCardWidget(self)  # 内部滚动窗口
         self._content_scroll.setWidget(self._content_widget)
         if layout is None:
             self.view_layout = QVBoxLayout(self._content_widget)

@@ -109,8 +109,21 @@
               <property name="verticalSpacing">
                <number>15</number>
               </property>
-              <item row="0" column="0">
-               <widget class="CheckBox" name="checkBox_general">
+              <item row="0" column="3">
+               <widget class="TogglePushButton" name="checkBox_people">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>40</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>人物</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="TogglePushButton" name="checkBox_general">
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
@@ -123,33 +136,7 @@
                </widget>
               </item>
               <item row="1" column="1">
-               <widget class="CheckBox" name="checkBox_sketchy">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>粗略级</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="CheckBox" name="checkBox_anime">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>动漫</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="CheckBox" name="checkBox_sfw">
+               <widget class="TogglePushButton" name="checkBox_sfw">
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
@@ -161,8 +148,8 @@
                 </property>
                </widget>
               </item>
-              <item row="1" column="2">
-               <widget class="CheckBox" name="checkBox_nsfw">
+              <item row="1" column="3">
+               <widget class="TogglePushButton" name="checkBox_nsfw">
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
@@ -174,8 +161,8 @@
                 </property>
                </widget>
               </item>
-              <item row="0" column="2">
-               <widget class="CheckBox" name="checkBox_people">
+              <item row="1" column="2">
+               <widget class="TogglePushButton" name="checkBox_sketchy">
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
@@ -183,7 +170,46 @@
                  </size>
                 </property>
                 <property name="text">
-                 <string>人物</string>
+                 <string>粗略级</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="TogglePushButton" name="checkBox_anime">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>40</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>动漫</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="PrimaryPushButton" name="pushButton_latest">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>40</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>最新</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="PrimaryPushButton" name="pushButton_hot">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>40</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>热门</string>
                 </property>
                </widget>
               </item>
@@ -362,11 +388,6 @@
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>CheckBox</class>
-   <extends>QCheckBox</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
    <class>PrimaryToolButton</class>
    <extends>QPushButton</extends>
    <header>qfluentwidgets.components.widgets</header>
@@ -378,15 +399,25 @@
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>CardWidget</class>
+   <extends>QWidget</extends>
+   <header>qfluentwidgets</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>PrimaryPushButton</class>
+   <extends>QPushButton</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
    <class>SpinBox</class>
    <extends>QSpinBox</extends>
    <header>qfluentwidgets</header>
   </customwidget>
   <customwidget>
-   <class>CardWidget</class>
-   <extends>QWidget</extends>
+   <class>TogglePushButton</class>
+   <extends>QCheckBox</extends>
    <header>qfluentwidgets</header>
-   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>

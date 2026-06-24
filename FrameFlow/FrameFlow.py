@@ -40,6 +40,7 @@ def create_tray_icon(top_window):
     from SubWidget import Config
     tray = TrayIcon(top_window)
     Config.TRAY = tray
+    tray.doubleClick.connect(top_window.show)
     tray.showClicked.connect(top_window.show)
     tray.quitClicked.connect(top_window.exit_)
     tray.show()

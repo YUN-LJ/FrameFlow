@@ -28,7 +28,7 @@ from qfluentwidgets import (
     PrimaryToolButton, TransparentPushButton, ProgressRing, CheckBox, RoundMenu,
     InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition,  # 气泡消息
     SimpleCardWidget, ScrollArea, CardWidget, HeaderCardWidget, CaptionLabel,
-    ProgressBar,
+    ProgressBar,TogglePushButton
 )
 # 功能库
 from Fun.QtWidget.FTabelWidget import (

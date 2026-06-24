@@ -5,11 +5,12 @@
 from SubWidget.ImportPack import *
 # 导入子窗口
 from SubWidget.Home import HomeWin
+from SubWidget.WallHaven import WallHavenWin
 from SubWidget.WallPaper import WallPaperWin
 from SubWidget.SetPage import SetsWin
 
 
-class FrameFlowWin(LazyLoadMS):
+class FrameFlowWin(LazyLoadFluentWindow):
     keywordLoadFinishedSignal = Signal()  # 收藏夹数据加载完成
     imageinfoLoadFinishedSignal = Signal()  # 图像信息数据加载完成
     limitHTTPSignal = Signal(tuple)  # HTTP请求速率限制
@@ -20,7 +21,8 @@ class FrameFlowWin(LazyLoadMS):
         """
         self.sub_widget_list = [
             ('主页', FIF.HOME, HomeWin, False),
-            ('壁纸播放', FIF.PHOTO, WallPaperWin, False),
+            ('WallHaven', FIF.PHOTO, WallHavenWin, False),
+            ('壁纸播放', FIF.MOVIE, WallPaperWin, False),
             ('设置', FIF.SETTING, SetsWin, True)
         ]
         # 初始化

@@ -47,6 +47,14 @@ class WallPaperWin(FluentWidgetFromUI, Ui_wallpaper):
         # 设置UI初始值
         self.spinBox_time.setValue(api.Config.IMAGE_TIME)
 
+    def copyCurrentImage(self):
+        """复制当前图片"""
+        self.right_widget.pushButton_copy.click()
+
+    def playCurrentImage(self):
+        """播放/暂停当前图片"""
+        self.pushButton_play.click()
+
 
 class WallPaperSlot:
 

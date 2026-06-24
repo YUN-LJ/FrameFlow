@@ -11,7 +11,7 @@ from qframelesswindow.utils import getSystemAccentColor
 from qfluentwidgets import (
     FluentIcon as FIF, setTheme, setThemeColor, Theme, SystemTrayMenu,
     Action, NavigationItemPosition, MSFluentWindow, SimpleCardWidget,
-    Pivot, SegmentedWidget, SplashScreen
+    Pivot, SegmentedWidget, SplashScreen, FluentWindow
 )
 from Fun.BaseTools import LogClass
 
@@ -54,7 +54,87 @@ def change_theme(theme=THEME_AUTO, color=None):
 
 # ---懒加载窗口---
 class LazyLoadMS(MSFluentWindow):
-    """懒加载的MS风格主界面"""
+    """懒加载的微软应用商店风格主界面"""
+
+    def __init__(self, widget_list: list[tuple] = None, lazy=True, windows_icon: str = None):
+        """
+        :param widget_list:传入列表参数,每个元素的值为(名称,图标,子窗口类名,是否置于底层)
+        :param lazy:是否启用懒加载,默认启用
+        :param windows_icon:窗口图标
+        """
+        self.widget_list = widget_list
+        self.lazy = lazy
+        self.fast_show = True
+        super().__init__()
+        windows_icon = ':/qfluentwidgets/images/logo.png' if windows_icon is None else windows_icon
+        self.setWindowIcon(QIcon(windows_icon))
+
+        # 设置窗口属性，防止最大化时背景被系统覆盖
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
+
+        # 加载子窗口
+        self.load_sub_widget = LoadSubWidget(self)
+        # 添加窗口
+        for name, icon, widget, bottom in widget_list:
+            self.addWidget((name, icon, widget), bottom)
+        # 连接页面切换
+        self.stackedWidget.currentChanged.connect(self.pageChange)
+
+        # 应用主题
+        change_theme()  # 延迟应用会导致窗口最大化时主题不生效
+
+    def addWidget(self, widget: tuple[str, QIcon, QWidget], bottom=False):
+        """
+        添加子窗口
+        :param widget:待添加的子窗口,名称,图标,窗口类
+        :param bottom:是否添加到底部,默认从上到下添加
+        """
+        self.load_sub_widget.addSubWidget(widget[2])
+        position = NavigationItemPosition.BOTTOM if bottom else NavigationItemPosition.SCROLL
+        self.addSubInterface(SubWidgetBase(widget[0], self), widget[1], widget[0], position=position)
+
+    def pageChange(self, index: int):
+        """切换页面时"""
+        self.load_sub_widget.pageChange(index)
+
+    def getWidget(self, index) -> 'SubWidgetBase':
+        """获取子窗口,索引值与传入的列表顺序一致"""
+        return self.stackedWidget.widget(index)
+
+    def notLazyLoad(self, is_show: bool = True):
+        """
+        非懒加载,带启动动画的加载
+        :param is_show:是否显示
+        """
+        # 如果不是懒加载,则直接加载所有子窗口
+        if not self.lazy and self.fast_show:
+            # 创建启动页面
+            splashScreen = SplashScreen(self.windowIcon(), self)
+            splashScreen.setIconSize(QSize(102, 102))
+            loop = QEventLoop(self)
+            # 在创建其他子页面前先显示主界面
+            if is_show:
+                super().show()
+            for i in range(len(self.widget_list), -1, -1):
+                self.load_sub_widget.pageChange(i)
+            QTimer.singleShot(1000, loop.quit)
+            loop.exec()
+            # 隐藏启动页面
+            splashScreen.finish()
+            self.fast_show = False
+
+    def show(self):
+        """显示窗口"""
+        # 如果不是懒加载,则直接加载所有子窗口
+        if not self.lazy and self.fast_show:
+            self.lazyLoad()
+        else:
+            super().show()
+
+
+class LazyLoadFluentWindow(FluentWindow):
+    """懒加载主界面"""
 
     def __init__(self, widget_list: list[tuple] = None, lazy=True, windows_icon: str = None):
         """
@@ -229,14 +309,22 @@ class TopWidget(SimpleCardWidget):
 
 # ---系统托盘---
 class TrayIcon(QSystemTrayIcon):
-    showClicked = Signal()  # 显示按钮
-    quitClicked = Signal()  # 退出按钮
+    """系统托盘"""
+    singleclicked = Signal()  # 左键单击信号
+    doubleClick = Signal()  # 左键双击信号
+    showClicked = Signal()  # 显示信号
+    quitClicked = Signal()  # 退出信号
 
     def __init__(self, parent: QWidget = None):
         self.__parent = parent
         super().__init__(parent)
         self.__uiInit()
-        self.createMenu()
+        self.__bind()
+        self._all_activates: list[Action] = [
+            Action(FIF.HOME, '显示', triggered=lambda _: self.showClicked.emit()),
+            Action(FIF.POWER_BUTTON, '退出', triggered=lambda _: self.quitClicked.emit())
+        ]
+        self._createMenu()
 
     def __uiInit(self):
         windows_ico = self.__parent.windowIcon()
@@ -244,20 +332,26 @@ class TrayIcon(QSystemTrayIcon):
             windows_ico = QIcon(':/qfluentwidgets/images/logo.png')
         self.setIcon(windows_ico)
 
-    def createMenu(self):
-        self.menu = SystemTrayMenu(parent=self.__parent)
-        self.menu.addActions([
-            Action(FIF.HOME, '显示', triggered=lambda _: self.showClicked.emit()),
-            Action(FIF.POWER_BUTTON, '退出', triggered=lambda _: self.quitClicked.emit()),
-        ])
-        self.setContextMenu(self.menu)
+    def __bind(self):
         # 把鼠标点击图标的信号和槽连接
-        # self.activated.connect(self.onIconClicked)
+        self.activated.connect(self.onIconClicked)
+
+    def _createMenu(self):
+        self.menu = SystemTrayMenu(parent=self.__parent)
+        self.menu.addActions(self._all_activates)
+        self.setContextMenu(self.menu)
 
     def addAction(self, action: Action):
         """添加新控件"""
-        self.menu.addAction(action)
+        if isinstance(action, Action):
+            self._all_activates.insert(-1, action)
+            self.menu.clear()
+            self.menu.addActions(self._all_activates)
 
-    # def onIconClicked(self, reason):
-    # 鼠标点击icon传递的信号会带有一个整形的值
-    # 1是表示单击右键，2是双击左键，3是单击左键，4是用鼠标中键点击
+    def onIconClicked(self, reason):
+        # 鼠标点击icon传递的信号会带有一个整形的值
+        # 1是表示单击右键，2是双击左键，3是单击左键，4是用鼠标中键点击
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.doubleClick.emit()
+        elif reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self.singleclicked.emit()

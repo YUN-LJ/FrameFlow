@@ -264,6 +264,11 @@ class SearchTableData(ImageTableData):
     def __init__(self, parent: 'SearchTable'):
         super().__init__(parent=parent)
         self.current_params = None
+
+        # 限制一次性加载的最大行数
+        self.max_row_count = 100  # 分区最大行数
+        self.current_chunk_index = 1  # 当前分区索引
+
         SignalConfig.WallHavenSignal.search_signal.finishedSignal.connect(self.refreshData)
 
     def rowCount(self) -> int:
@@ -274,7 +279,10 @@ class SearchTableData(ImageTableData):
             # 确保返回合理的整数值
             if pd.isna(total) or total < 0:
                 return 0
-            return int(total)
+            total = int(total)
+            current_max_row = (self.max_row_count * self.current_chunk_index)
+            return min(total, current_max_row)
+
         except (KeyError, IndexError, ValueError):
             return 0
 
@@ -294,7 +302,7 @@ class SearchTableData(ImageTableData):
         self.setDataFrame(data)
 
     def data(self, index: int) -> str | None:
-        if index >= self.rowCount():
+        if index >= int(self._dataframe.loc[0, '总数']):
             return None
         # 转为页内相对索引
         page = index // PAGE_SIZE + 1
@@ -304,6 +312,8 @@ class SearchTableData(ImageTableData):
         data.reset_index(drop=True, inplace=True)
         try:
             value = data.iloc[virtual_index]
+            if index - (self.max_row_count * self.current_chunk_index) < 10:
+                self.current_chunk_index += 1
             return value
         except IndexError:
             self.dataIndexError.emit(index, 1)
@@ -428,7 +438,7 @@ class SearchTable(ImageTable):
         super()._loadVisible()
         visible_rows = self.getVisibleRow()
         if visible_rows:
-            current_page = min(visible_rows) * self.columnCount() // 24 + 1
+            current_page = min(visible_rows) * self.columnCount() // PAGE_SIZE + 1
             self.currentPageSignal.emit(current_page)
 
     def clearContents(self):
@@ -436,3 +446,7 @@ class SearchTable(ImageTable):
         self.data_model.clearData()
         self.column_delegate.deleteWidgetAll()
         super().clearContents()
+
+    def pageToRowIndex(self, page: int) -> int:
+        """将页码转为行号"""
+        return (page - 1) * PAGE_SIZE // self.columnCount()

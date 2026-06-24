@@ -64,18 +64,23 @@ def add_search_history(key_word: str):
     Config.SEARCH_HISTORY.insert(0, key_word)
 
 
-def set_search_history_count(count):
+def set_search_history_count(count) -> bool:
     """设置搜索历史数量"""
+    try:
+        count = int(count)
+    except Exception:
+        return False
     Config.SEARCH_HISTORY_COUNT = count
     Config.SEARCH_HISTORY = Config.SEARCH_HISTORY[:Config.SEARCH_HISTORY_COUNT]
+    return True
 
 
-def set_save_dir(save_dir):
+def set_save_dir(save_dir: str):
     """设置保存目录"""
     Config.SAVE_DIR = save_dir
 
 
-def set_api_key(api_key, check=True) -> bool:
+def set_api_key(api_key: str, check=True) -> bool:
     """设置API密钥,如192.168.42.129:8080"""
     if check:
         if not check_api(api_key):
@@ -85,7 +90,7 @@ def set_api_key(api_key, check=True) -> bool:
     return True
 
 
-def set_proxies_url(url, check=True) -> bool:
+def set_proxies_url(url: str, check=True) -> bool:
     if not url:
         Config.PROXIES_URL = url
         GlobalValue.GLOBAL_ASYNC_HTTP_MANAGE.set_proxies(None)
@@ -286,16 +291,8 @@ class ImageData(ImageDataBase):
         :param image_info: 图像信息,不传入则去全局数据内查找
         :return 是否保存成功
         """
-        if image_info is not None:
-            image_dir = Path(Config.SAVE_DIR) / image_info['分级'].values[0] / image_info['类别'].values[0]
-            image_dir.mkdir(parents=True, exist_ok=True)
-            image_path = image_dir / f'{image_info['id'].values[0]}{image_info['文件扩展名'].values[0]}'
-            save_path = str(image_path)
-            IMAGE_INFO.add_data(image_info)
-
-        if save_path is None:
-            image_path = self.save_path
-        else:
+        image_path = None
+        if save_path is not None:  # 指定保存路径
             FileBase(save_path).ensure_exists()
             save_path = os.path.realpath(save_path)
             image_info = self.image_info
@@ -303,6 +300,13 @@ class ImageData(ImageDataBase):
                 raise ValueError(f'{self.__class__.__name__} {self.image_id} 图像信息不存在!')
             image_path = str(Path(save_path) / image_info['分级'].values[0] / image_info['类别'].values[0] /
                              f'{image_info['id'].values[0]}{image_info['文件扩展名'].values[0]}')
+        elif image_info is not None:  # 根据图像信息生成保存路径
+            image_dir = Path(Config.SAVE_DIR) / image_info['分级'].values[0] / image_info['类别'].values[0]
+            image_dir.mkdir(parents=True, exist_ok=True)
+            image_path = str(image_dir / f'{image_info['id'].values[0]}{image_info['文件扩展名'].values[0]}')
+            IMAGE_INFO.add_data(image_info)
+        elif image_path is None:  # 使用全局数据
+            image_path = self.save_path
 
         if image_path:
             # 写入图像信息
@@ -840,6 +844,8 @@ class ImageInfoTask(TaskBase):
 
 
 class KeyWordTask(TaskBase):
+    """添加关键词到关键词数据中"""
+
     def __init__(self,
                  params: Config.SearchParams,
                  task_manage: TaskAsyncManage = None,
@@ -865,6 +871,12 @@ class KeyWordTask(TaskBase):
             search_task.set_parent_task(self)
             result: Optional[pd.DataFrame] = await search_task.start_async(0, 3)
         if result is not None:
+            with KEY_WORD as df:
+                last_page = df.loc[df['关键词'] == self.params.q, '上次更新页码']
+                if last_page.empty:
+                    last_page = 1
+                else:
+                    last_page = last_page.iloc[0]
             key_data = pd.DataFrame(
                 [[
                     self.params.q,
@@ -872,6 +884,7 @@ class KeyWordTask(TaskBase):
                     result.loc[0, '总数'],
                     result.loc[0, '日期'],
                     pd.to_datetime(Time.now_time("%Y-%m-%d %H:%M:%S")),
+                    last_page,
                     self.params.categories,
                     self.params.purity
                 ]], columns=DataConfig.key_word_columns

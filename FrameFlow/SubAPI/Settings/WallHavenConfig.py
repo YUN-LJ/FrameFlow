@@ -32,7 +32,7 @@ class SearchParams:
         "q": "",  # 关键词
         "categories": "111",  # 类别码:100/101/111/等,三位数字每位上的意思(常规/动漫/人物)
         "purity": "110",  # 分级码:100/110/111/等,三位数字每位上的意思(正常级/粗略级/限制级) 0表示关闭,1表示开启
-        "sorting": "date_added",  # 根据什么排序,默认根据添加时间排序,views预览量,favorites收藏量,relevance关系
+        "sorting": "date_added",  # 根据什么排序,默认根据添加时间排序,views预览量,favorites收藏量,relevance关系,hot热门
         "order": "desc",  # 升序/降序:asc升序,desc降序
         "page": 1,  # 页码:1-∞,超过最大页时没结果
     }
