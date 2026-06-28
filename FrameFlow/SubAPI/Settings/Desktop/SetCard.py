@@ -90,7 +90,11 @@ class SwitchCard(CardBase):
 
 
 class MenuCard(CardBase):
-    """菜单类设置卡片"""
+    """
+    菜单类设置卡片
+    使用addContentWidget或addContentLayout
+    可向展开区域添加内容
+    """
 
     def __init__(self, text=None, parent=None):
         super().__init__(text, parent)

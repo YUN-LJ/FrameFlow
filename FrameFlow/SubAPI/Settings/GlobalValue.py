@@ -6,7 +6,10 @@ from enum import Enum
 from io import BytesIO
 from multiprocessing import Queue
 from typing import Optional
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from qfluentwidgets import HeaderCardWidget, TogglePushButton
 # 自定义组件
+from SubAPI.Settings.Desktop.SetCard import MenuCard
 from Fun.BaseTools import (
     FileBase, TaskManage, TaskProcessManage, Get, ImageLoad,
     ImageProcess, AsyncHTTPManage, TaskAsyncManage,
@@ -77,3 +80,150 @@ class WallHavenTaskClassEnum(Enum):
     SEARCH = 2  # 搜索任务
     IMAGE_INFO = 3  # 图像信息
     KEY_INFO = 4  # 关键词信息
+
+
+class WallHavenClassWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.__uiInit()
+
+    def __uiInit(self):
+        # 主布局
+        self.view_layout = QVBoxLayout(self)
+        self.view_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.__addCategories()
+        self.__addPurity()
+        self.view_layout.addStretch()
+
+    def __addCategories(self):
+        # 类别选择
+        self.categories_heard = HeaderCardWidget(self)
+        self.categories_heard.setTitle('类别选择')
+
+        # 添加布局
+        self.categories_layout = QHBoxLayout(self)
+        self.categories_heard.viewLayout.addLayout(self.categories_layout)
+
+        # 添加切换按钮
+        self.checkBox_general = TogglePushButton(self.categories_heard)
+        self.checkBox_general.setText('常规')
+        self.checkBox_general.setChecked(True)
+        self.checkBox_anime = TogglePushButton(self.categories_heard)
+        self.checkBox_anime.setText('动漫')
+        self.checkBox_anime.setChecked(True)
+        self.checkBox_people = TogglePushButton(self.categories_heard)
+        self.checkBox_people.setText('人物')
+        self.checkBox_people.setChecked(True)
+
+        # 添加布局
+        self.categories_layout.addWidget(self.checkBox_general)
+        self.categories_layout.addWidget(self.checkBox_anime)
+        self.categories_layout.addWidget(self.checkBox_people)
+
+        self.view_layout.addWidget(self.categories_heard)
+
+    def __addPurity(self):
+        # 分级选择
+        self.purity_heard = HeaderCardWidget(self)
+        self.purity_heard.setTitle('分级选择')
+
+        # 添加布局
+        self.purity_layout = QHBoxLayout(self)
+        self.purity_heard.viewLayout.addLayout(self.purity_layout)
+
+        # 添加切换按钮
+        self.checkBox_sfw = TogglePushButton(self.purity_heard)
+        self.checkBox_sfw.setText('正常级')
+        self.checkBox_sfw.setChecked(True)
+        self.checkBox_sketchy = TogglePushButton(self.purity_heard)
+        self.checkBox_sketchy.setText('粗略级')
+        self.checkBox_sketchy.setChecked(True)
+        self.checkBox_nsfw = TogglePushButton(self.purity_heard)
+        self.checkBox_nsfw.setText('限制级')
+        self.checkBox_nsfw.setChecked(True)
+
+        # 添加布局
+        self.purity_layout.addWidget(self.checkBox_sfw)
+        self.purity_layout.addWidget(self.checkBox_sketchy)
+        self.purity_layout.addWidget(self.checkBox_nsfw)
+
+        self.view_layout.addWidget(self.purity_heard)
+
+
+class WallHavenClassWidgetExpand(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.__uiInit()
+
+    def __uiInit(self):
+        # 主布局
+        self.view_layout = QVBoxLayout(self)
+        self.view_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.__addCategories()
+        self.__addPurity()
+        self.view_layout.addStretch()
+
+    def __addCategories(self):
+        # 类别选择
+        self.categories_heard = MenuCard(parent=self)
+        self.categories_heard.setTitle('类别选择')
+
+        # 添加布局
+        self.categories_layout = QHBoxLayout(self)
+        self.categories_heard.addContentLayout(self.categories_layout)
+
+        # 添加切换按钮
+        self.checkBox_general = TogglePushButton(self.categories_heard)
+        self.checkBox_general.setText('常规')
+        self.checkBox_general.setChecked(True)
+        self.checkBox_anime = TogglePushButton(self.categories_heard)
+        self.checkBox_anime.setText('动漫')
+        self.checkBox_anime.setChecked(True)
+        self.checkBox_people = TogglePushButton(self.categories_heard)
+        self.checkBox_people.setText('人物')
+        self.checkBox_people.setChecked(True)
+
+        # 添加布局
+        self.categories_layout.addWidget(self.checkBox_general)
+        self.categories_layout.addWidget(self.checkBox_anime)
+        self.categories_layout.addWidget(self.checkBox_people)
+
+        self.view_layout.addWidget(self.categories_heard)
+
+    def __addPurity(self):
+        # 分级选择
+        self.purity_heard = MenuCard(parent=self)
+        self.purity_heard.setTitle('分级选择')
+
+        # 添加布局
+        self.purity_layout = QHBoxLayout(self)
+        self.purity_heard.addContentLayout(self.purity_layout)
+
+        # 添加切换按钮
+        self.checkBox_sfw = TogglePushButton(self.purity_heard)
+        self.checkBox_sfw.setText('正常级')
+        self.checkBox_sfw.setChecked(True)
+        self.checkBox_sketchy = TogglePushButton(self.purity_heard)
+        self.checkBox_sketchy.setText('粗略级')
+        self.checkBox_sketchy.setChecked(True)
+        self.checkBox_nsfw = TogglePushButton(self.purity_heard)
+        self.checkBox_nsfw.setText('限制级')
+        self.checkBox_nsfw.setChecked(True)
+
+        # 添加布局
+        self.purity_layout.addWidget(self.checkBox_sfw)
+        self.purity_layout.addWidget(self.checkBox_sketchy)
+        self.purity_layout.addWidget(self.checkBox_nsfw)
+
+        self.view_layout.addWidget(self.purity_heard)
+
+
+if __name__ == '__main__':
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    w = WallHavenClassWidgetExpand()
+    w.show()
+    app.exec()

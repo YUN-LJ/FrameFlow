@@ -16,12 +16,13 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QHeaderView,
-    QLabel, QSizePolicy, QSpacerItem, QTableWidgetItem,
-    QVBoxLayout, QWidget)
+    QSizePolicy, QSpacerItem, QTableWidgetItem, QVBoxLayout,
+    QWidget)
 
 from Fun.QtWidget import SidebarWidget
 from SubAPI.WallHaven.Desktop.SearchPage.SearchTable import SearchTable
-from qfluentwidgets import (CardWidget, PrimaryPushButton, SpinBox, TogglePushButton)
+from qfluentwidgets import (BodyLabel, CardWidget, PrimaryPushButton, SpinBox,
+    TogglePushButton)
 from qfluentwidgets.components.widgets import (PrimaryToolButton, SearchLineEdit, SmoothScrollArea, SwitchButton)
 
 class Ui_SearchPage(object):
@@ -163,7 +164,7 @@ class Ui_SearchPage(object):
 
         self.horizontalLayout.addWidget(self.spinBox)
 
-        self.label_page_info = QLabel(self.widget_title)
+        self.label_page_info = BodyLabel(self.widget_title)
         self.label_page_info.setObjectName(u"label_page_info")
 
         self.horizontalLayout.addWidget(self.label_page_info)

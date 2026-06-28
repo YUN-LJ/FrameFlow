@@ -86,7 +86,7 @@ def __getattr__(name):
 
 
 # ---函数部分---
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QLayout
 from PySide6.QtCore import Qt, QTimer, QObject, Signal, QMutex, QMutexLocker
 from qfluentwidgets.components.widgets import (
     InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition,  # 气泡消息
@@ -416,3 +416,44 @@ def throttle_qtimer_decorator(timeout: int = 50):
         return wrapper
 
     return decorator
+
+
+def hide_layout(layout: QLayout):
+    """隐藏布局中的所有控件"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().hide()
+        elif item.layout():
+            # 如果是子布局，递归隐藏
+            _hide_layout_recursive(item.layout())
+
+
+def show_layout(layout: QLayout):
+    """显示布局中的所有控件"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().show()
+        elif item.layout():
+            _show_layout_recursive(item.layout())
+
+
+def _hide_layout_recursive(layout: QLayout):
+    """递归隐藏布局"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().hide()
+        elif item.layout():
+            _hide_layout_recursive(item.layout())
+
+
+def _show_layout_recursive(layout: QLayout):
+    """递归显示布局"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().show()
+        elif item.layout():
+            _show_layout_recursive(item.layout())

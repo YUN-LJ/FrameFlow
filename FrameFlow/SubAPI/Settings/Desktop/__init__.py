@@ -1,4 +1,4 @@
-"""设置界面"""
+"""设置选项类"""
 import darkdetect
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QSpacerItem, QSizePolicy
@@ -95,7 +95,8 @@ class BaseSetSlot:
     def __init__(self, parent: BaseSetWin):
         self.parent = parent
 
-    def checkBox_theme(self, checked):
+    @staticmethod
+    def checkBox_theme(checked):
         """切换浅色/深色"""
         if checked:
             MainWidget.change_theme(MainWidget.THEME_DARK)
@@ -110,7 +111,8 @@ class BaseSetSlot:
             if Tools.check_is_start(self.parent.exe_name, 'user'):
                 Tools.remove_start_user(self.parent.exe_name)
 
-    def checkBox_terminal(self, checked):
+    @staticmethod
+    def checkBox_terminal(checked):
         """切换显示/隐藏"""
         Terminal.show_python_terminal() if checked else Terminal.hide_python_terminal()
 

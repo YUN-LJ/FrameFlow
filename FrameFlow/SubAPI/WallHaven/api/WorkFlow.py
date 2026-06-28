@@ -9,7 +9,7 @@ logger = LogClass.get_logger(__name__, console_level='WARNING')
 
 
 class ThumbWorkFlow(Task):
-    """略缩图加载任务"""
+    """略缩图加载任务,会重试两次"""
 
     def __init__(self, url: str, use_network: bool = True, use_cache: bool = True):
         self.url = url
@@ -21,7 +21,7 @@ class ThumbWorkFlow(Task):
 
     async def __execute(self) -> ImageData | None:
         task = DownloadTask(self.url, GlobalValue.GLOBAL_TASK_MANAGE, self.use_network, self.use_cache)
-        task.set_retry_count(3)  # 设置重试次数
+        task.set_retry_count(2)  # 设置重试次数
         self.image_id = task.image_id
         task.start_signal.bridge_signal(self.start_signal)
         task.progress_signal.bridge_signal(self.progress_signal)

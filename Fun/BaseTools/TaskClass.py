@@ -793,7 +793,8 @@ class TaskManageBase:
                 args=args,
                 kwargs=kwargs,
                 retry_count=task.retry_count,
-                retry_should=task.retry_should
+                retry_should=task.retry_should,
+                bind_task=task
             )
             return self.pool.submit(task_retry, priority=priority)
         else:
@@ -1165,7 +1166,8 @@ class TaskRetry:
                  args: tuple = None,
                  kwargs: dict = None,
                  retry_count: int = 0,
-                 retry_should: Callable = None):
+                 retry_should: Callable = None,
+                 bind_task: 'Task' = None):
         """
         重试任务函数,任务函数或者retry_should函数发生异常时之间返回,不再重试
         :param func:任务函数
@@ -1174,6 +1176,7 @@ class TaskRetry:
         :param retry_count:重试次数,默认为0即不重试
         :param retry_should:重试条件,默认通过判断func返回值是None则重试,否则不重试
                             如果指定重试条件判断函数,True表示不重试,False表示重试
+        :param bind_task:绑定的task任务,用于重试之间响应任务状态改变
         """
         self.__func = func
         self.__args = args or ()
@@ -1181,9 +1184,17 @@ class TaskRetry:
         self.__last_result = None  # 任务执行结果
         self.__retry_count = retry_count
         self.__retry_should = retry_should
+        self.__bind_task = weakref.ref(bind_task) if bind_task is not None else None
 
     def __execute(self) -> Any | None:
         for count in range(self.__retry_count + 1):
+            # 检查所属任务类状态
+            if self.__bind_task is not None:
+                task: Optional['Task'] = self.__bind_task()
+                if task is None or not task.isRunning:
+                    return None
+
+            # 执行重试
             try:
                 self.__last_result = self.__func(*self.__args, **self.__kwargs)
                 # 判断是否重试
@@ -1201,6 +1212,13 @@ class TaskRetry:
 
     async def __execute_async(self) -> Any | None:
         for count in range(self.__retry_count + 1):
+            # 检查所属任务类状态
+            if self.__bind_task is not None:
+                task: Optional['Task'] = self.__bind_task()
+                if task is None or not task.isRunning:
+                    return None
+
+            # 执行重试
             try:
                 self.__last_result = await self.__func(*self.__args, **self.__kwargs)
                 # 判断是否重试
@@ -1226,6 +1244,10 @@ class TaskRetry:
         返回Ture表示不重试,False表示重试
         """
         self.__retry_should = retry_should
+
+    def set_bind_task(self, task: 'Task'):
+        """设置绑定的任务"""
+        self.__bind_task = weakref.ref(task)
 
     def __call__(self):
         return self.__execute()
@@ -1797,8 +1819,7 @@ class Task:
     重试设置说明:
         重试实现是将任务函数通过TaskRetry包装后的一个整体
         重试次数耗尽后返回最后一次执行结果
-        执行重试期间不受Task类状态影响(理论上应该是处于RUNNING状态)
-        如果需要停止任务时打断重试可以在自定义的retry_should函数中检查任务状态
+        执行重试期间受Task类状态影响(如果不处于RUNNING状态或者task被删除等,重试会中断)
     多进程问题:
         如果func或retry_should函数不是模块级函数或者是类方法/静态方法之类的
         任务可能无法使用多进程完成

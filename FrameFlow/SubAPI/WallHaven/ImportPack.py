@@ -16,7 +16,7 @@ from weakref import WeakSet, ReferenceType
 from typing import Callable, Optional, Union, Any, Iterable
 # 桌面端Qt库
 from PySide6.QtCore import QTimer, Signal, QEvent, QPoint, QThread, QObject, QSize
-from PySide6.QtGui import QShortcut, QKeySequence, Qt, QGuiApplication, QPalette, QColor
+from PySide6.QtGui import QShortcut, QKeySequence, Qt, QGuiApplication, QPalette, QColor, QCursor
 from PySide6.QtWidgets import (
     QWidget, QLabel, QScrollArea, QHeaderView, QApplication,
     QApplication, QCheckBox, QTableWidgetItem,
@@ -27,8 +27,8 @@ from qfluentwidgets import (
     FluentIcon as FIF, Action, SmoothMode, MessageBoxBase, MessageBox,
     PrimaryToolButton, TransparentPushButton, ProgressRing, CheckBox, RoundMenu,
     InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition,  # 气泡消息
-    SimpleCardWidget, ScrollArea, CardWidget, HeaderCardWidget, CaptionLabel,
-    ProgressBar,TogglePushButton
+    SimpleCardWidget, ScrollArea, CardWidget, HeaderCardWidget, CaptionLabel, BodyLabel,
+    ProgressBar, TogglePushButton
 )
 # 功能库
 from Fun.QtWidget.FTabelWidget import (

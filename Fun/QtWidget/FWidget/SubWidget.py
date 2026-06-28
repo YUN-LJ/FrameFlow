@@ -3,11 +3,11 @@
 import win32con
 import win32gui
 # PySide6库
-from PySide6.QtCore import Qt, QRect, QPoint, QEvent
+from PySide6.QtCore import Qt, QRect, QPoint, QEvent, Signal
 from PySide6.QtGui import QScreen
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
-    QApplication
+    QApplication, QLayout
 )
 # 风格组件
 from qfluentwidgets import CardWidget, ScrollArea, SimpleCardWidget
@@ -257,14 +257,19 @@ class SplitterWidget(QSplitter):
 
 
 class SidebarWidgetCover(CardWidget):
-    """侧边栏组件 - 支持附身父控件和展开/收起功能（独立窗口模式）"""
+    """
+    侧边栏组件 - 支持附身父控件和展开/收起功能（独立窗口模式）
+    内部垂直布局view_layout
+    """
+    expandSignal = Signal()  # 展开信号
+    collapseSignal = Signal()  # 收缩信号
 
     LEFT = 0
     RIGHT = 1
     TOP = 2
     BOTTOM = 3
 
-    def __init__(self, parent, direction=LEFT, default_size=300):
+    def __init__(self, parent: QWidget, direction=LEFT, default_size=300):
         super().__init__(parent)
 
         self.direction = direction
@@ -275,7 +280,11 @@ class SidebarWidgetCover(CardWidget):
         self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         # self.setAttribute(Qt.WA_TranslucentBackground, True)
         # self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setWindowOpacity(0.8)  # 0.0完全透明，1.0不透明
+        # self.setWindowOpacity(0.8)  # 0.0完全透明，1.0不透明
+
+        # 内部布局
+        self.view_layout = QVBoxLayout(self)
+        self.view_layout.setContentsMargins(0, 0, 0, 0)
 
         # 设置初始尺寸
         if direction in [self.LEFT, self.RIGHT]:
@@ -286,9 +295,19 @@ class SidebarWidgetCover(CardWidget):
         # 安装父对象事件过滤器
         parent.installEventFilter(self)
 
-    def toggle(self, is_expand: bool = None):
+    def addWidget(self, widget: QWidget):
+        self.view_layout.addWidget(widget)
+
+    def addLayout(self, layout: QLayout):
+        self.view_layout.addLayout(layout)
+
+    def set_toggle(self, is_expand: bool = None):
         """切换显示/隐藏"""
         self.hide() if self.isExpanded else self.show()
+
+    def toggle(self):
+        """切换显示/隐藏"""
+        self.hide() if self.isVisible() else self.show()
 
     def _adjustPosition(self):
         """调整位置和尺寸以适应父对象"""
@@ -330,11 +349,13 @@ class SidebarWidgetCover(CardWidget):
         """显示时调整位置并更新状态"""
         self.isExpanded = True
         self._adjustPosition()
+        self.expandSignal.emit()
         super().showEvent(event)
 
     def hideEvent(self, event):
         """隐藏时更新状态"""
         self.isExpanded = False
+        self.collapseSignal.emit()
         super().hideEvent(event)
 
     def resizeEvent(self, event):
@@ -346,12 +367,23 @@ class SidebarWidgetCover(CardWidget):
 class SidebarWidget(CardWidget):
     """侧边栏组件 - 支持展开/收起功能"""
 
-    def __init__(self, parent):
+    expandSignal = Signal()  # 展开信号
+    collapseSignal = Signal()  # 收缩信号
+
+    def __init__(self, parent: QWidget):
         super().__init__(parent)
 
     def toggle(self):
         """切换显示/隐藏"""
         self.hide() if self.isVisible() else self.show()
+
+    def showEvent(self, event):
+        self.expandSignal.emit()
+        super().showEvent(event)
+
+    def hideEvent(self, event):
+        self.collapseSignal.emit()
+        super().hideEvent(event)
 
 # if __name__ == '__main__':
 #     from qfluentwidgets import setTheme, Theme

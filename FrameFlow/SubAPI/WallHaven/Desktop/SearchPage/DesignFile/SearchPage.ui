@@ -315,7 +315,7 @@
                </widget>
               </item>
               <item>
-               <widget class="QLabel" name="label_page_info">
+               <widget class="BodyLabel" name="label_page_info">
                 <property name="text">
                  <string/>
                 </property>
@@ -417,6 +417,11 @@
   <customwidget>
    <class>TogglePushButton</class>
    <extends>QCheckBox</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
    <header>qfluentwidgets</header>
   </customwidget>
  </customwidgets>

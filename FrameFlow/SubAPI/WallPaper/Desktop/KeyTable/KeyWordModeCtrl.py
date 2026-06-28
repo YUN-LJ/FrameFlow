@@ -1,85 +1,59 @@
 """关键词模式控制文件"""
-import pandas as pd
-
-from SubAPI.Settings.Desktop.ImageTabel import ImageTableData, ImageTable
-from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import api
+from SubAPI.WallPaper.ImportPack import *
+from SubAPI.Settings.Desktop.ImageTabel import (
+    ImageTableData, ImageTable, ImageTableCell
+)
 
 ThumbWorkFlow = WHAPI.WorkFlow.ThumbWorkFlow
-MIN_COLUMN_WIDTH = 100  # 最小列宽
-MAX_COLUMN_WIDTH = 130  # 最大列宽
+MIN_COLUMN_WIDTH = 120  # 最小列宽
+MAX_COLUMN_WIDTH = 150  # 最大列宽
 TIMEOUT = 50
 
 
-class KeyWordCell(ImageCell):
+class KeyWordCell(ImageTableCell):
     """单元格"""
-    thumbStartSignal = Signal(ThumbWorkFlow)  # 略缩图加载开始
-    thumbFinishedSignal = Signal(ThumbWorkFlow)  # 略缩图加载完成
-
     all_thumb_url = {}  # 关键词:用于生成略缩图的本地原图路径
 
     def __init__(self, parent: 'KeyWordTable'):
         super().__init__(parent)
         self.parent = parent
-        self.work_flow: ThumbWorkFlow = None  # 任务流
         self.data_model = self.parent.data_model
-        self.__bind()
+        self.enableMouseFocus(False)  # 关闭鼠标焦点动画
+        self.view_layout.setContentsMargins(0, 0, 0, 0)
 
-    def __bind(self):
-        def checkBoxSlot(checked):
-            row = self.data_model.getKeyWordRowIndex(self.key_word)
-            self.data_model.setCellData(row, 0, bool(checked))
+        # 连接信号
+        self.checkedChanged.connect(self.checkedChangedSlot)
+        self.doubleClicked.connect(lambda: self.checkedChangedSlot(not self.checkBox.isChecked()))
 
-        self.check_box.stateChanged.connect(checkBoxSlot)
-        self.thumbStartSignal.connect(self._thumbStart)
-        self.thumbFinishedSignal.connect(self._thumbFinished)
-        self.__load_thumb_timer = debouncer_timer(self._loadThumb)
+        self.hideInfo()
+
+    def checkedChangedSlot(self, checked: bool):
+        row = self.data_model.getKeyWordRowIndex(self.key_word)
+        self.data_model.setCellData(row, 0, checked)
+        self.checked_state = checked
 
     def setKeyWordInfo(self, key_info: pd.Series):
         if not isinstance(key_info, pd.Series):
             return
-        self.checked = key_info['选择']
+        self.checked_state = key_info['选择']
         self.key_word = key_info['关键词']  # 关键词
         self.purity = key_info['分级码']
         self.categories = key_info['类别码']
         self._loadImageInfo(key_info)
         self.checkUI()
+
         # 加载略缩图
-        if not self.__load_thumb_timer.isActive() and not self.image_widget.isShowImage():
-            self.loadThumb()
-
-    def _loadThumb(self):
-        """加载略缩图"""
-        if self.thumb_url:
-            self.work_flow = ThumbWorkFlow(self.thumb_url, use_network=False)
-            self.work_flow.start_signal.bridge_signal(self.thumbStartSignal)
-            self.work_flow.finish_signal.bridge_signal(self.thumbFinishedSignal)
-            self.work_flow.stop_signal.bridge_signal(self.thumbFinishedSignal)
-            self.work_flow.start(priority=2)
-
-    def loadThumb(self):
-        self.__load_thumb_timer.start(TIMEOUT)
+        if not self.isShowImage():
+            try:
+                self.startThumb()
+            except RuntimeError:
+                pass
 
     def checkUI(self):
-        self.check_box.setText(self.key_word)
-        self.check_box.setChecked(self.checked)
-
-    def _thumbStart(self, _):
-        self.setImageText('加载图片中...')
-
-    def _thumbFinished(self, task: ThumbWorkFlow):
-        """略缩图加载完成时"""
-        if isinstance(task, ThumbWorkFlow):
-            result = task.result()
-            try:
-                if result is not None and self.thumb_url == task.url:
-                    self.setImage(result.generate_thumb())
-            except Exception as e:
-                # if task.executor.run_count < 3:
-                #     task.start(priority=2)
-                self.setImageText('加载图片失败')
-        else:
-            self.setImageText('停止加载图片')
+        if hasattr(self, 'key_word') and hasattr(self, 'checked_state'):
+            self.setText(self.key_word)
+            self.setState(self.checked_state)
 
     def _filterThumbUrl(self, sample=True) -> str:
         """
@@ -88,24 +62,32 @@ class KeyWordCell(ImageCell):
         """
         # 随机一张竖屏照片作为略缩图,如果没有的话选取比例最接近1的
         filter_data = self.image_info[self.image_info['比例'] < 1]  # 筛选竖屏照片
+
+        thumb_url = ''
+
         if filter_data.empty:
-            thumb_url = self.image_info.sort_values('比例')
-            if not thumb_url.empty:
-                self.thumb_url = thumb_url.iloc[0]['本地路径']
+            all_image_url = self.image_info.sort_values('比例')
+            if not all_image_url.empty:
+                thumb_url = all_image_url.iloc[0]['本地路径']
         elif sample:
-            self.thumb_url = filter_data.sample().iloc[0]['本地路径']
+            thumb_url = filter_data.sample().iloc[0]['本地路径']
         else:
-            self.thumb_url = filter_data.iloc[0]['本地路径']
-        if self.thumb_url is not None:
-            self.__class__.all_thumb_url[self.key_word] = self.thumb_url
-        return self.thumb_url
+            thumb_url = filter_data.iloc[0]['本地路径']
+
+        if thumb_url is not None:
+            self.__class__.all_thumb_url[self.key_word] = thumb_url
+        return thumb_url
 
     def _loadImageInfo(self, key_info: pd.Series):
         """加载信息"""
         self.image_info = api.get_image_info_by_key(self.key_word).sort_values('日期', ignore_index=True)
-        self.thumb_url = self.__class__.all_thumb_url.get(self.key_word, None)
-        if self.thumb_url is None:
-            self._filterThumbUrl(False)  # 筛选某一张图片作为略缩图路径
+        thumb_url = self.__class__.all_thumb_url.get(self.key_word, None)
+        if thumb_url is None:
+            thumb_url = self._filterThumbUrl(False)  # 筛选某一张图片作为略缩图路径
+            if thumb_url:
+                self.setThumbUrl(thumb_url)
+        else:
+            self.setThumbUrl(thumb_url)
         image_info_total = self.image_info.shape[0]
         key_info_total = key_info[KEY_WORD.columns.total]
         self.setTitle(f'总计{image_info_total}/{key_info_total}')
@@ -113,19 +95,6 @@ class KeyWordCell(ImageCell):
             self.setColor('red')
         else:
             self.setColor(MainWidget.CURRENT_THEME)
-
-    def stopThumb(self):
-        if self.__load_thumb_timer.isActive():
-            self.__load_thumb_timer.stop()
-        if self.work_flow is not None:
-            self.work_flow.stop()
-            self.work_flow.clear()
-
-    def deleteLater(self):
-        """确保资源删除干净"""
-        # 由于表格会在刷新视图时删除掉不可见区域单元格
-        self.stopThumb()
-        super().deleteLater()
 
 
 class KeyWordRoundMenu(RoundMenu):
@@ -177,7 +146,6 @@ class KeyWordRoundMenu(RoundMenu):
 class KeyWordTableData(ImageTableData):
     """表格数据"""
 
-    @Time.timer_decorator
     def __init__(self, parent: 'KeyWordTable'):
         super().__init__(parent=parent)
         self.wall_paper_api = api.WallPaperAPI()
@@ -186,9 +154,11 @@ class KeyWordTableData(ImageTableData):
         self.dataChange.connect(self.chooseChangeLazy)
         self.dataRefresh.connect(self.chooseChangeLazy)
         self._load_choose_key = False  # 本地选择关键词是否已加载
+
         KEY_WORD.load_callback(self.refreshDataLazy)
         KEY_WORD.change_signal.connect(self.refreshDataLazy)
-        IMAGE_INFO.load_callback(lambda: Task(self.__load_choose_keys, GlobalValue.GLOBAL_TASK_MANAGE).start())
+        IMAGE_INFO.load_callback(
+            lambda: Task(self.__load_choose_keys, GlobalValue.GLOBAL_TASK_MANAGE).start())
 
     def __load_choose_keys(self):
         while not self.column_choose_name in self._dataframe.columns: time.sleep(1)
@@ -251,7 +221,11 @@ class KeyWordDelegate(ListDelegateBase):
 
     def setWidgetData(self, parent, widget, value):
         if isinstance(widget, KeyWordCell):
-            widget.setKeyWordInfo(value)
+            if isinstance(value, pd.Series):
+                widget.setKeyWordInfo(value)
+            elif isinstance(value, bool):
+                widget.checked_state = value
+                widget.checkUI()
 
 
 class KeyWordTable(ImageTable):
@@ -262,7 +236,7 @@ class KeyWordTable(ImageTable):
         self.data_model = KeyWordTableData(self)  # 数据模型
         self.column_delegate = KeyWordDelegate(self)  # 列代理
         # 设置表格参数
-        self.setBufferRows(2)  # 设置缓冲行
+        self.setBufferRows(1)  # 设置缓冲行
         self.setTableData(self.data_model)
         self.setDelegateColumn(self.column_delegate)
         self.verticalHeader().setVisible(False)

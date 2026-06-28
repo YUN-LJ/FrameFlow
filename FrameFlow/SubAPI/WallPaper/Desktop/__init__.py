@@ -5,7 +5,7 @@ from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import api
 from SubAPI.WallPaper.Desktop.DesignFile.MainWidget import Ui_wallpaper
 from SubAPI.WallPaper.Desktop.KeyTable import TableWidget
-from SubAPI.WallPaper.Desktop.ImageDisplay import ImageDisplay
+from SubAPI.WallPaper.Desktop.SetPage import SetWidget
 
 
 class WallPaperWin(FluentWidgetFromUI, Ui_wallpaper):
@@ -18,38 +18,38 @@ class WallPaperWin(FluentWidgetFromUI, Ui_wallpaper):
 
     def uiInit(self):
         # 设置按钮图标
+        self.pushButton_back.setIcon(FIF.CARE_LEFT_SOLID)
+        self.pushButton_next.setIcon(FIF.CARE_RIGHT_SOLID)
+        self.pushButton_table_list.setIcon(FIF.MENU)
         self.pushButton_set.setIcon(FIF.SETTING)
-        self.pushButton_play.setIcon(FIF.PLAY)
-        # 创建左右滑动窗口
-        self.splitter = SplitterWidget(parent=self)
-        self.horizontalLayout_2.addWidget(self.splitter)
-        # 添加左右窗口
-        self.left_widget = TableWidget(self)
-        self.right_widget = ImageDisplay(self)
-        self.splitter.addWidget(self.left_widget)
-        self.splitter.addWidget(self.right_widget)
-        # 设置初始比例（必须在添加子控件后）
-        self.splitter.setSizes([200, 1000])
-        # 隐藏设置窗口
-        self.widget_sets.hide()
-        # 防抖定时器
-        self.spinBox_time_timer = debouncer_timer(self.slot.spinBox_time_timer)
+        self.pushButton_play.setIcon(FIF.PLAY_SOLID)
+
+        # 分类包窗口
+        self.widget_tables = SidebarWidgetCover(self.widget_image_display, SidebarWidgetCover.LEFT)
+        self.widget_tables_content = TableWidget(self.widget_tables)
+        self.widget_tables_content.set_info_bar_parent(self)
+        self.widget_tables.collapseSignal.connect(
+            lambda: QTimer.singleShot(10, lambda: self.pushButton_table_list.setEnabled(True))
+        )  # 防止展开时重复触发
+        self.widget_tables.addWidget(self.widget_tables_content)
+
+        # 设置窗口
+        self.widget_sets = SidebarWidgetCover(self.widget_image_display, SidebarWidgetCover.RIGHT)
+        self.widget_sets_content = SetWidget(self.widget_sets)
+        self.widget_sets.collapseSignal.connect(
+            lambda: QTimer.singleShot(10, lambda: self.pushButton_set.setEnabled(True))
+        )  # 防止展开时重复触发
+        self.widget_sets.addWidget(self.widget_sets_content)
 
     def bind(self):
         # 控件信号连接
-        self.lineEdit_search.searchSignal.connect(self.slot.lineEdit_search)
-        self.lineEdit_search.returnPressed.connect(self.slot.lineEdit_search)
         self.pushButton_play.clicked.connect(self.slot.pushButton_play)
-        self.pushButton_select.clicked.connect(self.slot.pushButton_select)
         self.pushButton_set.clicked.connect(self.slot.pushButton_set)
-        self.pushButton_cancel_select.clicked.connect(self.slot.pushButton_cancel_select)
-        self.spinBox_time.valueChanged.connect(lambda _: self.spinBox_time_timer.start(500))
-        # 设置UI初始值
-        self.spinBox_time.setValue(api.Config.IMAGE_TIME)
+        self.pushButton_table_list.clicked.connect(self.slot.pushButton_table_list)
 
     def copyCurrentImage(self):
         """复制当前图片"""
-        self.right_widget.pushButton_copy.click()
+        self.widget_image_display.pushButton_copy.click()
 
     def playCurrentImage(self):
         """播放/暂停当前图片"""
@@ -74,20 +74,12 @@ class WallPaperSlot:
         self.wallpaper_api.pause_signal.connect(signal.pausePlaySignal.emit)
         self.wallpaper_api.play_image_signal.connect(signal.playImageSignal.emit)
 
-    @info_bar_decorator
-    def lineEdit_search(self, key_word=None):
-        key_word = self.parent.lineEdit_search.text() if key_word is None else key_word
-        if self.parent.left_widget.stackedWidget.currentIndex() == api.Config.IMAGE_KEY_MODE:
-            if self.parent.left_widget.tableWidget_key.searchKey(key_word):
-                return True, f'定位{key_word}到首行', self.parent
-        return False, f'{key_word} 不存在', self.parent
-
     def startPlaySignal(self):
-        self.parent.pushButton_play.setIcon(FIF.PAUSE)
+        self.parent.pushButton_play.setIcon(FIF.PAUSE_BOLD)
 
     def pausePlaySignal(self, paused: bool):
         """paused:是否暂停"""
-        icon = FIF.PLAY if paused else FIF.PAUSE
+        icon = FIF.PLAY_SOLID if paused else FIF.PAUSE_BOLD
         self.parent.pushButton_play.setIcon(icon)
 
     def pushButton_play(self):
@@ -98,50 +90,32 @@ class WallPaperSlot:
         else:
             self.wallpaper_api.pause()
 
-    @info_bar_decorator
-    def pushButton_select(self):
-        key_word = self.parent.lineEdit_search.text()
-        if self.parent.left_widget.stackedWidget.currentIndex() == api.Config.IMAGE_KEY_MODE:
-            if key_word:
-                if self.parent.left_widget.tableWidget_key.searchKey(key_word):
-                    self.parent.left_widget.tableWidget_key.selectCell(key_word)
-                    return True, f'已选择{key_word}开头的关键词', self.parent
-        return False, f'{key_word} 不存在', self.parent
-
-    @info_bar_decorator
-    def pushButton_cancel_select(self):
-        key_word = self.parent.lineEdit_search.text()
-        if self.parent.left_widget.stackedWidget.currentIndex() == api.Config.IMAGE_KEY_MODE:
-            if key_word:
-                if self.parent.left_widget.tableWidget_key.searchKey(key_word):
-                    self.parent.left_widget.tableWidget_key.cancelSelectCell(key_word)
-                    return True, f'已取消选择{key_word}开头的关键词', self.parent
-        return False, f'{key_word} 不存在', self.parent
-
     def pushButton_set(self):
         self.parent.widget_sets.toggle()
+        self.parent.pushButton_set.setEnabled(False)
 
-    def spinBox_time_timer(self):
-        value = self.parent.spinBox_time.value()
-        self.wallpaper_api.set_image_play_time(value)
+    def pushButton_table_list(self):
+        self.parent.widget_tables.toggle()
+        self.parent.pushButton_table_list.setEnabled(False)
 
     def playImageSignal(self, task: api.ImageProcessTask):
         finished, total = self.wallpaper_api.image_key_mode.get_play_progress()
         if task.image_info is not None:
-            self.parent.right_widget.setTags(task.image_info)
-        self.parent.right_widget.setImage(task.image_original)
+            self.parent.widget_image_display.setTags(task.image_info)
+        self.parent.widget_image_display.setImage(task.image_original)
         self.parent.label_progress.setText(f'当前播放进度:{finished}/{total}')
+        self.parent.progressBar.setValue(int((finished / total) * 100))
+
+
+def start():
+    win = WallPaperWin()
+    win.resize(800, 500)
+    win.show()
+    return win
 
 
 if __name__ == '__main__':
-    from SubAPI import start_desktop
+    from SubAPI import StartAPI, StartEnum
 
-
-    def start():
-        win = WallPaperWin()
-        win.resize(800, 500)
-        win.show()
-        return win
-
-
-    start_desktop(start)
+    start_api = StartAPI(func=start, console_level=StartEnum.LogLevel.DEBUG)
+    start_api.start_thread()

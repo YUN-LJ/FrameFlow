@@ -30,38 +30,59 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="SidebarWidget" name="widget_sets" native="true">
-     <property name="minimumSize">
-      <size>
-       <width>0</width>
-       <height>100</height>
-      </size>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_2">
-      <property name="spacing">
-       <number>0</number>
-      </property>
-      <property name="leftMargin">
-       <number>0</number>
-      </property>
-      <property name="topMargin">
-       <number>0</number>
-      </property>
-      <property name="rightMargin">
-       <number>0</number>
-      </property>
-      <property name="bottomMargin">
-       <number>0</number>
-      </property>
-      <item>
-       <widget class="SetWidget" name="set_page" native="true"/>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
     <widget class="CardWidget" name="widget_options" native="true">
      <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="PrimaryToolButton" name="pushButton_table_list">
+        <property name="minimumSize">
+         <size>
+          <width>40</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>40</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="PrimaryToolButton" name="pushButton_back">
+        <property name="minimumSize">
+         <size>
+          <width>40</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>40</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
       <item>
        <widget class="PrimaryToolButton" name="pushButton_play">
         <property name="minimumSize">
@@ -76,6 +97,38 @@
        </widget>
       </item>
       <item>
+       <widget class="PrimaryToolButton" name="pushButton_next">
+        <property name="minimumSize">
+         <size>
+          <width>40</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>40</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
        <widget class="PrimaryToolButton" name="pushButton_set">
         <property name="minimumSize">
          <size>
@@ -88,109 +141,48 @@
         </property>
        </widget>
       </item>
-      <item>
-       <widget class="BodyLabel" name="label_progress">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="SearchLineEdit" name="lineEdit_search">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="placeholderText">
-         <string>输入关键词或首字母可进行定位/选择条件</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="PrimaryPushButton" name="pushButton_select">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>选择</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="PrimaryPushButton" name="pushButton_cancel_select">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>取消</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="BodyLabel" name="label_3">
-        <property name="styleSheet">
-         <string notr="true">font: 12pt &quot;Microsoft YaHei UI&quot;;</string>
-        </property>
-        <property name="text">
-         <string>播放间隔:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="SpinBox" name="spinBox_time">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>600</number>
-        </property>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
    <item>
-    <widget class="CardWidget" name="widget_splitter" native="true">
-     <layout class="QHBoxLayout" name="horizontalLayout_2"/>
-    </widget>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <property name="leftMargin">
+      <number>10</number>
+     </property>
+     <property name="rightMargin">
+      <number>10</number>
+     </property>
+     <item>
+      <widget class="ProgressBar" name="progressBar">
+       <property name="value">
+        <number>0</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="BodyLabel" name="label_progress">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="ImageDisplay" name="widget_image_display" native="true"/>
    </item>
   </layout>
  </widget>
  <customwidgets>
-  <customwidget>
-   <class>PrimaryPushButton</class>
-   <extends>QPushButton</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
-   <class>BodyLabel</class>
-   <extends>QLabel</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
-   <class>SearchLineEdit</class>
-   <extends>QLineEdit</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
-   <class>SpinBox</class>
-   <extends>QSpinBox</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
   <customwidget>
    <class>PrimaryToolButton</class>
    <extends>QPushButton</extends>
@@ -203,16 +195,20 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>SidebarWidget</class>
+   <class>ImageDisplay</class>
    <extends>QWidget</extends>
-   <header>Fun.QtWidget</header>
+   <header>SubAPI.WallPaper.Desktop.ImageDisplay</header>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>SetWidget</class>
-   <extends>QWidget</extends>
-   <header>SubAPI.WallPaper.Desktop.SetPage</header>
-   <container>1</container>
+   <class>ProgressBar</class>
+   <extends>QProgressBar</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets</header>
   </customwidget>
  </customwidgets>
  <resources/>

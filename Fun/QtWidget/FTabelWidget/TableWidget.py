@@ -554,7 +554,13 @@ class ListWidgetBase(TableWidgetBase):
         super().__init__(model, parent)
 
     def enableColumnsCountToContents(self, enable: bool, min_width: int = 200, max_width: int = 300):
-        """启用根据表格大小调整列数"""
+        """
+        启用根据表格大小调整列数,最大和最小尺寸不绝对限制
+        由于实际表格的尺寸不一定能正好容纳
+        :param enable: 是否启用
+        :param min_width: 最小尺寸
+        :param max_width: 最大尺寸
+        """
         self._enable_columns_to_contents = enable
         self.min_columns_width = min_width
         self.max_columns_width = max_width
