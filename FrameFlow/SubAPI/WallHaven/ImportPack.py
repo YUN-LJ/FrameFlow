@@ -28,7 +28,7 @@ from qfluentwidgets import (
     PrimaryToolButton, TransparentPushButton, ProgressRing, CheckBox, RoundMenu,
     InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition,  # 气泡消息
     SimpleCardWidget, ScrollArea, CardWidget, HeaderCardWidget, CaptionLabel, BodyLabel,
-    ProgressBar, TogglePushButton
+    ProgressBar, TogglePushButton, PrimaryPushButton, SwitchButton, SearchLineEdit,
 )
 # 功能库
 from Fun.QtWidget.FTabelWidget import (
@@ -39,7 +39,8 @@ from Fun.QtWidget import (
     ImageWidget, TableCell, TableRow, get_exist_dir, get_exist_files, FluentWidgetBase, FluentWidgetFromUI,
     LoadBarDialog, LoadRingDialog, SidebarWidget, MainWidget, ImageCell, ProgressRingButton,
     info_bar_decorator, teaching_tip_decorator, debouncer_timer, TableDataCell,
-    throttle_qtimer_decorator, throttle_reuse_timer_decorator, debouncer_reuse_timer
+    throttle_qtimer_decorator, throttle_reuse_timer_decorator, debouncer_reuse_timer,
+    SidebarWidgetCover
 )
 from Fun.BaseTools import (
     File, Get, FileBase, AsyncJson, AsyncHTTPManage, AsyncChunkDownloader,

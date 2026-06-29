@@ -60,7 +60,7 @@
         <number>0</number>
        </property>
        <item>
-        <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,1">
+        <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1">
          <property name="spacing">
           <number>5</number>
          </property>
@@ -76,194 +76,6 @@
          <property name="bottomMargin">
           <number>0</number>
          </property>
-         <item>
-          <widget class="SidebarWidget" name="widget_search_params" native="true">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>0</height>
-            </size>
-           </property>
-           <layout class="QHBoxLayout" name="horizontalLayout_3">
-            <item>
-             <spacer name="horizontalSpacer">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <layout class="QGridLayout" name="gridLayout">
-              <property name="topMargin">
-               <number>15</number>
-              </property>
-              <property name="horizontalSpacing">
-               <number>10</number>
-              </property>
-              <property name="verticalSpacing">
-               <number>15</number>
-              </property>
-              <item row="0" column="3">
-               <widget class="TogglePushButton" name="checkBox_people">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>人物</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="TogglePushButton" name="checkBox_general">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>常规</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="TogglePushButton" name="checkBox_sfw">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>正常级</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="3">
-               <widget class="TogglePushButton" name="checkBox_nsfw">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>限制级</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="2">
-               <widget class="TogglePushButton" name="checkBox_sketchy">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>粗略级</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="2">
-               <widget class="TogglePushButton" name="checkBox_anime">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>动漫</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="0">
-               <widget class="PrimaryPushButton" name="pushButton_latest">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>最新</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="PrimaryPushButton" name="pushButton_hot">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>热门</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QVBoxLayout" name="verticalLayout_5">
-              <property name="spacing">
-               <number>0</number>
-              </property>
-              <item>
-               <widget class="SwitchButton" name="checkBox_use_network">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>联网搜索</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="SwitchButton" name="checkBox_use_tags">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>搜索标签</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <spacer name="horizontalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </widget>
-         </item>
          <item>
           <widget class="CardWidget" name="widget_title" native="true">
            <property name="minimumSize">
@@ -367,11 +179,6 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>SwitchButton</class>
-   <extends>QCheckBox</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
    <class>SmoothScrollArea</class>
    <extends>QScrollArea</extends>
    <header>qfluentwidgets.components.widgets</header>
@@ -393,30 +200,14 @@
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>SidebarWidget</class>
-   <extends>QWidget</extends>
-   <header>Fun.QtWidget</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>CardWidget</class>
    <extends>QWidget</extends>
    <header>qfluentwidgets</header>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>PrimaryPushButton</class>
-   <extends>QPushButton</extends>
-   <header>qfluentwidgets</header>
-  </customwidget>
-  <customwidget>
    <class>SpinBox</class>
    <extends>QSpinBox</extends>
-   <header>qfluentwidgets</header>
-  </customwidget>
-  <customwidget>
-   <class>TogglePushButton</class>
-   <extends>QCheckBox</extends>
    <header>qfluentwidgets</header>
   </customwidget>
   <customwidget>

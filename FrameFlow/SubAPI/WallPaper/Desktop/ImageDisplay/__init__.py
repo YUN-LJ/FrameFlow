@@ -2,9 +2,10 @@
 from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import api
 from SubAPI.WallPaper.Desktop.ImageDisplay.DesignFile.ImageDisplay import Ui_image_display
+from SubAPI.WallPaper.Desktop.ImageDisplay.DesignFile.ImageInfo import Ui_Image_info
 
 
-class ImageDisplay(FluentWidgetFromUI, Ui_image_display):
+class ImageDisplay(FluentWidgetBase, Ui_Image_info, Ui_image_display):
     tagClicked = Signal(str)  # 标签被点击时会发送当前被点击的标签值
 
     def __init__(self, parent=None):
@@ -15,6 +16,25 @@ class ImageDisplay(FluentWidgetFromUI, Ui_image_display):
         self.bind()
 
     def uiInit(self):
+        # 添加子窗口内容
+        self.image_display = HeaderCardWidget(title='当前图像', parent=self)
+        self.image_info = HeaderCardWidget(title='图像信息', parent=self)
+        self.view_layout.addWidget(self.image_display)
+        self.view_layout.addWidget(self.image_info)
+
+        # 添加图像显示控件
+        self.image_display_content = QWidget(self.image_display)
+        self.image_display.viewLayout.addWidget(self.image_display_content)
+        Ui_image_display.setupUi(self, self.image_display_content)
+        self.verticalLayout.removeWidget(self.image_widget_options)
+        self.image_display.headerLayout.addWidget(self.image_widget_options)
+
+        # 添加图像信息控件
+        self.image_info_content = QWidget(self.image_info)
+        self.image_info.viewLayout.addWidget(self.image_info_content)
+        Ui_Image_info.setupUi(self, self.image_info_content)
+
+        # 设置UI信息
         self.pushButton_copy.setIcon(FIF.COPY)
         self.pushButton_open.setIcon(FIF.FOLDER)
         self.pushButton_full.setIcon(FIF.FIT_PAGE)
@@ -22,9 +42,6 @@ class ImageDisplay(FluentWidgetFromUI, Ui_image_display):
         self.checkBox.setOffText('关闭自动暂停')
         self.checkBox_zoom.setOnText('启用缩放')
         self.checkBox_zoom.setOffText('关闭缩放')
-        # 图片显示窗口
-        self.image_widget = ImageWidget(parent=self)
-        self.horizontalLayout.addWidget(self.image_widget)
 
     def bind(self):
         self.tagClicked.connect(self.slot.tagClicked)
@@ -41,7 +58,7 @@ class ImageDisplay(FluentWidgetFromUI, Ui_image_display):
         tags = image_info['标签']
         row = -1
         self.clear_layout(self.gridLayout_tags)  # 清空已有标签显示
-        for label in self.groupBox_info.findChildren(QLabel):  # 清空显示
+        for label in self.image_info_content.findChildren(QLabel):  # 清空显示
             if '_value' in label.objectName():
                 label.setText('')
         for index, tag in enumerate(tags.split(';')):
@@ -72,7 +89,7 @@ class ImageDisplay(FluentWidgetFromUI, Ui_image_display):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.groupBox_image.setMinimumHeight(self.height())
+        self.image_display.setMinimumHeight(self.height())
 
 
 class ImageDisplaySlot:

@@ -1,6 +1,8 @@
 """
 壁纸播放,主窗口
 """
+from PySide6.QtGui import QColor
+
 from SubAPI.WallPaper.ImportPack import *
 from SubAPI.WallPaper import api
 from SubAPI.WallPaper.Desktop.DesignFile.MainWidget import Ui_wallpaper

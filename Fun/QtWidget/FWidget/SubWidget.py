@@ -153,7 +153,7 @@ class FluentWidgetBase(QWidget):
     内部自带布局view_layout,可传递布局
     """
 
-    def __init__(self, parent=None, layout=None):
+    def __init__(self, parent: QWidget = None, layout: QVBoxLayout = None):
         super().__init__(parent)
         # 创建滚动区域
         self._content_scroll = ScrollArea(self)
@@ -269,15 +269,23 @@ class SidebarWidgetCover(CardWidget):
     TOP = 2
     BOTTOM = 3
 
-    def __init__(self, parent: QWidget, direction=LEFT, default_size=300):
+    def __init__(self, parent: QWidget, direction=LEFT, default_size=300, use_stand_alone=True):
+        """
+        :param parent:绑定的父对象
+        :param direction:贴合父对象的那一边,默认贴合左边
+        :param default_size:默认尺寸,300,左右限制宽,上下限制高
+        :param use_stand_alone:是否使用独立窗口模式,默认启用
+        """
         super().__init__(parent)
 
         self.direction = direction
         self.isExpanded = False
         self.default_size = default_size
+        self.use_stand_alone = use_stand_alone
 
         # 设置为独立弹出窗口，不占用任务栏
-        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        if self.use_stand_alone:
+            self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         # self.setAttribute(Qt.WA_TranslucentBackground, True)
         # self.setAttribute(Qt.WA_StyledBackground, True)
         # self.setWindowOpacity(0.8)  # 0.0完全透明，1.0不透明
@@ -316,23 +324,31 @@ class SidebarWidgetCover(CardWidget):
         parent_rect = parent.rect()
         parent_global_pos = parent.mapToGlobal(parent_rect.topLeft())
         if self.direction == self.LEFT:
-            x = parent_global_pos.x()
-            y = parent_global_pos.y()
+            if self.use_stand_alone:
+                x, y = parent_global_pos.x(), parent_global_pos.y()
+            else:
+                x, y = parent_rect.x(), parent_rect.y()
             height = parent_rect.height()
             self.setGeometry(x, y, self.width(), height)
         elif self.direction == self.RIGHT:
-            x = parent_global_pos.x() + parent_rect.width() - self.width()
-            y = parent_global_pos.y()
+            if self.use_stand_alone:
+                x, y = parent_global_pos.x() + parent_rect.width() - self.width(), parent_global_pos.y()
+            else:
+                x, y = parent_rect.x() + parent_rect.width() - self.width(), parent_rect.y()
             height = parent_rect.height()
             self.setGeometry(x, y, self.width(), height)
         elif self.direction == self.TOP:
-            x = parent_global_pos.x()
-            y = parent_global_pos.y()
+            if self.use_stand_alone:
+                x, y = parent_global_pos.x(), parent_global_pos.y()
+            else:
+                x, y = parent_rect.x(), parent_rect.y()
             width = parent_rect.width()
             self.setGeometry(x, y, width, self.height())
         else:  # BOTTOM
-            x = parent_global_pos.x()
-            y = parent_global_pos.y() + parent_rect.height() - self.height()
+            if self.use_stand_alone:
+                x, y = parent_global_pos.x(), parent_global_pos.y() + parent_rect.height() - self.height()
+            else:
+                x, y = parent_rect.x(), parent_rect.y() + parent_rect.height() - self.height()
             width = parent_rect.width()
             self.setGeometry(x, y, width, self.height())
 

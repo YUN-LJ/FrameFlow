@@ -15,15 +15,12 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QHeaderView,
-    QSizePolicy, QSpacerItem, QTableWidgetItem, QVBoxLayout,
-    QWidget)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QSizePolicy,
+    QTableWidgetItem, QVBoxLayout, QWidget)
 
-from Fun.QtWidget import SidebarWidget
 from SubAPI.WallHaven.Desktop.SearchPage.SearchTable import SearchTable
-from qfluentwidgets import (BodyLabel, CardWidget, PrimaryPushButton, SpinBox,
-    TogglePushButton)
-from qfluentwidgets.components.widgets import (PrimaryToolButton, SearchLineEdit, SmoothScrollArea, SwitchButton)
+from qfluentwidgets import (BodyLabel, CardWidget, SpinBox)
+from qfluentwidgets.components.widgets import (PrimaryToolButton, SearchLineEdit, SmoothScrollArea)
 
 class Ui_SearchPage(object):
     def setupUi(self, SearchPage):
@@ -48,96 +45,6 @@ class Ui_SearchPage(object):
         self.verticalLayout.setSpacing(5)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.widget_search_params = SidebarWidget(self.scrollAreaWidgetContents)
-        self.widget_search_params.setObjectName(u"widget_search_params")
-        self.widget_search_params.setMinimumSize(QSize(0, 0))
-        self.horizontalLayout_3 = QHBoxLayout(self.widget_search_params)
-        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
-        self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_3.addItem(self.horizontalSpacer)
-
-        self.gridLayout = QGridLayout()
-        self.gridLayout.setObjectName(u"gridLayout")
-        self.gridLayout.setHorizontalSpacing(10)
-        self.gridLayout.setVerticalSpacing(15)
-        self.gridLayout.setContentsMargins(-1, 15, -1, -1)
-        self.checkBox_people = TogglePushButton(self.widget_search_params)
-        self.checkBox_people.setObjectName(u"checkBox_people")
-        self.checkBox_people.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.checkBox_people, 0, 3, 1, 1)
-
-        self.checkBox_general = TogglePushButton(self.widget_search_params)
-        self.checkBox_general.setObjectName(u"checkBox_general")
-        self.checkBox_general.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.checkBox_general, 0, 1, 1, 1)
-
-        self.checkBox_sfw = TogglePushButton(self.widget_search_params)
-        self.checkBox_sfw.setObjectName(u"checkBox_sfw")
-        self.checkBox_sfw.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.checkBox_sfw, 1, 1, 1, 1)
-
-        self.checkBox_nsfw = TogglePushButton(self.widget_search_params)
-        self.checkBox_nsfw.setObjectName(u"checkBox_nsfw")
-        self.checkBox_nsfw.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.checkBox_nsfw, 1, 3, 1, 1)
-
-        self.checkBox_sketchy = TogglePushButton(self.widget_search_params)
-        self.checkBox_sketchy.setObjectName(u"checkBox_sketchy")
-        self.checkBox_sketchy.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.checkBox_sketchy, 1, 2, 1, 1)
-
-        self.checkBox_anime = TogglePushButton(self.widget_search_params)
-        self.checkBox_anime.setObjectName(u"checkBox_anime")
-        self.checkBox_anime.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.checkBox_anime, 0, 2, 1, 1)
-
-        self.pushButton_latest = PrimaryPushButton(self.widget_search_params)
-        self.pushButton_latest.setObjectName(u"pushButton_latest")
-        self.pushButton_latest.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.pushButton_latest, 0, 0, 1, 1)
-
-        self.pushButton_hot = PrimaryPushButton(self.widget_search_params)
-        self.pushButton_hot.setObjectName(u"pushButton_hot")
-        self.pushButton_hot.setMinimumSize(QSize(0, 40))
-
-        self.gridLayout.addWidget(self.pushButton_hot, 1, 0, 1, 1)
-
-
-        self.horizontalLayout_3.addLayout(self.gridLayout)
-
-        self.verticalLayout_5 = QVBoxLayout()
-        self.verticalLayout_5.setSpacing(0)
-        self.verticalLayout_5.setObjectName(u"verticalLayout_5")
-        self.checkBox_use_network = SwitchButton(self.widget_search_params)
-        self.checkBox_use_network.setObjectName(u"checkBox_use_network")
-        self.checkBox_use_network.setMinimumSize(QSize(0, 40))
-
-        self.verticalLayout_5.addWidget(self.checkBox_use_network)
-
-        self.checkBox_use_tags = SwitchButton(self.widget_search_params)
-        self.checkBox_use_tags.setObjectName(u"checkBox_use_tags")
-        self.checkBox_use_tags.setMinimumSize(QSize(0, 40))
-
-        self.verticalLayout_5.addWidget(self.checkBox_use_tags)
-
-
-        self.horizontalLayout_3.addLayout(self.verticalLayout_5)
-
-        self.horizontalSpacer_2 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_3.addItem(self.horizontalSpacer_2)
-
-
-        self.verticalLayout.addWidget(self.widget_search_params)
-
         self.widget_title = CardWidget(self.scrollAreaWidgetContents)
         self.widget_title.setObjectName(u"widget_title")
         self.widget_title.setMinimumSize(QSize(0, 0))
@@ -190,7 +97,7 @@ class Ui_SearchPage(object):
 
         self.verticalLayout.addWidget(self.widget_content)
 
-        self.verticalLayout.setStretch(2, 1)
+        self.verticalLayout.setStretch(1, 1)
 
         self.verticalLayout_3.addLayout(self.verticalLayout)
 
@@ -206,16 +113,6 @@ class Ui_SearchPage(object):
 
     def retranslateUi(self, SearchPage):
         SearchPage.setWindowTitle(QCoreApplication.translate("SearchPage", u"\u641c\u7d22\u6a21\u5757", None))
-        self.checkBox_people.setText(QCoreApplication.translate("SearchPage", u"\u4eba\u7269", None))
-        self.checkBox_general.setText(QCoreApplication.translate("SearchPage", u"\u5e38\u89c4", None))
-        self.checkBox_sfw.setText(QCoreApplication.translate("SearchPage", u"\u6b63\u5e38\u7ea7", None))
-        self.checkBox_nsfw.setText(QCoreApplication.translate("SearchPage", u"\u9650\u5236\u7ea7", None))
-        self.checkBox_sketchy.setText(QCoreApplication.translate("SearchPage", u"\u7c97\u7565\u7ea7", None))
-        self.checkBox_anime.setText(QCoreApplication.translate("SearchPage", u"\u52a8\u6f2b", None))
-        self.pushButton_latest.setText(QCoreApplication.translate("SearchPage", u"\u6700\u65b0", None))
-        self.pushButton_hot.setText(QCoreApplication.translate("SearchPage", u"\u70ed\u95e8", None))
-        self.checkBox_use_network.setText(QCoreApplication.translate("SearchPage", u"\u8054\u7f51\u641c\u7d22", None))
-        self.checkBox_use_tags.setText(QCoreApplication.translate("SearchPage", u"\u641c\u7d22\u6807\u7b7e", None))
         self.pushButton_expand.setText("")
         self.lineEdit.setPlaceholderText(QCoreApplication.translate("SearchPage", u"\u8f93\u5165\u82f1\u6587\u5173\u952e\u8bcd,\u53f3\u952e\u663e\u793a\u641c\u7d22\u5386\u53f2", None))
         self.label_page_info.setText("")

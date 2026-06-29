@@ -150,6 +150,20 @@ class WallHavenClassWidget(QWidget):
 
         self.view_layout.addWidget(self.purity_heard)
 
+    def getPurity(self) -> str:
+        return ''.join([
+            str(int(self.checkBox_sfw.isChecked())),
+            str(int(self.checkBox_sketchy.isChecked())),
+            str(int(self.checkBox_nsfw.isChecked())),
+        ])
+
+    def getCategories(self) -> str:
+        return ''.join([
+            str(int(self.checkBox_general.isChecked())),
+            str(int(self.checkBox_anime.isChecked())),
+            str(int(self.checkBox_people.isChecked())),
+        ])
+
 
 class WallHavenClassWidgetExpand(QWidget):
     def __init__(self, parent=None):
