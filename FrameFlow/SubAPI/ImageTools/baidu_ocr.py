@@ -1,134 +1,11 @@
-# import threading
-# import time
-# import logging
-# from typing import Optional, Tuple
-# import requests
-# from config import 
-# # 配置日志
-# logging.basicConfig(
-#     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-# )
-# logger = logging.getLogger(__name__)
-
-
-# def _get_access_token(api_key, secret_key):
-#     """获取百度OCR access_token"""
-#     url = "https://aip.baidubce.com/oauth/2.0/token"
-#     data = {
-#         "grant_type": "client_credentials",
-#         "client_id": api_key,
-#         "client_secret": secret_key,
-#     }
-#     response = session.post(url, data=data, timeout=(5, 10))
-#     if response.status_code == 200:
-#         result = response.json()
-#         return result.get("access_token")
-#     else:
-#         raise Exception(f"获取token失败，状态码：{response.status_code}")
-
-
-# def get_cached_access_token():
-#     """获取缓存的token，若过期则重新获取"""
-#     now = time.time()
-#     if _token_cache["token"] and _token_cache["expires_at"] > now + 60:
-#         return _token_cache["token"]
-#     token = _get_access_token(__API_KEY, __SECRET_KEY)
-#     _token_cache["token"] = token
-#     _token_cache["expires_at"] = now + 2592000  # 30天
-#     return token
-
-
-# def general_ocr(img_base64, access_token):
-#     _rate_limit()
-#     request_url_base = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
-#     request_url = request_url_base + "?access_token=" + access_token
-#     params = {
-#         "image": img_base64,
-#         "detect_direction": "true",
-#         # 'probability':'true'
-#     }
-#     headers = {"content-type": "application/x-www-form-urlencoded"}
-#     response = session.post(request_url, data=params, headers=headers, timeout=(5, 10))
-#     if response.status_code == 200:
-#         result = response.json()
-#         if "error_code" in result:
-#             # API 返回错误
-#             error_code = result.get("error_code")
-#             error_msg = result.get("error_msg")
-#             logger.error(
-#                 f"通用OCR识别失败，error_code={error_code}，error_msg={error_msg}"
-#             )
-#             return None
-#         words_list = result.get("words_result", [])
-#         full_text = "".join(item["words"] for item in words_list)
-#         idcard_keywords = ["姓名", "性别", "民族", "出生", "公民身份号码"]
-#         if any(kw in full_text for kw in idcard_keywords):
-#             logger.info("检测到身份证特征，调用身份证OCR")
-#             id_result = _idcard_ocr(img_base64, access_token)
-#             if id_result:
-#                 return {"type": "idcard", "data": id_result}
-#         bank_keywords = [
-#             "银行卡",
-#             "卡号",
-#             "有效期",
-#             "发卡行",
-#             "借记卡",
-#             "信用卡",
-#             "ABC",
-#             "ATM",
-#             "银行",
-#         ]
-#         if any(kw in full_text for kw in bank_keywords):
-#             logger.info("检测到银行卡特征，调用银行卡OCR")
-#             bank_result = _bankcard_ocr(img_base64, access_token)
-#             if bank_result:
-#                 return {"type": "bankcard", "data": bank_result}
-#         return {"type": "general", "data": {"text": full_text[:200]}}
-
-#     else:
-#         logger.error(f"请求失败，错误原因status_code = {response.status_code}")
-#         return None
-
-
-# def _idcard_ocr(img_base64, access_token):
-#     _rate_limit()
-#     request_url_base = "https://aip.baidubce.com/rest/2.0/ocr/v1/idcard"
-#     params = {"id_card_side": "front", "image": img_base64}
-#     request_url = request_url_base + "?access_token=" + access_token
-#     headers = {"content-type": "application/x-www-form-urlencoded"}
-#     response = session.post(request_url, data=params, headers=headers, timeout=(5, 10))
-#     if response.status_code == 200:
-#         result = response.json()
-#         if "error_code" in result:
-#             # API 返回错误
-#             error_code = result.get("error_code")
-#             error_msg = result.get("error_msg")
-#             logger.error(
-#                 f"身份证OCR识别失败，error_code={error_code}，error_msg={error_msg}"
-#             )
-#             return None
-#         words_result = result.get("words_result", {})
-#         return (
-#             words_result.get("住址", {}).get("words"),
-#             words_result.get("公民身份号码", {}).get("words"),
-#             words_result.get("出生", {}).get("words"),
-#             words_result.get("姓名", {}).get("words"),
-#             words_result.get("性别", {}).get("words"),
-#             words_result.get("民族", {}).get("words"),
-#         )
-#     else:
-#         logger.error(f"身份证OCR请求失败，错误原因status_code = {response.status_code}")
-#         return None
 '----------------------------------------------------------------------------'
 # acess_token 大概能被设计成读写锁的形式？只有一个写锁，其余都是读锁？还是说没必要，因为在同一个进程中，分出线程，并各自管理session
-import string
 import sys
 from pathlib import Path
 import threading
 import time
 from typing import Any, List, Tuple
-import inspect
-from attr import dataclass
+from dataclasses import dataclass
 import requests
 
 import random
@@ -138,7 +15,6 @@ import logging
 
 sys.path.insert(0,r'D:\WorkDirectory\PythonProject\FrameFlow')  # 往上找到 PythonProject
 # 必须先修改 LogConfig 的三个值，然后才能导入任何依赖 Fun.BaseTools 的模块
-from FrameFlow.SubAPI.ImageTools import payload_base
 from Fun.BaseTools.LogClass import LogConfig
 LogConfig.LOG_DIR = Path.cwd() / 'config'           # 改到当前目录下的 config
 LogConfig.LOG_FILE = LogConfig.LOG_DIR / 'app.log'
@@ -323,7 +199,7 @@ class OCRBase:
     async def get_access_token(self)->str:
         return await self.access_token_manager.get_valid_token()
     def get_ocr_response(self)->requests.Response:
-        return ?
+        return ...
     def get_ocr_error_msg(self,err_code:int)->str:
         return self.OCR_ERR_DICT.get(err_code)
     
