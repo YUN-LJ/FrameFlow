@@ -72,13 +72,13 @@ class GeneralOCRConfig:
 
 @dataclass
 class OCRConfig:
+    """只进行OCR相关的配置，进行处理的相关配置放在EditConfig中"""
     ACCESS_TOKEN_POST_URL:str = "https://aip.baidubce.com/oauth/2.0/token"
-
+    GENERAL_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
     IDCARD_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/idcard"
-    BANKCARD_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
-    ENABLE_IDCARD_OCR:bool = True
-    ENABLE_BANCARD_OCR:bool = True
-
+    BANKCARD_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/bankcard"
+    headers = {'content-type': 'application/x-www-form-urlencoded'}
+    params = {"image":"{img}"}
 @dataclass
 class PackConfig:
     ocr:OCRConfig = OCRConfig()
@@ -117,10 +117,10 @@ class EditConfig:
     # IDCARD_FIELDS = ["姓名","公民身份号码"]
     # """身份证字段（固定顺序）"""
     IDCARD_DEFS = [
-        ('USE_IDCARD_NAME', '姓名', '姓名'),          # 百度返回 key 就是 '姓名'
+        ('USE_IDCARD_NAME', '姓名', '姓名'),          
         ('USE_IDCARD_GENDER', '性别', '性别'),
         ('USE_IDCARD_NATION', '民族', '民族'),
-        ('USE_IDCARD_BIRTH', '出生日期', '出生'),    # 注意：展示名和提取名不一致！
+        ('USE_IDCARD_BIRTH', '出生日期', '出生'),    
         ('USE_IDCARD_ADDRESS', '住址', '住址'),
         ('USE_IDCARD_ID', '公民身份号码', '公民身份号码'),
     ]
@@ -169,4 +169,15 @@ class EditConfig:
     def get_total_extra_cols(cls):
         return len(cls.get_all_display_fields())
 
+    @classmethod
+    def toggle(cls, attr_name: str):
+        """切换指定布尔类属性的值（True ↔ False）"""
+        if hasattr(cls, attr_name):
+            current = getattr(cls, attr_name)
+            if isinstance(current, bool):
+                setattr(cls, attr_name, not current)
+            else:
+                raise TypeError(f"{attr_name} 不是布尔类型")
+        else:
+            raise AttributeError(f"{attr_name} 不存在")
 
