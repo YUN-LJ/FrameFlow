@@ -1,91 +1,77 @@
-# r\FrameFlow(PROJECT_ROOT)FrameFlow\SubAPI\ImageTools\config.py
+# r\FrameFlow(PROJECT_ROOT)\FrameFlow\SubAPI\ImageTools\config.py
 
 # 用户必填配置
-from dataclasses import dataclass,field
-from typing import Literal, Optional
+from dataclasses import dataclass, field
+from urllib.parse import urlencode
 
+from FrameFlow.SubAPI.ImageTools.baidu_ocr import AccessTokenManager
 
-# API_KEY = 'API_KEY' 
-# SECRET_KEY = 'SECRET_KEY'
-
-
-
-## 性能相关
-
-# 系统内部配置
 _token_cache = {"token": None, "expires_at": 0}
 _QPS = 2
 
-# 环境/部署配置
-_ACCESS_TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
-_GENERAL_OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
-_IDCARD_OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/idcard"
-_HEADERS = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Accept': 'application/json'
-}
-_QUERY_PARAMS = {"access_token":""}
-# 假设添加其他OCR/API的话，我应该怎么调整这个文件
-'------------------------------------------------------------------'
-LanguageType = Literal['CHN_ENG','ENG','JAP','KOR','FRE','SPA','POR','GER','ITA','RUS']
-BoolStr = Literal['true','false']
-class Config:
-    def __init__(self):
-        # 应该是允许Config类作为结点或者属性类作为结点，后续再研究
+_QUERY_PARAMS = {"access_token": ""}
+
+# 模块级常量
+GENERAL_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
+"""通用OCR请求地址"""
+IDCARD_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/idcard"
+"""身份证OCR请求地址"""
+BANKCARD_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/bankcard"
+"""银行卡OCR请求地址"""
+
+@dataclass
+class OCRPostConfig:
+    url: str = GENERAL_URL  # 当前使用的 URL
+    """使用的URL，创建时是通用请求的URL，使用as_idcard()或as_bankcard()函数进行切换"""
+    params: dict = field(default_factory=dict)
+    """请求体参数"""
+    headers: dict = field(default_factory=lambda: {'Content-Type': 'application/x-www-form-urlencoded'})
+    """HTTP请求头，字典格式"""
+    data:dict = field(default_factory=lambda:{'image':''})  # 请求体
+    """跟随请求发送的数据"""
+
+    def as_idcard(self):
+        """设置地址为身份证查询地址"""
+        self.url = IDCARD_URL
         return self
-    def revert(self,text):
-        """输入格式化文本，转变成对应的配置内容"""
-        pass
-@dataclass
-class GeneralOCRConfig:
-    GENERAL_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
-    URL_PARAMS:dict = {'access_token':''}
-    HEADERS:dict = field(default_factory = lambda:{'content-type': 'application/x-www-form-urlencoded'})
-    BODY_PARAMS:dict = {
-        'image':'',
-        'url':'',
-        'pdf_file':'',
-        'pdf_file_num':'',
-        'ofd_file':'',
-        'ofd_file_num':'',
-    }
-    language_type:LanguageType = 'CHN_ENG',
-    detect_direction:bool =False,
-    detect_language:bool = False
-    paragraph:bool = False
-    probability:bool = False
-    # 输入源（四选一），默认都为空
-    image_path: Optional[str] = None        # 本地图片路径（会自动 base64）
-    image_url: Optional[str] = None
-    pdf_path: Optional[str] = None
-    pdf_page_num: int = 1
-    ofd_path: Optional[str] = None
-    ofd_page_num: int = 1
-    access_token:str = ''
 
+    def as_bankcard(self):
+        """设置地址为银行卡查询地址"""
+        self.url = BANKCARD_URL
+        return self
 
+    def build_request(self,mgr:AccessTokenManager):
+        """创建参数字典"""
+        # self.params['access_token'] = mgr.get_valid_token()
+        params = self.params.copy()
+        params['access_token'] = mgr.get_valid_token()
+        query = urlencode(params)
+        # query = '&'.join(f"{k}={v}" for k,v in self.params.items())
 
-    RESPONSE_STRUCT = {
-        'direction','log_id','words_result_num','words_result',
-    }
+        return {
+            'url':f"{self.url}?{query}",
+            'headers':self.headers,
+            'data':self.data
+        }
 
+    def clone(self,data:str)->'OCRPostConfig':
+        """复制当前模板，并替换图片数据"""
+        new_data = self.data.copy()
+        new_data['data']=data
+        return OCRPostConfig(
+            url=self.url,
+            params=self.params.copy(),
+            headers=self.headers.copy(),
+            data=new_data
+        )
 
-@dataclass
-class OCRConfig:
-    """只进行OCR相关的配置，进行处理的相关配置放在EditConfig中"""
-    ACCESS_TOKEN_POST_URL:str = "https://aip.baidubce.com/oauth/2.0/token"
-    GENERAL_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
-    IDCARD_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/idcard"
-    BANKCARD_OCR_POST_URL:str = "https://aip.baidubce.com/rest/2.0/ocr/v1/bankcard"
-    headers = {'content-type': 'application/x-www-form-urlencoded'}
-    params = {"image":"{img}"}
-@dataclass
-class PackConfig:
-    ocr:OCRConfig = OCRConfig()
+BASE_PROTOTYPE = OCRPostConfig()
+"""OCR请求字典原型"""
 
 
 class EditConfig:
     """写回Excel的相关配置"""
+
     ## 功能开关
     ENABLE_IDCARD_OCR = True
     """是否执行身份证OCR，默认为True"""
@@ -117,20 +103,20 @@ class EditConfig:
     # IDCARD_FIELDS = ["姓名","公民身份号码"]
     # """身份证字段（固定顺序）"""
     IDCARD_DEFS = [
-        ('USE_IDCARD_NAME', '姓名', '姓名'),          
-        ('USE_IDCARD_GENDER', '性别', '性别'),
-        ('USE_IDCARD_NATION', '民族', '民族'),
-        ('USE_IDCARD_BIRTH', '出生日期', '出生'),    
-        ('USE_IDCARD_ADDRESS', '住址', '住址'),
-        ('USE_IDCARD_ID', '公民身份号码', '公民身份号码'),
+        ("USE_IDCARD_NAME", "姓名", "姓名"),
+        ("USE_IDCARD_GENDER", "性别", "性别"),
+        ("USE_IDCARD_NATION", "民族", "民族"),
+        ("USE_IDCARD_BIRTH", "出生日期", "出生"),
+        ("USE_IDCARD_ADDRESS", "住址", "住址"),
+        ("USE_IDCARD_ID", "公民身份号码", "公民身份号码"),
     ]
 
     BANKCARD_DEFS = [
-        ('USE_BANKCARD_NUMBER', '银行卡号', 'bank_card_number'),
-        ('USE_BANKCARD_VALIDDATE', '有效期', 'valid_date'),
-        ('USE_BANKCARD_TYPE', '卡片类型', 'type'),
-        ('USE_BANKCARD_BANKNAME', '发卡行', 'bank_name'),
-        ('USE_BANKCARD_HOLDERNAME', '持卡人', 'holder_name'),
+        ("USE_BANKCARD_NUMBER", "银行卡号", "bank_card_number"),
+        ("USE_BANKCARD_VALIDDATE", "有效期", "valid_date"),
+        ("USE_BANKCARD_TYPE", "卡片类型", "type"),
+        ("USE_BANKCARD_BANKNAME", "发卡行", "bank_name"),
+        ("USE_BANKCARD_HOLDERNAME", "持卡人", "holder_name"),
     ]
 
     @classmethod
@@ -155,7 +141,7 @@ class EditConfig:
         if cls.ENABLE_IDCARD_OCR:
             keys.extend([d[2] for d in cls._get_enabled_defs(cls.IDCARD_DEFS)])
         return keys
-    
+
     @classmethod
     def get_bankcard_extract_keys(cls):
         """获取银行卡的API提取字段列表"""
@@ -164,7 +150,6 @@ class EditConfig:
             keys.extend([d[2] for d in cls._get_enabled_defs(cls.BANKCARD_DEFS)])
         return keys
 
-    
     @classmethod
     def get_total_extra_cols(cls):
         return len(cls.get_all_display_fields())
@@ -180,4 +165,3 @@ class EditConfig:
                 raise TypeError(f"{attr_name} 不是布尔类型")
         else:
             raise AttributeError(f"{attr_name} 不存在")
-

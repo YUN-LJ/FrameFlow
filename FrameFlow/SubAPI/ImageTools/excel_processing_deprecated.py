@@ -1,3 +1,4 @@
+"""已弃用"""
 # 整个流程
 # （用户）通过一个按钮，打开选择文件窗口，选择了xlsx文件 需求，无参函数
 # （函数）打开选择文件窗口，拿到选择的文件地址
@@ -13,12 +14,12 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 import json
 from pathlib import Path
+import warnings
+from warnings import deprecated
 import openpyxl
 import openpyxl.worksheet
-import base64
 from baidu_ocr import general_ocr, get_cached_access_token
 from extractor import ExcelImageExtractor
-
 # 配置项
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -29,7 +30,7 @@ OUTPUT_PATH = "extracted_images"
 _MEMORY_FILE = Path.home() / ".file_selector_memory.json"
 _DEFAULT_DIR = Path.home() / "Documents"
 
-
+@deprecated("已弃用")
 def _load_last_directory() -> Path:
     """从文件中读取上次访问的目录位置"""
     if not _MEMORY_FILE.exists():
@@ -45,7 +46,7 @@ def _load_last_directory() -> Path:
     except (json.JSONDecodeError, OSError, KeyError) as e:
         logger.warning(f"读取记忆文件失败：{e}")
 
-
+@warnings.deprecated("请使用 new_function 代替")
 def _save_last_directory(directory: Path) -> None:
     """保存用户选择目录到记忆文件"""
     try:
@@ -54,7 +55,7 @@ def _save_last_directory(directory: Path) -> None:
     except OSError as e:
         logger.warning(f"保存记忆文件失败：{e}")
 
-
+@deprecated
 def _openwindow() -> Path:
     """打开文件选择窗口，返回所选文件路径；用户取消返回空字符串；不允许选择多个文件"""
     initial_dir = _load_last_directory()
@@ -79,7 +80,7 @@ def _openwindow() -> Path:
         return selected
     return Path()
 
-
+@deprecated
 def _select_sheet(wb: openpyxl.Workbook):
     """弹出选择工作表对话框，返回选中的工作表名"""
     sheet_names = wb.sheetnames
@@ -112,13 +113,7 @@ def _select_sheet(wb: openpyxl.Workbook):
     win.grab_set()
     win.wait_window()
     return result[0]
-
-
-def _image2base64(img_bytes) -> str:
-    img_base64 = base64.b64encode(img_bytes).decode("utf-8")
-    return img_base64
-
-
+@deprecated
 def _find_data_start_row(sheet):
     """找到第一条数据行（A列为数字且不为空的行）"""
     for row in range(1, sheet.max_row + 1):
@@ -131,7 +126,7 @@ def _find_data_start_row(sheet):
             return row
     return None
 
-
+@deprecated
 def excel_process():
     file_path = _openwindow()
     if not file_path:
@@ -192,7 +187,7 @@ def excel_process():
     wb.save(output_path)
     logger.info("完成", f"处理完成！\n结果已保存至：{output_path}")
 
-
+@deprecated
 def excel_process2(xlsx_path: Path, sheetname: str):
     if not xlsx_path.exists():
         logger.error(f"文件不存在:{xlsx_path}")
@@ -248,7 +243,6 @@ def excel_process2(xlsx_path: Path, sheetname: str):
         logger.info(f"处理完成，结果保存至{output_path}")
     except Exception as e:
         logger.error(f"保存文件失败:{e}")
-
 
 if __name__ == "__main__":
     # 创建主窗口
