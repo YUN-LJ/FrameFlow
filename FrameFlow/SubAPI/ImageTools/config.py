@@ -2,6 +2,7 @@
 
 # 用户必填配置
 from dataclasses import dataclass, field
+from typing import ClassVar
 from urllib.parse import urlencode
 
 from FrameFlow.SubAPI.ImageTools.baidu_ocr import AccessTokenManager
@@ -40,8 +41,8 @@ class OCRPostConfig:
         self.url = BANKCARD_URL
         return self
 
-    def build_request(self,mgr:AccessTokenManager):
-        """创建参数字典"""
+    def build_request(self,mgr:AccessTokenManager)->dict:
+        """创建request请求需要的参数字典"""
         # self.params['access_token'] = mgr.get_valid_token()
         params = self.params.copy()
         params['access_token'] = mgr.get_valid_token()
@@ -57,7 +58,7 @@ class OCRPostConfig:
     def clone(self,data:str)->'OCRPostConfig':
         """复制当前模板，并替换图片数据"""
         new_data = self.data.copy()
-        new_data['data']=data
+        new_data['image']=data
         return OCRPostConfig(
             url=self.url,
             params=self.params.copy(),
@@ -102,7 +103,7 @@ class EditConfig:
 
     # IDCARD_FIELDS = ["姓名","公民身份号码"]
     # """身份证字段（固定顺序）"""
-    IDCARD_DEFS = [
+    IDCARD_DEFS:ClassVar[list] = [
         ("USE_IDCARD_NAME", "姓名", "姓名"),
         ("USE_IDCARD_GENDER", "性别", "性别"),
         ("USE_IDCARD_NATION", "民族", "民族"),
@@ -111,7 +112,7 @@ class EditConfig:
         ("USE_IDCARD_ID", "公民身份号码", "公民身份号码"),
     ]
 
-    BANKCARD_DEFS = [
+    BANKCARD_DEFS:ClassVar[list] = [
         ("USE_BANKCARD_NUMBER", "银行卡号", "bank_card_number"),
         ("USE_BANKCARD_VALIDDATE", "有效期", "valid_date"),
         ("USE_BANKCARD_TYPE", "卡片类型", "type"),
