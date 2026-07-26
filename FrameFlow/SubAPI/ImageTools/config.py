@@ -41,11 +41,10 @@ class OCRPostConfig:
         self.url = BANKCARD_URL
         return self
 
-    def build_request(self,mgr:AccessTokenManager)->dict:
+    async def build_request(self,mgr:AccessTokenManager)->dict:
         """创建request请求需要的参数字典"""
-        # self.params['access_token'] = mgr.get_valid_token()
         params = self.params.copy()
-        params['access_token'] = mgr.get_valid_token()
+        params['access_token'] = await mgr.get_valid_token()
         query = urlencode(params)
         # query = '&'.join(f"{k}={v}" for k,v in self.params.items())
 

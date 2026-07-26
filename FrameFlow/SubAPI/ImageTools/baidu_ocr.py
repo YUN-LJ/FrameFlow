@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import ClassVar
 
 import requests
-from utils import check_keys, input_keys
+import utils
+
+from FrameFlow.SubAPI.ImageTools.config import OCRPostConfig
 
 sys.path.insert(0,r'D:\WorkDirectory\PythonProject\FrameFlow')  # 往上找到 PythonProject
 # 必须先修改 LogConfig 的三个值，然后才能导入任何依赖 Fun.BaseTools 的模块
@@ -77,17 +79,6 @@ class AccessTokenManager:
         
 
 
-class BasePayload:
-    def _img2base64(raw:str)->str:
-        """
-        将提供的图片，转换成需要的格式，存储进返回对象中
-        """
-        pass
-    def _bool2str(v:bool)->str:
-        """将bool类型的数值转换成对应的小写字符串"""
-        return "true" if v else "false"
-
-
         
 class OCRBase:
     """OCR基类"""
@@ -136,10 +127,10 @@ class OCRBase:
         self,
         url:str,
         access_token_manager :AccessTokenManager,
-        headers: dict = None,
-        payload: dict = None,
-        params: dict = None,
-        timeout: tuple[int, int] = None,
+        headers: dict|None = None,
+        payload: dict|None = None,
+        params: dict|None = None,
+        timeout: tuple[int, int]|None = None,
         session: requests.Session = None,
         enable_rate_limit: bool = True,
         rate_limit_per_sec: int = 2,
@@ -171,63 +162,44 @@ class OCRBase:
     def get_ocr_error_msg(self,err_code:int)->str:
         return self.OCR_ERR_DICT.get(err_code)
     
+class GeneralOCR:
+    def __init__(self,path,access_token_manager:AccessTokenManager,post_config:OCRPostConfig,http_manager:AsyncHTTPManage):
+        """创建通用OCR识别对象，能够基于post_config创建新的复制，并得到响应"""
+        self.access_token_manager = access_token_manager
+        self.http_manager = http_manager
+        with open(path, 'rb') as f:
+            self.data = utils.image2base64(f.read()) # TODO 待修改，适配从压缩文件中读取图片
+        self.post_config = post_config.clone(self.data) # 需要保留的对象，会在后续转发二次识别时使用
+        
 
-class GeneralOCRConfig:
-    # 类常量
-    TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
-    API_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
-
-    def __init__(self, api_key: str, secret_key: str):
-        # ---------- 实例属性：每个用户独立的凭证 ----------
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.access_token = None
-
-    def _ensure_token(self):
-        """获取或刷新 Access Token"""
-        if self.access_token is None:
-            # 直接使用类常量 TOKEN_URL
-            url = f"{self.TOKEN_URL}?grant_type=client_credentials&client_id={self.api_key}&client_secret={self.secret_key}"
-            response = requests.get(url)
-            self.access_token = response.json().get("access_token")
-
-    def recognize(self, image_path: str) -> dict:
+    async def recognize(self):
         """识别图片中的文字"""
-        self._ensure_token()
+        # self.post_dict = await self.post_config.build_request(self.access_token_manager)
+        # # response = requests.post(**self.post_dict)
+        # # 4. 使用 aiohttp 异步发送 POST 请求
+        # # async with aiohttp.ClientSession() as session:
+        # #     async with session.post(**self.post_dict
+        # #     ) as response:
+        # #         # 异步读取并解析 JSON 响应
+        # #         return await response.json()
+        # async with aiohttp.ClientSession() as session, session.post(**self.post_dict) as response:
+        #     return await response.json()
 
-        with open(image_path, 'rb') as f:
-            image_data = base64.b64encode(f.read()).decode('utf-8')
-
-        # 直接使用类常量 API_URL
-        full_url = f"{self.API_URL}?access_token={self.access_token}"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        data = {'image': image_data, 'language_type': 'CHN_ENG'}
-
-        response = requests.post(full_url, headers=headers, data=data)
-        return response.json()
-
-class GeneralOCR(OCRBase):
-    def __init__(self, url, access_token_manager, headers = None, payload = None, params = None, timeout = None, session = None, enable_rate_limit = True, rate_limit_per_sec = 2):
-        super().__init__(
-            url, 
-            access_token_manager, 
-            headers, 
-            payload, 
-            params, 
-            timeout, 
-            session
-        )
+        # 1. 速率限制检查
+        if not await self.http_manager.wait_for_rate_limit(parent_task=None): 
+             # 如果返回 False 通常意味着父任务停止，此处可处理
+             raise RuntimeError("Task stopped due to rate limit interruption")
+            # 2. 构建请求
+        post_dict = await self.post_config.build_request(...)
+        
+        # 3. 使用管理器的 session 发送请求
+        async with self.http_manager.session.post(**post_dict) as response:
+            return await response.json()
+    
 class BaiduBankCardOCR:
     """百度银行卡识别类"""
-
-    # 类常量
-    TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
-    API_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/bankcard"
-
-    def __init__(self, api_key: str, secret_key: str):
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.access_token = None
+    def __init__(self,post_config:OCRPostConfig):
+        self.post_dict:dict = post_config.as_bankcard().build_request()
 
     def _ensure_token(self):
         if self.access_token is None:
@@ -236,9 +208,10 @@ class BaiduBankCardOCR:
             self.access_token = response.json().get("access_token")
 
     def recognize(self, image_path: str) -> dict:
+        """这里使用的是Excel的路径，可能会造成重复打开文件"""
         self._ensure_token()
         with open(image_path, 'rb') as f:
-            image_data = bytes_to_base64(f.read()) # TODO 待修改，适配从压缩文件中读取图片
+            image_data = utils.image2base64(f.read()) # TODO 待修改，适配从压缩文件中读取图片
 
         full_url = f"{self.API_URL}?access_token={self.access_token}"
         headers = {'Content-Type': 'application/x-www-form-urlencoded'}
