@@ -120,38 +120,39 @@ class EditConfig:
     ]
 
     @classmethod
-    def _get_enabled_defs(cls, defs):
+    def get_enabled_defs(cls, defs):
         """根据开关过滤出启用的字段定义"""
         return [d for d in defs if getattr(cls, d[0], False)]
 
+    @classmethod
+    def get_idcard_display_fields(cls):
+        """获取身份证的API提取字段列表"""
+        keys = []
+        if cls.ENABLE_IDCARD_OCR:
+            keys.extend([d[2] for d in cls.get_enabled_defs(cls.IDCARD_DEFS)])
+        return keys
+
+    @classmethod
+    def get_bankcard_display_fields(cls):
+        """获取银行卡的API提取字段列表"""
+        keys = []
+        if cls.ENABLE_BANKCARD_OCR:
+            keys.extend([d[2] for d in cls.get_enabled_defs(cls.BANKCARD_DEFS)])
+        return keys
+    
     @classmethod
     def get_all_display_fields(cls):
         """获取最终要写入Excel的表头列表（按顺序）"""
         fields = []
         if cls.ENABLE_IDCARD_OCR:
-            fields.extend([d[1] for d in cls._get_enabled_defs(cls.IDCARD_DEFS)])
+            fields.extend(cls.get_idcard_display_fields())
         if cls.ENABLE_BANKCARD_OCR:
-            fields.extend([d[1] for d in cls._get_enabled_defs(cls.BANKCARD_DEFS)])
+            fields.extend(cls.get_bankcard_display_fields())
         return fields
-
-    @classmethod
-    def get_idcard_extract_keys(cls):
-        """获取身份证的API提取字段列表"""
-        keys = []
-        if cls.ENABLE_IDCARD_OCR:
-            keys.extend([d[2] for d in cls._get_enabled_defs(cls.IDCARD_DEFS)])
-        return keys
-
-    @classmethod
-    def get_bankcard_extract_keys(cls):
-        """获取银行卡的API提取字段列表"""
-        keys = []
-        if cls.ENABLE_BANKCARD_OCR:
-            keys.extend([d[2] for d in cls._get_enabled_defs(cls.BANKCARD_DEFS)])
-        return keys
-
+    
     @classmethod
     def get_total_extra_cols(cls):
+        """获得写入Excel表头的字段数量"""
         return len(cls.get_all_display_fields())
 
     @classmethod
@@ -165,3 +166,13 @@ class EditConfig:
                 raise TypeError(f"{attr_name} 不是布尔类型")
         else:
             raise AttributeError(f"{attr_name} 不存在")
+
+    @classmethod
+    def get_idcard_mapping(cls):
+        """获得身份证字段映射列表"""
+        return [(d[1],d[2]) for d in cls.get_enabled_defs(cls.IDCARD_DEFS)]
+
+    @classmethod
+    def get_bankcard_mapping(cls):
+        """获得身份证字段映射列表"""
+        return [(d[1],d[2]) for d in cls.get_enabled_defs(cls.BANKCARD_DEFS)]

@@ -234,7 +234,25 @@ class GeneralOCR:
 
         # 3. 使用管理器的 session 发送请求
         async with self.http_manager.session.post(**post_dict) as response:
-            return await response.json()
+
+            # 检查HTTP状态码
+            if response.status != 200:
+                logger.warning(f"HTTP通信失败，状态码{response.status}")
+                raise NetworkError(f"HTTP{response.status}")
+            data = await response.json()
+            return self.parse_api_response(data)
+
+    def parse_api_response(self,response:dict)->dict:
+        # 错误码处理
+        if "error_msg" in response:
+            # error_msg = response["error_msg"]
+            logger.warning(f"成功通信但执行失败，返回消息{response["error_msg"]}，错误代码{response["error_code"]}")
+            raise APIError(response["error_code"],response["error_msg"])
+        return self.extract_result(response)
+    def extract_result(self,response:dict)->dict:
+        # 根据editconfig，读结果
+        result=response.get("words_result",[]) # XXX
+
 
 
 class BaiduBankCardOCR:
@@ -261,7 +279,28 @@ class BaiduBankCardOCR:
 
         # 3. 使用管理器的 session 发送请求
         async with self.http_manager.session.post(**post_dict) as response:
-            return await response.json()
+
+            # 检查HTTP状态码
+            if response.status != 200:
+                logger.warning(f"HTTP通信失败，状态码{response.status}")
+                raise NetworkError(f"HTTP{response.status}")
+            data = await response.json()
+            return self.parse_api_response(data)
+
+    def parse_api_response(self,response:dict)->dict:
+        # 错误码处理
+        if "error_msg" in response:
+            # error_msg = response["error_msg"]
+            logger.warning(f"成功通信但执行失败，返回消息{response["error_msg"]}，错误代码{response["error_code"]}")
+            raise APIError(response["error_code"],response["error_msg"])
+        return self.extract_result(response)
+    def extract_result(self,response:dict)->dict:
+        # 根据editconfig，读结果
+        
+        result = {}
+        for display_name,api_key in self.edit_config.get_bankcard_mapping():
+            result[display_name]=response.get("result",{}).get(api_key,"error_result")
+        return result
 
 
 class BaiduIDCardOCR:
@@ -279,8 +318,6 @@ class BaiduIDCardOCR:
         self.http_manager = http_manager
         self.edit_config = edit_config
 
-        self._error_dict = {}
-
     async def recognize(self, image_path: str, side: str = "front") -> dict:
         if not await self.http_manager.wait_for_rate_limit(parent_task=None):
             # 如果返回 False 通常意味着父任务停止，此处可处理
@@ -290,24 +327,25 @@ class BaiduIDCardOCR:
 
         # 3. 使用管理器的 session 发送请求
         async with self.http_manager.session.post(**post_dict) as response:
-            return await response.json()
 
-    def parse_response(self,response:dict)->dict|None:
-        # 错误处理
-        if response.status  != '200':
-            logger.warning(f"通信失败，返回代码{response.status}")
-            raise ConnectionError
+            # 检查HTTP状态码
+            if response.status != 200:
+                logger.warning(f"HTTP通信失败，状态码{response.status}")
+                raise NetworkError(f"HTTP{response.status}")
+            data = await response.json()
+            return self.parse_api_response(data)
+
+    def parse_api_response(self,response:dict)->dict:
         # 错误码处理
         if "error_msg" in response:
-            error_code = response["error_msg"]
-            logger.warning(f"成功通信但执行失败，返回消息{error_code}，对应问题{self._error_dict[error_code]}")
-            raise OperationalError
+            # error_msg = response["error_msg"]
+            logger.warning(f"成功通信但执行失败，返回消息{response["error_msg"]}，错误代码{response["error_code"]}")
+            raise APIError(response["error_code"],response["error_msg"])
         return self.extract_result(response)
-    def extract_result(self,response:dict):
+    def extract_result(self,response:dict)->dict:
         # 根据editconfig，读结果
         
-        column_name = self.edit_config.get_idcard_extract_keys()
         result = {}
-        for item in column_name:
-            result[item[1]]=response.getitem(item[2])
+        for display_name,api_key in self.edit_config.get_idcard_mapping():
+            result[display_name]=response.get("words_result",{}).get(api_key,"error_result")
         return result
