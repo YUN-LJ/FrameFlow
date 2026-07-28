@@ -200,6 +200,7 @@ class GeneralOCR:
         access_token_manager: AccessTokenManager,
         post_config: OCRPostConfig,
         http_manager: AsyncHTTPManage,
+        edit_config:EditConfig
     ):
         """创建通用OCR识别对象，能够基于post_config创建新的复制，并得到响应"""
         self.access_token_manager = access_token_manager
@@ -208,10 +209,8 @@ class GeneralOCR:
             self.data = utils.image2base64(
                 f.read()
             )  # TODO 待修改，适配从压缩文件中读取图片
-        self.post_config = post_config.clone(
-            self.data
-        )  # 需要保留的对象，会在后续转发二次识别时使用
-
+        self.post_config = post_config.clone(self.data)  # 需要保留的对象，会在后续转发二次识别时使用
+        self.edit_config = edit_config
     async def recognize(self):
         """识别图片中的文字"""
         # self.post_dict = await self.post_config.build_request(self.access_token_manager)
@@ -249,10 +248,41 @@ class GeneralOCR:
             logger.warning(f"成功通信但执行失败，返回消息{response["error_msg"]}，错误代码{response["error_code"]}")
             raise APIError(response["error_code"],response["error_msg"])
         return self.extract_result(response)
-    def extract_result(self,response:dict)->dict:
+    def extract_result(self,response:dict)->list:
         # 根据editconfig，读结果
-        result=response.get("words_result",[]) # XXX
+        return [item.get("words")    for item in response.get("words_result",[])]
 
+    async def auto_transfer(self,result:list[str]):
+        id_keywords = {"身份证", "居民身份证", "姓名", "性别", "民族", "住址", "公民身份号码"}
+        bank_keywords = {"银行卡", "信用卡", "卡号", "有效期", "银联", "借记卡"} 
+        full_text = "".join(result)
+        if any(kw in full_text for kw in id_keywords):
+            return await self.recognize_as_idcard()
+
+        if any(kw in full_text for kw in bank_keywords):
+            return await self.recognize_as_bankcard()
+
+        
+
+        # 未匹配，返回原始结果
+        logger.warning("无对应匹配API")
+        return result
+
+    async def recognize_as_idcard(self):
+        return await BaiduIDCardOCR(
+            self.post_config,
+            self.access_token_manager,
+            self.http_manager,
+            self.edit_config
+        ).recognize()
+
+    async def recognize_as_bankcard(self):
+        return await BaiduBankCardOCR(
+            self.post_config,
+            self.access_token_manager,
+            self.http_manager,
+            self.edit_config
+        ).recognize()
 
 
 class BaiduBankCardOCR:
@@ -303,6 +333,7 @@ class BaiduBankCardOCR:
         return result
 
 
+
 class BaiduIDCardOCR:
     """百度身份证识别类"""
 
@@ -318,7 +349,7 @@ class BaiduIDCardOCR:
         self.http_manager = http_manager
         self.edit_config = edit_config
 
-    async def recognize(self, image_path: str, side: str = "front") -> dict:
+    async def recognize(self) -> dict:
         if not await self.http_manager.wait_for_rate_limit(parent_task=None):
             # 如果返回 False 通常意味着父任务停止，此处可处理
             raise RuntimeError("Task stopped due to rate limit interruption")
