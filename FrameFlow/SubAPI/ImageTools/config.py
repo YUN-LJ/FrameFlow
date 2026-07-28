@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 from urllib.parse import urlencode
 
-from FrameFlow.SubAPI.ImageTools.baidu_ocr import AccessTokenManager
+from FrameFlow.SubAPI.ImageTools.auth import AccessTokenManager
 
 _token_cache = {"token": None, "expires_at": 0}
 _QPS = 2

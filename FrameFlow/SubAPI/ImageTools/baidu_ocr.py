@@ -1,12 +1,9 @@
 "----------------------------------------------------------------------------"
 
 # acess_token 大概能被设计成读写锁的形式？只有一个写锁，其余都是读锁？还是说没必要，因为在同一个进程中，分出线程，并各自管理session
-import asyncio
 import logging
-import random
 import sys
 import threading
-import time
 from collections import namedtuple
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +12,7 @@ from typing import ClassVar
 import requests
 import utils
 
+from FrameFlow.SubAPI.ImageTools.auth import AccessTokenManager
 from FrameFlow.SubAPI.ImageTools.config import EditConfig, OCRPostConfig
 
 sys.path.insert(
@@ -27,7 +25,7 @@ LogConfig.LOG_DIR = Path.cwd() / "config"  # 改到当前目录下的 config
 LogConfig.LOG_FILE = LogConfig.LOG_DIR / "app.log"
 LogConfig.ERROR_LOG_FILE = LogConfig.LOG_DIR / "error.log"
 
-from Fun.BaseTools.AsyncHTTP import AsyncJson, Task, aiohttp, AsyncHTTPManage
+from Fun.BaseTools.AsyncHTTP import AsyncJson, AsyncHTTPManage
 
 logger = logging.getLogger(__name__)
 
@@ -47,63 +45,6 @@ class APIError(BaiduAPIException):
         self.error_msg = error_msg
         super().__init__(f"API error {error_code}: {error_msg}")
     
-
-class AccessTokenManager:
-    ACCESS_POST_URL = "https://aip.baidubce.com/oauth/2.0/token"
-
-    def __init__(self, http_client: AsyncHTTPManage, api_url, api_key, secret_key):
-        self._http = http_client
-        self.__api_url = api_url or self.ACCESS_POST_URL
-        self.__api_key = api_key or config.API_KEY
-        self.__secret_key = secret_key or config.SECRET_KEY
-        self.__token = None
-        self.__expires_at = 0
-        self.__lock = asyncio.Lock()
-
-    async def get_valid_token(self):
-        async with self.__lock:
-            if self.__token and time.time() + 300 < self.__expires_at:
-                return self.__token
-            await self.__refresh_token()
-            return self.__token
-
-    async def __refresh_token(self):
-        post_url = (
-            f"{self.__api_url}?api_key={self.__api_key}&secret_key={self.__secret_key}"
-        )
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        max_retries = 3
-        for attemp in range(1, max_retries + 1):
-            # 遵守速率限制（若AsyncHTTPManage启用了rate_limit）
-            if not await self._http.wait_for_rate_limit(parent_task=None):
-                raise RuntimeError("任务已停止，无法刷新token")
-            try:
-                async with self._http.session.post(
-                    post_url, headers=headers, data=""
-                ) as resp:
-                    if resp.status != 200:
-                        raise RuntimeError(f"HTTP {resp.status}")
-                    body = await resp.json()
-                    if "error_description" in body:
-                        err_desc = body.get("error_description")
-                        if err_desc == "unknown client id":
-                            raise ValueError("API Key不正确")
-                        if err_desc == "Client authentication failed":
-                            raise ValueError("Secret Key不正确")
-                        raise RuntimeError(f"认证错误{err_desc}")
-                    if "access_token" not in body:
-                        raise RuntimeError("响应中无access_token")
-                    self.__token = body.get("access_token")
-                    self.__expires_at = time.time() + 2592000
-                return
-            except Exception as e:
-                if attemp == max_retries:
-                    raise ConnectionError(
-                        f"刷新token失败，重试{max_retries}后仍失败：{e}"
-                    )
-                wait_sec = random.uniform(1, 2**attemp)
-                await asyncio.sleep(wait_sec)
-
 
 class OCRBase:
     """OCR基类"""
