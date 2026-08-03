@@ -2,8 +2,10 @@
 from SubAPI.WallHaven.ImportPack import *
 from SubAPI.WallHaven import api
 from SubAPI.WallHaven.api.Tools import SearchTask
-from SubAPI.WallHaven.api.WorkFlow import DownloadWorkFlow, ThumbWorkFlow
-from SubAPI.Settings.Desktop.ImageTabel import ImageTableData, ImageTable
+from SubAPI.WallHaven.api.WorkFlow import DownloadWorkFlow
+from SubAPI.Settings.Desktop.ImageTabel import (
+    ImageTableData, ImageTable, ImageTableCell
+)
 
 PAGE_SIZE = 24  # 每一页数量,如果服务器返回数量不改动的话
 MIN_COLUMN_WIDTH = 200  # 最小列宽
@@ -11,49 +13,36 @@ MAX_COLUMN_WIDTH = 300  # 最大列宽
 TIMEOUT = 200  # 定时器超时时间ms
 
 
-class SearchCell(ImageCell):
+class SearchCell(ImageTableCell):
     """图像单元格"""
-    thumbStartSignal = Signal(ThumbWorkFlow)  # 略缩图加载开始
-    thumbFinishedSignal = Signal(ThumbWorkFlow)  # 略缩图加载完成
 
     def __init__(self, parent: 'SearchTable'):
         super().__init__(parent)
-        self.work_flow: ThumbWorkFlow = None  # 任务流
         self.parent = parent
         self.data_model = self.parent.data_model
-        self.__uiInit()
-        self.__bind()
 
-    def __uiInit(self):
-        self.button = PrimaryToolButton(FIF.VIEW)
-        self.button.clicked.connect(self.viewImage)
+        # 连接信号
+        self.moreButtonClicked.connect(self.moreButtonSlot)
+        self.checkedChanged.connect(self.checkedChangedSlot)
+        self.doubleClicked.connect(self.viewImage)
 
-        self.button_copy = PrimaryToolButton(FIF.COPY)
-        self.button_copy.clicked.connect(lambda _: FileBase(self.image_local_path).copy_to_clipboard())
-        self.button_copy.hide()
+    def moreButtonSlot(self):
+        """更多按钮点击"""
+        image_file = FileBase(self.image_local_path)
+        global_pos = QCursor.pos()  # 直接获取鼠标当前全局坐标
+        menu = RoundMenu(parent=self.parent)
+        if image_file.exists:
+            menu.addAction(
+                Action(FIF.COPY, '复制图像', triggered=lambda _: image_file.copy_to_clipboard()))
+            menu.addAction(
+                Action(FIF.FOLDER, '打开图像', triggered=lambda _: image_file.open_use_explorer()))
+        menu.addAction(Action(FIF.VIEW, '查看图像', triggered=lambda _: self.viewImage()))
+        menu.exec(global_pos)
 
-        self.button_open = PrimaryToolButton(FIF.FOLDER)
-        self.button_open.clicked.connect(lambda _: FileBase(self.image_local_path).open_use_explorer())
-        self.button_open.hide()
-
-        self.button_open.setFixedSize(30, 30)
-        self.button_copy.setFixedSize(30, 30)
-        self.button.setFixedSize(30, 30)
-        # 添加控件
-        self.layout_title.setSpacing(5)
-        self.layout_title.addWidget(self.button_open)
-        self.layout_title.addWidget(self.button_copy)
-        self.layout_title.addWidget(self.button)
-        self.thumbStartSignal.connect(self.thumbStart)
-        self.thumbFinishedSignal.connect(self.thumbFinished)
-
-    def __bind(self):
-        def check_box_state_changed(state: bool):
-            row = self.data_model.getRowIndexByImageID(self.image_id)
-            self.data_model.setCellData(row, 0, bool(state))
-
-        self.check_box.stateChanged.connect(check_box_state_changed)
-        self.__load_thumb_timer = debouncer_timer(self._loadThumb)
+    def checkedChangedSlot(self, checked: bool):
+        row = self.data_model.getRowIndexByImageID(self.image_id)
+        self.data_model.setCellData(row, 0, checked)
+        self.checked_state = checked
 
     def setImageInfo(self, search_info: pd.Series):
         """
@@ -63,33 +52,29 @@ class SearchCell(ImageCell):
         if not isinstance(search_info, pd.Series):
             return
         self.search_info = search_info
-        self.checked_state = search_info['选择']
         self.key_word = search_info['关键词']
         self.image_url = search_info['远程路径']
-        self.thumb_url = search_info['略缩图_原']
         self.categories = search_info['类别']
+
+        # 设置属性
         self.setText(search_info['id'])
         self.setColor(search_info['分级'])
+        self.setState(search_info['选择'])
+        self.setThumbUrl(search_info['略缩图_原'])
         self.checkUI()
+
         # 加载略缩图
-        if not self.__load_thumb_timer.isActive() and not self.image_widget.isShowImage():
-            self.loadThumb()
+        if not self.isShowImage():
+            self.startThumb()
 
     def checkUI(self):
         """检查UI是否需要变化"""
-        self.setState(self.checked_state)
         self.image_local_path = api.ImageData(self.image_id, self.search_info['文件扩展名']).image_path
-        if self.image_local_path:
-            self.button_copy.show()
-            self.button_open.show()
-        else:
-            self.button_copy.hide()
-            self.button_open.hide()
 
     def setText(self, text):
         """设置标题"""
-        super().setText(text)
         self.image_id = text if text else None
+        super().setText(text)
 
     def setColor(self, purity) -> bool:
         color = api.Config.COLOR_DICT.get(purity, None)
@@ -99,40 +84,9 @@ class SearchCell(ImageCell):
             return True
         return False
 
-    def thumbStart(self, _):
-        self.setImageText('加载图片中...')
-
-    def thumbFinished(self, task: ThumbWorkFlow):
-        """略缩图加载完成时"""
-        if isinstance(task, ThumbWorkFlow):
-            result = task.result()
-            try:
-                if result is not None and self.image_id == task.image_id:
-                    self.setImage(result.generate_thumb())
-            except Exception as e:
-                task.start(priority=2)
-                print(f"{self.__class__.__name__} 略缩图加载错误: {e}")
-                self.setImageText('加载图片失败')
-        else:
-            self.setImageText('停止加载图片')
-
-    def _loadThumb(self):
-        if self.thumb_url:
-            self.work_flow = ThumbWorkFlow(self.thumb_url)
-            self.work_flow.start_signal.bridge_signal(self.thumbStartSignal)
-            self.work_flow.finish_signal.bridge_signal(self.thumbFinishedSignal)
-            self.work_flow.stop_signal.bridge_signal(self.thumbFinishedSignal)
-            self.work_flow.start(priority=2)
-
-    def loadThumb(self):
-        self.__load_thumb_timer.start(TIMEOUT)
-
-    def stopThumb(self):
-        if self.__load_thumb_timer.isActive():
-            self.__load_thumb_timer.stop()
-        if self.work_flow is not None:
-            self.work_flow.stop()
-            self.work_flow.cleanup()
+    def setState(self, checked: bool):
+        self.checked_state = checked
+        super().setState(checked)
 
     def viewImage(self):
         def sub_func(key_word):
@@ -148,12 +102,6 @@ class SearchCell(ImageCell):
         image_dialog.tagClicked.connect(sub_func)
         image_dialog.exec()
         image_dialog.deleteLater()
-
-    def deleteLater(self):
-        """确保资源删除干净"""
-        # 由于表格会在刷新视图时删除掉不可见区域单元格
-        self.stopThumb()
-        super().deleteLater()
 
 
 class SearchRoundMenu(RoundMenu):
@@ -264,6 +212,11 @@ class SearchTableData(ImageTableData):
     def __init__(self, parent: 'SearchTable'):
         super().__init__(parent=parent)
         self.current_params = None
+
+        # 限制一次性加载的最大行数
+        self.max_row_count = 100  # 分区最大行数
+        self.current_chunk_index = 1  # 当前分区索引
+
         SignalConfig.WallHavenSignal.search_signal.finishedSignal.connect(self.refreshData)
 
     def rowCount(self) -> int:
@@ -274,7 +227,10 @@ class SearchTableData(ImageTableData):
             # 确保返回合理的整数值
             if pd.isna(total) or total < 0:
                 return 0
-            return int(total)
+            total = int(total)
+            current_max_row = (self.max_row_count * self.current_chunk_index)
+            return min(total, current_max_row)
+
         except (KeyError, IndexError, ValueError):
             return 0
 
@@ -294,7 +250,7 @@ class SearchTableData(ImageTableData):
         self.setDataFrame(data)
 
     def data(self, index: int) -> str | None:
-        if index >= self.rowCount():
+        if index >= int(self._dataframe.loc[0, '总数']):
             return None
         # 转为页内相对索引
         page = index // PAGE_SIZE + 1
@@ -304,6 +260,8 @@ class SearchTableData(ImageTableData):
         data.reset_index(drop=True, inplace=True)
         try:
             value = data.iloc[virtual_index]
+            if index - (self.max_row_count * self.current_chunk_index) < 10:
+                self.current_chunk_index += 1
             return value
         except IndexError:
             self.dataIndexError.emit(index, 1)
@@ -357,7 +315,8 @@ class SearchTableDelegate(ListDelegateBase):
 
     def setWidgetData(self, parent, widget, value):
         if isinstance(widget, SearchCell):
-            widget.setImageInfo(value)
+            if isinstance(value, pd.Series):
+                widget.setImageInfo(value)
 
 
 class SearchTable(ImageTable):
@@ -428,7 +387,7 @@ class SearchTable(ImageTable):
         super()._loadVisible()
         visible_rows = self.getVisibleRow()
         if visible_rows:
-            current_page = min(visible_rows) * self.columnCount() // 24 + 1
+            current_page = min(visible_rows) * self.columnCount() // PAGE_SIZE + 1
             self.currentPageSignal.emit(current_page)
 
     def clearContents(self):
@@ -436,3 +395,7 @@ class SearchTable(ImageTable):
         self.data_model.clearData()
         self.column_delegate.deleteWidgetAll()
         super().clearContents()
+
+    def pageToRowIndex(self, page: int) -> int:
+        """将页码转为行号"""
+        return (page - 1) * PAGE_SIZE // self.columnCount()

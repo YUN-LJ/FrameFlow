@@ -34,6 +34,42 @@ class LogConfig:
     }
 
 
+def _safe_rotate(source, dest):
+    """
+    安全的文件轮转函数，处理Windows文件锁定问题
+    """
+    import time
+    import shutil
+    
+    try:
+        # 如果目标文件已存在，先删除
+        if os.path.exists(dest):
+            try:
+                os.remove(dest)
+            except PermissionError:
+                # 如果删除失败，等待后重试
+                time.sleep(0.1)
+                try:
+                    os.remove(dest)
+                except Exception:
+                    pass
+        
+        # 尝试重命名
+        os.rename(source, dest)
+    except PermissionError:
+        # Windows下文件被锁定时，使用复制+清空的方式
+        try:
+            shutil.copy2(source, dest)
+            # 清空原文件而不是删除
+            with open(source, 'w', encoding='utf-8') as f:
+                f.truncate(0)
+        except Exception:
+            # 如果所有方法都失败，静默忽略
+            pass
+    except Exception:
+        pass
+
+
 @singleton_decorator
 class LogManager:
     """日志管理器（单例模式）"""
@@ -110,10 +146,13 @@ class LogManager:
                     filename=LogConfig.LOG_FILE,
                     maxBytes=max_bytes,
                     backupCount=backup_count,
-                    encoding='utf-8'
+                    encoding='utf-8',
+                    delay=True
                 )
                 file_handler.setLevel(logging.DEBUG)
                 file_handler.setFormatter(file_formatter)
+                file_handler.namer = lambda name: name + '.log'
+                file_handler.rotator = lambda source, dest: _safe_rotate(source, dest)
                 logger.addHandler(file_handler)
             except Exception as e:
                 print(f"警告: 无法创建日志文件Handler: {e}")
@@ -125,10 +164,13 @@ class LogManager:
                     filename=LogConfig.ERROR_LOG_FILE,
                     maxBytes=max_bytes,
                     backupCount=backup_count,
-                    encoding='utf-8'
+                    encoding='utf-8',
+                    delay=True
                 )
                 error_handler.setLevel(logging.ERROR)
                 error_handler.setFormatter(file_formatter)
+                error_handler.namer = lambda name: name + '.log'
+                error_handler.rotator = lambda source, dest: _safe_rotate(source, dest)
                 logger.addHandler(error_handler)
             except Exception as e:
                 print(f"警告: 无法创建错误日志文件Handler: {e}")
@@ -161,10 +203,55 @@ class LogManager:
             console_handler.setFormatter(logging.Formatter(LogConfig.CONSOLE_FORMAT))
             root_logger.addHandler(console_handler)
 
-    def set_level(self, name: str, level: str):
-        """动态修改logger的日志级别"""
-        if name in self._loggers:
-            self._loggers[name].setLevel(LogConfig.LEVEL_MAP.get(level.upper(), logging.INFO))
+    def set_level(self, name: str = None, level: str = 'INFO'):
+        """
+        动态修改logger的日志级别
+        
+        :param name: logger名称，不指定则操作全部logger
+        :param level: 日志级别，默认为'INFO'
+        """
+        loggers_to_process = [self._loggers[name]] if name and name in self._loggers else self._loggers.values()
+
+        for logger in loggers_to_process:
+            logger.setLevel(LogConfig.LEVEL_MAP.get(level.upper(), logging.INFO))
+
+    def set_console_output(self, name: str = None, enable: bool = True, console_level: str = None):
+        """
+        动态启用或禁用logger的控制台输出
+        
+        :param name: logger名称，不指定则操作全部logger
+        :param enable: 是否启用控制台输出，默认为True
+        :param console_level: 控制台日志级别，仅在启用时有效，不指定则保持原有级别
+        """
+        loggers_to_process = [self._loggers[name]] if name and name in self._loggers else self._loggers.values()
+
+        for logger in loggers_to_process:
+            if enable:
+                # 检查是否已存在控制台handler
+                has_console_handler = any(
+                    isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+                    for h in logger.handlers)
+
+                if not has_console_handler:
+                    # 添加控制台handler
+                    console_handler = logging.StreamHandler(sys.stdout)
+                    level = LogConfig.LEVEL_MAP.get(console_level.upper(),
+                                                    logging.INFO) if console_level else logging.INFO
+                    console_handler.setLevel(level)
+                    console_formatter = logging.Formatter(LogConfig.CONSOLE_FORMAT)
+                    console_handler.setFormatter(console_formatter)
+                    logger.addHandler(console_handler)
+                elif console_level:
+                    # 如果已存在控制台handler且指定了级别，则更新级别
+                    for handler in logger.handlers:
+                        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                            handler.setLevel(LogConfig.LEVEL_MAP.get(console_level.upper(), logging.INFO))
+                            break
+            else:
+                # 移除所有控制台handler
+                logger.handlers = [h for h in logger.handlers
+                                   if not (
+                                isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler))]
 
     def disable_logging(self, name: str = None):
         """禁用指定logger或所有logger"""

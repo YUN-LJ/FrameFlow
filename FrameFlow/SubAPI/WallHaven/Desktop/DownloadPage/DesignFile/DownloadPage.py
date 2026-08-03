@@ -54,6 +54,12 @@ class Ui_DownloadWidget(object):
 
         self.horizontalLayout_2.addItem(self.horizontalSpacer_2)
 
+        self.pushButton_sync = PrimaryPushButton(self.scrollAreaWidgetContents)
+        self.pushButton_sync.setObjectName(u"pushButton_sync")
+        self.pushButton_sync.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout_2.addWidget(self.pushButton_sync)
+
         self.pushButton_start = PrimaryPushButton(self.scrollAreaWidgetContents)
         self.pushButton_start.setObjectName(u"pushButton_start")
         self.pushButton_start.setMinimumSize(QSize(0, 40))
@@ -95,6 +101,7 @@ class Ui_DownloadWidget(object):
 
     def retranslateUi(self, DownloadWidget):
         DownloadWidget.setWindowTitle(QCoreApplication.translate("DownloadWidget", u"\u4e0b\u8f7d\u6a21\u5757", None))
+        self.pushButton_sync.setText(QCoreApplication.translate("DownloadWidget", u"\u5237\u65b0", None))
         self.pushButton_start.setText(QCoreApplication.translate("DownloadWidget", u"\u5f00\u59cb", None))
         self.pushButton_stop.setText(QCoreApplication.translate("DownloadWidget", u"\u505c\u6b62", None))
         self.pushButton_delete.setText(QCoreApplication.translate("DownloadWidget", u"\u5220\u9664", None))

@@ -12,9 +12,9 @@ __all__ = [
     # 含函数的模块
     'MainWidget',
     # MainWidget.py 中的类
-    'LazyLoadMS', 'SubWidgetBase', 'LoadSubWidget', 'TopWidget', 'TrayIcon',
+    'LazyLoadMS', 'SubWidgetBase', 'LoadSubWidget', 'TopWidget', 'TrayIcon', 'LazyLoadFluentWindow',
     # SubWidget.py 中的类
-    'WindowDesktop', 'FluentWidgetBase', 'FluentWidgetFromUI', 'SplitterWidget', 
+    'WindowDesktop', 'FluentWidgetBase', 'FluentWidgetFromUI', 'SplitterWidget',
     'SidebarWidgetCover', 'SidebarWidget',
     # TerminalClass.py 中的类
     'AnsiTextEdit', 'EmbeddedWindows', 'EmbeddedPythonTerminal', 'TerminalWidget', 'AcondaWidget',
@@ -34,6 +34,7 @@ _MODULE_MAP = {
     'MainWidget': '.MainWidget',
     # MainWidget.py 中的类
     'LazyLoadMS': '.MainWidget',
+    'LazyLoadFluentWindow': '.MainWidget',
     'SubWidgetBase': '.MainWidget',
     'LoadSubWidget': '.MainWidget',
     'TopWidget': '.MainWidget',

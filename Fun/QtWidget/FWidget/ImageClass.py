@@ -343,7 +343,7 @@ class ImageWidget(QWidget):
     mouseReleaseSignal = Signal()
     mouseDoubleSignal = Signal()
     mouseWheelSignal = Signal()
-    fullScreenSignal = Signal(bool)
+    fullScreenSignal = Signal(bool)  # 进入全屏发送True,退出全屏发送False
 
     def __init__(self, bytesio: Optional[BytesIO] = None, parent=None):
         super().__init__(parent)
@@ -590,19 +590,19 @@ class ImageWidget(QWidget):
         # 如果显示的是文本，则没有显示图像
         if self.display_text is not None:
             return False
-        
+
         # 检查是否有缓存key，没有说明没有加载过图像
         if self._cache_key is None:
             return False
-        
+
         # 检查original_pixmap是否有效且不是空图像
         if self.original_pixmap.isNull():
             return False
-        
+
         # 检查是否是默认图像（通过cache_key判断）
         # 如果是默认图像的key，则返回False
         default_pm = ImageManager._get_default_pixmap()
         if not default_pm.isNull() and self.original_pixmap == default_pm:
             return False
-        
+
         return True

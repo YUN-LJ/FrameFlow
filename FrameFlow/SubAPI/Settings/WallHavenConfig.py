@@ -32,7 +32,7 @@ class SearchParams:
         "q": "",  # 关键词
         "categories": "111",  # 类别码:100/101/111/等,三位数字每位上的意思(常规/动漫/人物)
         "purity": "110",  # 分级码:100/110/111/等,三位数字每位上的意思(正常级/粗略级/限制级) 0表示关闭,1表示开启
-        "sorting": "date_added",  # 根据什么排序,默认根据添加时间排序,views预览量,favorites收藏量,relevance关系
+        "sorting": "date_added",  # 根据什么排序,默认根据添加时间排序,views预览量,favorites收藏量,relevance关系,hot热门
         "order": "desc",  # 升序/降序:asc升序,desc降序
         "page": 1,  # 页码:1-∞,超过最大页时没结果
     }
@@ -69,14 +69,20 @@ class SearchParams:
         return SearchParams(self.to_dict())
 
     def __repr__(self):
-        return str(self.to_dict())
+        return f'{self.__class__.__name__}({self.to_dict()})'
 
     def __str__(self):
-        return str(self.to_dict())
+        return (f'{self.__class__.__name__} 参数:\n\t'
+                f'关键词={self.q}\n\t'
+                f'类别={self.categories}\n\t'
+                f'级别={self.purity}\n\t'
+                f'排序={self.sorting}\n\t'
+                f'顺序={self.order}\n\t'
+                f'页码={self.page}')
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
         # 比较指定属性
-        attrs = ['q', 'purity', 'categories']
+        attrs = ['q', 'purity', 'categories', 'sorting', 'order']
         return all(getattr(self, attr) == getattr(other, attr) for attr in attrs)

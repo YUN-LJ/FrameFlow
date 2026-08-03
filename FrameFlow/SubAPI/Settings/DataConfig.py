@@ -23,16 +23,23 @@ image_info_columns = ['id', '关键词', '类别', '分级', '文件大小', '�
                       '远程路径', '略缩图_原', '略缩图_大', '略缩图_小',
                       '日期', '标签']
 image_info_dtype = {'id': 'str', '关键词': 'str', '类别': 'str', '分级': 'str', '文件大小': 'UInt32',
-                    '文件扩展名': 'str',
-                    '长': 'UInt32', '宽': 'UInt32', '比例': 'float32', '预览量': 'UInt32', '收藏量': 'UInt32',
-                    '本地路径': 'str', '远程路径': 'str', '略缩图_原': 'str', '略缩图_大': 'str', '略缩图_小': 'str',
+                    '文件扩展名': 'str', '长': 'UInt32', '宽': 'UInt32', '比例': 'float32',
+                    '预览量': 'UInt32', '收藏量': 'UInt32', '本地路径': 'str', '远程路径': 'str',
+                    '略缩图_原': 'str', '略缩图_大': 'str', '略缩图_小': 'str',
                     '日期': 'datetime64[ns]', '标签': 'str'}
-key_word_columns = ['关键词', '总页数', '总数', '最新日期', '上次更新', '类别码', '分级码']
+key_word_columns = ['关键词', '总页数', '总数', '最新日期', '上次更新', '上次更新页码', '类别码', '分级码']
 key_word_dtype = {'关键词': 'str', '总页数': 'UInt32', '总数': 'UInt32',
                   '最新日期': 'datetime64[ns]', '上次更新': 'datetime64[ns]',
-                  '类别码': 'str', '分级码': 'str'}
+                  '上次更新页码': 'UInt32', '类别码': 'str', '分级码': 'str'}
 image_history_columns = image_info_columns
 image_history_dtype = image_info_dtype
+
+# desktop端数据列
+download_table_columns = ['选择', '图像ID', '下载进度', '操作']
+download_table_dtype = {'选择': 'bool', '图像ID': 'str', '下载进度': 'str', '操作': 'UInt8'}
+
+like_table_columns = ['选择', *key_word_columns, '更新状态']
+like_table_dtype = {'选择': 'bool', **key_word_dtype, '更新状态': 'str'}
 
 
 class ImageInfoColumns:

@@ -83,6 +83,10 @@ class TableModelBase(QObject):
     def Lock(self) -> RLock:
         return self._lock
 
+    @property
+    def DataFrame(self):
+        return self._dataframe
+
     def __enter__(self):
         """进入上下文管理器，自动加锁并返回数据"""
         self._lock.acquire()
@@ -104,7 +108,7 @@ class DataFrameModelBase(TableModelBase):
     def __init__(self, dataframe: pd.DataFrame = None, display_dtype=False, parent=None):
         super().__init__(parent)
         self.display_dtype = display_dtype  # 列头是否显示数据类型
-        self._dataframe = dataframe if dataframe is not None else pd.DataFrame()
+        self._dataframe = dataframe if dataframe is not None else self.default_dataframe()
 
         # 数据类型格式化器
         self._formatters = {
@@ -159,7 +163,7 @@ class DataFrameModelBase(TableModelBase):
             else:
                 return value
 
-    # 可选实现
+    # ---可选实现---
     def setCellData(self, row, col, value, emit=True) -> bool:
         """
         设置单元格数据
@@ -220,7 +224,15 @@ class DataFrameModelBase(TableModelBase):
 
     def clearData(self):
         with self._lock:
-            self.setDataFrame(pd.DataFrame())
+            self.setDataFrame(self.default_dataframe())
+
+    def default_dataframe(self) -> pd.DataFrame:
+        """获取默认数据源"""
+        return pd.DataFrame()
+
+    @property
+    def DataFrame(self) -> pd.DataFrame:
+        return self._dataframe
 
 
 class DataFrameListBase(DataFrameModelBase):

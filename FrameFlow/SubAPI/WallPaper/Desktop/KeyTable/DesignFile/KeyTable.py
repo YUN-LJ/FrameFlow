@@ -15,21 +15,47 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QHeaderView, QSizePolicy, QStackedWidget,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QSizePolicy,
+    QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QWidget)
 
 from SubAPI.WallPaper.Desktop.KeyTable.KeyWordModeCtrl import KeyWordTable
+from qfluentwidgets import PrimaryPushButton
+from qfluentwidgets.components.widgets import SearchLineEdit
 
 class Ui_table_widget(object):
     def setupUi(self, table_widget):
         if not table_widget.objectName():
             table_widget.setObjectName(u"table_widget")
-        table_widget.resize(172, 300)
-        table_widget.setMinimumSize(QSize(120, 0))
+        table_widget.resize(300, 300)
+        table_widget.setMinimumSize(QSize(0, 0))
         self.verticalLayout = QVBoxLayout(table_widget)
-        self.verticalLayout.setSpacing(0)
+        self.verticalLayout.setSpacing(10)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
+        self.horizontalLayout = QHBoxLayout()
+        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        self.lineEdit_search = SearchLineEdit(table_widget)
+        self.lineEdit_search.setObjectName(u"lineEdit_search")
+        self.lineEdit_search.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout.addWidget(self.lineEdit_search)
+
+        self.pushButton_select = PrimaryPushButton(table_widget)
+        self.pushButton_select.setObjectName(u"pushButton_select")
+        self.pushButton_select.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout.addWidget(self.pushButton_select)
+
+        self.pushButton_cancel_select = PrimaryPushButton(table_widget)
+        self.pushButton_cancel_select.setObjectName(u"pushButton_cancel_select")
+        self.pushButton_cancel_select.setMinimumSize(QSize(0, 40))
+
+        self.horizontalLayout.addWidget(self.pushButton_cancel_select)
+
+
+        self.verticalLayout.addLayout(self.horizontalLayout)
+
         self.stackedWidget = QStackedWidget(table_widget)
         self.stackedWidget.setObjectName(u"stackedWidget")
         self.page_custom = QWidget()
@@ -79,5 +105,8 @@ class Ui_table_widget(object):
 
     def retranslateUi(self, table_widget):
         table_widget.setWindowTitle(QCoreApplication.translate("table_widget", u"Form", None))
+        self.lineEdit_search.setPlaceholderText(QCoreApplication.translate("table_widget", u"\u8f93\u5165\u5173\u952e\u8bcd\u6216\u9996\u5b57\u6bcd\u53ef\u8fdb\u884c\u5b9a\u4f4d/\u9009\u62e9\u6761\u4ef6", None))
+        self.pushButton_select.setText(QCoreApplication.translate("table_widget", u"\u9009\u62e9", None))
+        self.pushButton_cancel_select.setText(QCoreApplication.translate("table_widget", u"\u53d6\u6d88", None))
     # retranslateUi
 

@@ -1,6 +1,9 @@
 """Qt组件包"""
-from typing import TYPE_CHECKING, Callable
+import time
+from typing import TYPE_CHECKING, Callable, Optional
+from Fun.BaseTools import LogClass
 
+logger = LogClass.get_logger(__name__, console_level='WARNING')
 if TYPE_CHECKING:
     from . import FTabelView, FTabelWidget
     from .FWidget import *
@@ -12,7 +15,7 @@ __all__ = [
     # 模块(由于该模块中有函数才导出)
     'MainWidget', 'FTabelView', 'FTabelWidget',
     # FWidget 模块中的类
-    'ImageWidget', 'LazyLoadMS', 'TrayIcon', 'EmbeddedWindows', 'EmbeddedPythonTerminal',
+    'ImageWidget', 'LazyLoadMS', 'LazyLoadFluentWindow', 'TrayIcon', 'EmbeddedWindows', 'EmbeddedPythonTerminal',
     'WindowDesktop', 'FluentWidgetBase', 'TerminalWidget', 'AcondaWidget', 'AnsiTextEdit',
     'LoadBarDialog', 'LoadRingDialog', 'SidebarWidget', 'SubWidget', 'TopWidget',
     'FluentWidgetFromUI', 'SidebarWidgetCover', 'SplitterWidget', 'ProgressRingButton',
@@ -32,6 +35,7 @@ _MODULE_MAP = {
     'FTabelWidget': '.',
     # FWidget 模块中的类
     'LazyLoadMS': '.FWidget',
+    'LazyLoadFluentWindow': '.FWidget',
     'SubWidgetBase': '.FWidget',
     'LoadSubWidget': '.FWidget',
     'TopWidget': '.FWidget',
@@ -82,7 +86,7 @@ def __getattr__(name):
 
 
 # ---函数部分---
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QLayout
 from PySide6.QtCore import Qt, QTimer, QObject, Signal, QMutex, QMutexLocker
 from qfluentwidgets.components.widgets import (
     InfoBarIcon, InfoBar, InfoBarPosition, TeachingTip, TeachingTipTailPosition,  # 气泡消息
@@ -129,7 +133,7 @@ def get_exist_files(caption: str = None, dir_path: str = None, ext=None) -> list
 
 
 # 气泡提示装饰器,被装饰函数需要返回bool,content,parent
-def info_bar_decorator(func):
+def info_bar_decorator(func: Callable[[...], tuple[bool | None, str, QObject]]):
     """气泡提示装饰器,被装饰函数需要返回bool|None,content,parent"""
 
     def wrapper(*args, **kwargs):
@@ -145,17 +149,17 @@ def info_bar_decorator(func):
                 func_result = func(*args, **kwargs)
             result, content, parent = func_result
         except Exception as e:
-            print(f"info_bar_decorator:被装饰的函数执行错误: {e}")
+            logger.exception(f"info_bar_decorator:被装饰的函数执行错误: {e}")
             return None, None, None
         if result is None:
             return None, None, None
         icon = InfoBarIcon.SUCCESS if result else InfoBarIcon.ERROR
         title = '成功' if result else '失败'
         if parent.isVisible():
-            QTimer.singleShot(0, lambda: InfoBar.new(
+            InfoBar.new(
                 icon=icon, title=title, content=content, orient=Qt.Horizontal,
                 isClosable=True, position=InfoBarPosition.TOP,
-                duration=1500, parent=parent))
+                duration=1500, parent=parent)
 
         return result, title, content  # 必须返回被装饰函数的结果
 
@@ -163,7 +167,7 @@ def info_bar_decorator(func):
 
 
 # 信息提示装饰器,被装饰函数需要返回bool|None,content,target,parent
-def teaching_tip_decorator(func):
+def teaching_tip_decorator(func: Callable[[...], tuple[bool | None, str, QObject, QObject]]):
     """信息提示装饰器,被装饰函数需要返回bool,content,target,parent"""
 
     def wrapper(*args, **kwargs):
@@ -179,7 +183,7 @@ def teaching_tip_decorator(func):
                 func_result = func(*args, **kwargs)
             result, content, target, parent = func_result
         except Exception as e:
-            print(f"teaching_tip_decorator:被装饰的函数执行错误: {e}")
+            logger.exception(f"teaching_tip_decorator:被装饰的函数执行错误: {e}")
             return None, None, None, None
         if result is None:
             return None, None, None, None
@@ -195,7 +199,7 @@ def teaching_tip_decorator(func):
     return wrapper  # 返回包装后的函数
 
 
-def debouncer_timer(func) -> QTimer:
+def debouncer_timer(func: Callable[[], [...]]) -> QTimer:
     """防抖器,依赖QT事件循环"""
     timer = QTimer()
     timer.setSingleShot(True)
@@ -203,7 +207,7 @@ def debouncer_timer(func) -> QTimer:
     return timer
 
 
-def debouncer_reuse_timer(func) -> ReuseTimer:
+def debouncer_reuse_timer(func: Callable[[], [...]]) -> ReuseTimer:
     """防抖器,不依赖QT事件循环"""
     timer = ReuseTimer(0, func)
     timer.setSingleShot(True)
@@ -233,8 +237,6 @@ def throttle_reuse_timer_decorator(timeout: float = 0.05):
         - 不依赖 Qt 事件循环，性能更好
         - 每个实例有独立的定时器，状态隔离
     """
-    from weakref import WeakKeyDictionary
-    from Fun.BaseTools.Time import ReuseTimer
 
     def decorator(func):
         # 使用弱引用字典存储每个实例的节流助手，避免内存泄漏
@@ -258,7 +260,6 @@ def throttle_reuse_timer_decorator(timeout: float = 0.05):
                 wrapper._module_helper.trigger(*args, **kwargs)
 
         # 保留原函数的元信息
-        from functools import wraps
         wrapper = wraps(func)(wrapper)
 
         return wrapper
@@ -302,12 +303,15 @@ class _ThrottleHelper:
 
         # 执行原函数
         try:
-            if args or kwargs:
-                self.func(*args, **kwargs)
-            else:
-                self.func()
+            args_num = check_function_needs_args(self.func, False)
+            if args_num == 0:  # 没有参数
+                func_result = self.func()
+            elif args_num == 1:  # 有一个参数,只传递一个参数,可能是函数的self参数
+                func_result = self.func(args[0])
+            else:  # 有多个参数
+                func_result = self.func(*args, **kwargs)
         except Exception as e:
-            print(f"节流函数执行错误: {e}")
+            logger.exception(f'节流函数执行错误: {e} 参数{args, kwargs}')
 
 
 class _QTimerThrottleHelper(QObject):
@@ -412,3 +416,44 @@ def throttle_qtimer_decorator(timeout: int = 50):
         return wrapper
 
     return decorator
+
+
+def hide_layout(layout: QLayout):
+    """隐藏布局中的所有控件"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().hide()
+        elif item.layout():
+            # 如果是子布局，递归隐藏
+            _hide_layout_recursive(item.layout())
+
+
+def show_layout(layout: QLayout):
+    """显示布局中的所有控件"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().show()
+        elif item.layout():
+            _show_layout_recursive(item.layout())
+
+
+def _hide_layout_recursive(layout: QLayout):
+    """递归隐藏布局"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().hide()
+        elif item.layout():
+            _hide_layout_recursive(item.layout())
+
+
+def _show_layout_recursive(layout: QLayout):
+    """递归显示布局"""
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget():
+            item.widget().show()
+        elif item.layout():
+            _show_layout_recursive(item.layout())

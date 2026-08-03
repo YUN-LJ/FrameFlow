@@ -1,10 +1,14 @@
 """壁纸播放工具类"""
 from SubAPI.WallPaper.ImportPack import *
 
+logger = LogClass.get_logger(__name__, console_level='WARNING')
+
 
 def load_config():
     # 加载配置文件
-    CONFIG_DATA.is_loaded(0)
+    if not CONFIG_DATA.is_loaded(5):
+        logger.warning(f'{Config.PACK_NAME} 本地配置加载失败')
+        return
     with CONFIG_DATA as data:
         value = data.get_values(section_name=Config.PACK_NAME)
         if value:
@@ -70,17 +74,21 @@ def get_keys_class(from_info=False) -> list:
     获取全部关键词
     :param from_info:从图像数据中去重筛选,默认从KeyWord中获取数据
     """
+    keys = []
     if from_info:
-        IMAGE_INFO.is_loaded(0)
-        # explode将子项展开为每一行
-        with IMAGE_INFO as df:
-            keys = df[IMAGE_INFO.columns.KEY_WORD].str.split(';').explode().str.strip().unique()
-        return keys.tolist()
+        if IMAGE_INFO.is_loaded(5):
+            # explode将子项展开为每一行
+            with IMAGE_INFO as df:
+                data = df[IMAGE_INFO.columns.key_word].str.split(';').explode().str.strip().unique()
+            if not data.empty:
+                keys = data.tolist()
     else:
-        KEY_WORD.is_loaded(1)
-        with KEY_WORD as df:
-            keys = df[KEY_WORD.columns.KEY_WORD].tolist()
-        return keys
+        if KEY_WORD.is_loaded(5):
+            with KEY_WORD as df:
+                data = df[KEY_WORD.columns.key_word]
+            if not data.empty:
+                keys = data.tolist()
+    return keys
 
 
 def get_image_info_by_tags(tag: str, wait=False) -> pd.DataFrame:
@@ -88,6 +96,7 @@ def get_image_info_by_tags(tag: str, wait=False) -> pd.DataFrame:
     if wait:
         IMAGE_INFO.is_loaded(0)
     with IMAGE_INFO as df:
+        df: pd.DataFrame
         if df is not None:
             mask_key = df['标签'].str.contains(tag, case=False, na=False, regex=False)
             result = df[mask_key].copy(deep=True).reset_index(drop=True)
@@ -112,6 +121,7 @@ def get_image_info_by_key(key: str | list, wait=False) -> pd.DataFrame:
     if not key:
         return pd.DataFrame()
     with IMAGE_INFO as df:
+        df: pd.DataFrame
         if df is None or df.empty:
             return pd.DataFrame()
         # 构建匹配掩码：只要包含任意一个关键词即匹配
@@ -147,6 +157,65 @@ def image_process_mul(image_path, screen_size) -> tuple[BytesIO, BytesIO] | None
         print(f'{Config.PACK_NAME}.image_process_mul: {e} :错误文件名称:{image_path}')
 
 
+def set_sample(sample: bool):
+    """是否启用随机"""
+    if sample != Config.IMAGE_PLAY_SORT:
+        Config.IMAGE_PLAY_SORT = sample
+
+
+def set_play_mode(mode: int):
+    """设置播放模式"""
+    if mode not in [Config.IMAGE_CUSTOM_MODE, Config.IMAGE_KEY_MODE, Config.IMAGE_VIDEO_MODE]:
+        raise ValueError(f'播放模式不在枚举值内{mode}')
+    if mode != Config.IMAGE_PLAY_MODE:
+        Config.IMAGE_PLAY_MODE = mode
+
+
+def select_categories(categories: list | str):
+    """
+    选择类别筛选(使用中文名称)
+    :param categories: 类别列表或单个类别，可选值: '常规', '动漫', '人物'
+    """
+    if isinstance(categories, str):
+        categories = [categories]
+    valid_categories = ['常规', '动漫', '人物']
+    for cat in categories:
+        if cat in valid_categories and cat not in Config.IMAGE_CHOICE_CATEGORIES:
+            Config.IMAGE_CHOICE_CATEGORIES.append(cat)
+
+
+def deselect_categories(categories: list | str):
+    """
+    取消选择类别筛选
+    :param categories: 类别列表或单个类别
+    """
+    if isinstance(categories, str):
+        categories = [categories]
+    for cat in categories:
+        if cat in Config.IMAGE_CHOICE_CATEGORIES:
+            Config.IMAGE_CHOICE_CATEGORIES.remove(cat)
+
+
+def select_purity(purity: list | str):
+    """选择播放级别"""
+    if isinstance(purity, str):
+        purity = [purity]
+    valid_purity = ['正常级', '粗略级', '限制级']
+    for pur in purity:
+        if pur in valid_purity and pur not in Config.IMAGE_CHOICE_PURITY:
+            Config.IMAGE_CHOICE_PURITY.append(pur)
+
+
+def deselect_purity(purity: list | str):
+    """取消选择播放级别"""
+    if isinstance(purity, str):
+        purity = [purity]
+    valid_purity = ['正常级', '粗略级', '限制级']
+    for pur in purity:
+        if pur in valid_purity and pur in Config.IMAGE_CHOICE_PURITY:
+            Config.IMAGE_CHOICE_PURITY.remove(pur)
+
+
 class ImageQt:
     """用于使用Qt作为桌面窗口进行壁纸播放"""
 
@@ -154,7 +223,7 @@ class ImageQt:
         self.isRunning = False
         self.image = None  # 当前播放的照片
         self.interval = 60000  # 定时器重置桌面间隔
-        self.lock = Lock()  # 用于防止背景在创建或重置时与播放照片冲突
+        self.lock = RLock()  # 用于防止背景在创建或重置时与播放照片冲突
         self.all_widget: dict[str, tuple[WindowDesktop, ImageWidget]] = {}
 
     def clear_all_widgets(self):
@@ -178,6 +247,8 @@ class ImageQt:
             QTimer.singleShot(self.interval, self.createBackground)
 
     def start(self):
+        if QApplication.instance() is None:
+            raise RuntimeError('请先创建QApplication实例')
         if not self.isRunning:
             self.isRunning = True
             QTimer.singleShot(0, self.createBackground)
@@ -215,142 +286,31 @@ class ImageQt:
             print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.set_wallpaper 请调用start方法后再使用')
 
 
-# class ImageProcessTask:
-#     """处理单张图片的缩放操作"""
-#
-#     def __init__(self, image_path: str):
-#         self.image_id = os.path.basename(image_path).split('.')[0]
-#         self.image_path = image_path
-#         self.image_format = FileBase(image_path).extension
-#         self.image_info: pd.Series = None  # 图像信息
-#         self.image_process: BytesIO = None  # 处理后的图片
-#         self.image_original: BytesIO = None  # 原图
-#         self.screen_size = get_screen_size()
-#
-#     def start(self) -> np.ndarray | None:
-#         try:
-#             scale = self.screen_size[0] / self.screen_size[1]
-#             image = ImageLoad(self.image_path)
-#             self.image_original = image.get_bytesIO(self.image_format)
-#             if image.is_vertical:
-#                 # 竖屏照片计算拼接两份最符合目标分辨率还是三份最符合
-#                 num_2 = abs((image.width * 2 / image.height) - scale)
-#                 num_3 = abs((image.width * 3 / image.height) - scale)
-#                 num = 1 if num_2 > num_3 else 2
-#                 ImageProcess(image).merge('self', num)
-#             ImageProcess(image).resize(self.screen_size).zip(15)  # 限制图像最大尺寸不超过15MB
-#             self.image_process = image.get_bytesIO(self.image_format)
-#             del image
-#             gc.collect()
-#             return self.image_process
-#         except Exception as e:
-#             print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.execute: {e} :'
-#                   f'错误文件名称:{self.image_path}')
-#
-#
-# class ImageProcessManage:
-#     """图像处理管理类"""
-#
-#     def __init__(self, image_temp_num: int = Config.IMAGE_TEMP_NUM, use_process: bool = False):
-#         """
-#         :param image_temp_num:图片缓冲数量
-#         :param use_process:使用独立进程处理,默认使用线程
-#         """
-#         self.isRunning = False  # 是否正在运行
-#         self.image_temp_num = image_temp_num
-#         self.use_process = use_process
-#         if use_process:
-#             self.process = Process(target=self._execute, name='ImageProcess')
-#             self.task_queue = QueueMul(1)  # 任务队列,队列中存放图像路径
-#             self.result_queue = QueueMul(self.image_temp_num - 1)  # 缓冲队列,队列中存放ImageProcessTask类型
-#         else:
-#             self.process = Thread(target=self._execute, name='ImageProcess', daemon=True)
-#             self.task_queue = QueueThread(1)  # 任务队列,队列中存放图像路径
-#             self.result_queue = QueueThread(self.image_temp_num - 1)  # 缓冲队列,队列中存放ImageProcessTask类型
-#
-#     def submit_image_path(self, image_paths: list | str):
-#         """
-#         提交待处理图像路径
-#         :param image_paths:图片路径列表,当任务满时会阻塞
-#         """
-#         if isinstance(image_paths, str):
-#             image_paths = [image_paths]
-#         for image_path in image_paths:
-#             self.task_queue.put(image_path)
-#         if not self.isRunning:
-#             self.start()
-#
-#     def get_result(self, wait: bool = False) -> ImageProcessTask | None:
-#         """
-#         获取结果
-#         :param wait:是否等待,不等待则有可能返回None
-#         """
-#         time_out = 1 if wait else 0
-#         while self.isRunning:
-#             try:
-#                 return self.result_queue.get(timeout=time_out)
-#             except Empty:
-#                 if not wait:
-#                     return None
-#
-#     def _execute(self):
-#         """子进程执行器"""
-#         while self.isRunning:
-#             try:
-#                 image_path = self.task_queue.get(timeout=1)
-#                 if FileBase(image_path).exists:
-#                     task = ImageProcessTask(image_path)
-#                     result = task.start()
-#                     if result is not None:
-#                         while self.isRunning:
-#                             try:
-#                                 self.result_queue.put(task, timeout=1)
-#                                 break
-#                             except Full:
-#                                 pass
-#             except Empty:
-#                 pass
-#
-#     def start(self):
-#         """开始图像处理"""
-#         if not self.isRunning:
-#             self.isRunning = True
-#             self.process.start()
-#
-#     def stop(self):
-#         """停止图像处理"""
-#         if self.isRunning:
-#             self.isRunning = False
-#             try:
-#                 if self.use_process:
-#                     self.process.kill()  # 退出进程
-#             except Exception as e:
-#                 print(f'\n{Config.PACK_NAME}.{self.__class__.__name__}.stop: {e}')
-#             finally:
-#                 if self.use_process:
-#                     self.process = Process(target=self._execute, name='ImageProcess')
-#                 else:
-#                     self.process = Thread(target=self._execute, name='ImageProcess', daemon=True)
-
 class ImageProcessTask:
     """处理单张图片的缩放操作"""
+    default_screen_size = get_screen_size()
 
     def __init__(self, image_path: str):
         self.image_id = os.path.basename(image_path).split('.')[0]
         self.image_path = image_path
-        self.image_info: pd.Series = None  # 图像信息
-        self.image_process: BytesIO = None  # 处理后的图片
-        self.image_original: BytesIO = None  # 原图
-        self.screen_size = get_screen_size()
+        self.image_info: Optional[pd.Series] = None  # 图像信息
+        self.image_process: Optional[BytesIO] = None  # 处理后的图片
+        self.image_original: Optional[BytesIO] = None  # 原图
+        self.screen_size = self.default_screen_size
+
+    def clear(self):
+        self.image_info = None
+        self.image_process = None
+        self.image_original = None
 
     def start(self, parent_task: Task = None) -> bool:
-        task = Task(image_process_mul, GlobalValue.GLOBAL_Task_PROCESS_MANAGE,
-                    args=(self.image_path, self.screen_size))
-        result = task.start(0, parent_task=parent_task)
-        if result is not None:
-            self.image_original, self.image_process = result
-            return True
-        return False
+        with Task(image_process_mul, GlobalValue.GLOBAL_Task_PROCESS_MANAGE,
+                  args=(self.image_path, self.screen_size)) as task:
+            result = task.start(0, parent_task=parent_task)
+            if result is not None:
+                self.image_original, self.image_process = result
+                return True
+            return False
 
 
 class ImageProcessManage:
@@ -366,30 +326,32 @@ class ImageProcessManage:
         self.task_queue = QueueThread(1)  # 任务队列,队列中存放图像路径
         self.result_queue = QueueThread(self.image_temp_num - 1)  # 缓冲队列,队列中存放ImageProcessTask类型
 
-    def submit_image_path(self, image_paths: list | str):
+    def submit_image_path(self, image_paths: list | str, timeout=None):
         """
         提交待处理图像路径
         :param image_paths:图片路径列表,当任务满时会阻塞
+        :param timeout:超时时间
         """
         if isinstance(image_paths, str):
             image_paths = [image_paths]
         for image_path in image_paths:
-            self.task_queue.put(image_path)
+            try:
+                self.task_queue.put(image_path, timeout=timeout)
+            except Full:
+                logger.info(f'图像处理队列已满,请稍后再试')
         if not self.isRunning:
             self.start()
 
-    def get_result(self, wait: bool = False) -> ImageProcessTask | None:
+    def get_result(self, timeout: int = None) -> ImageProcessTask | None:
         """
         获取结果
-        :param wait:是否等待,不等待则有可能返回None
+        :param timeout:等待超时,None为无限等待,超时返回None
         """
-        time_out = 1 if wait else 0
         while self.isRunning:
             try:
-                return self.result_queue.get(timeout=time_out)
+                return self.result_queue.get(timeout=timeout)
             except Empty:
-                if not wait:
-                    return None
+                return None
 
     def _execute(self):
         """子进程执行器"""
@@ -409,6 +371,19 @@ class ImageProcessManage:
             except Empty:
                 pass
 
+    def clear(self):
+        """清空缓冲队列"""
+        while True:
+            try:
+                self.result_queue.get_nowait()
+            except Empty:
+                break
+        while True:
+            try:
+                self.task_queue.get_nowait()
+            except Empty:
+                break
+
     def start(self):
         """开始图像处理"""
         if not self.isRunning:
@@ -420,81 +395,7 @@ class ImageProcessManage:
         if self.isRunning:
             self.isRunning = False
             self.process.stop()
-
-
-class ImagePlay:
-    """壁纸播放"""
-
-    def __init__(self, image_key_mode: 'ImageKeyMode'):
-        self.isRunning = False
-        self.sample = bool(Config.IMAGE_PLAY_SORT)
-        self.start_signal = TaskSignal()
-        self.pause_signal = TaskSignal()
-        self.play_image_signal = TaskSignal()  # 当前播放的图片,发送ImageProcessTask类
-        self.image_key_mode = image_key_mode  # 关键词模式数据管理类
-        self.image_qt = ImageQt()  # 壁纸Qt接口管理类
-        self.image_process_manage = ImageProcessManage()  # 图像处理进程管理器
-        self.play_timer = ReuseTimer(Config.IMAGE_TIME, self.set_wallpaper)
-        self.submit_timer = ReuseTimer(0, self.submit_image_process)
-
-    def set_sample(self, value: bool):
-        self.sample = value
-        if value != Config.IMAGE_PLAY_SORT:
-            Config.IMAGE_PLAY_SORT = int(value)
-
-    def submit_image_process(self):
-        """提交图像处理任务"""
-        image_data = None
-        if Config.IMAGE_PLAY_MODE == Config.IMAGE_KEY_MODE:
-            image_data = self.image_key_mode.get_image_play_data(sample=self.sample)
-        if image_data is not None and image_data['本地路径'].tolist():
-            self.image_process_manage.submit_image_path(image_data['本地路径'].tolist())
-        else:
-            if not self.play_timer.isPause:
-                self.pause()
-            time.sleep(1)
-
-    def set_wallpaper(self):
-        """获取处理后的图像并设置为壁纸"""
-
-        def key_mode(result: ImageProcessTask) -> bool:
-            """关键词模式"""
-            # 确保图片在播放列表中
-            image_info = self.image_key_mode.get_image_play_info(result.image_path)
-            if image_info is not None:
-                result.image_info = image_info
-                self.play_image_signal.emit(result)
-                self.image_qt.set_wallpaper(result.image_process)
-                return True
-            return False
-
-        while self.isRunning:
-            result = self.image_process_manage.get_result(True)
-            if result is not None:  # 图像处理数据不为空
-                if Config.IMAGE_PLAY_MODE == Config.IMAGE_KEY_MODE:  # 判断模式
-                    if key_mode(result):
-                        break
-
-    def start(self):
-        if not self.isRunning:
-            self.isRunning = True
-            self.image_qt.start()
-            self.submit_timer.start()
-            self.play_timer.start()
-            self.start_signal.emit(True)
-
-    def pause(self):
-        self.play_timer.pause()
-        self.submit_timer.pause()
-        self.pause_signal.emit(True)
-
-    def stop(self):
-        if self.isRunning:
-            self.isRunning = False
-            self.image_qt.stop()
-            self.submit_timer.stop()
-            self.play_timer.stop()
-            self.image_process_manage.stop()
+            self.clear()
 
 
 class ImageKeyMode:
@@ -505,7 +406,7 @@ class ImageKeyMode:
         self.use_tags = False
         self.play_data = pd.DataFrame(columns=DataConfig.image_info_columns).astype(DataConfig.image_info_dtype)
         self.history_data = IMAGE_HISTORY
-        self.__lock = Lock()
+        self.__lock = RLock()
 
     def enable_tags_mode(self, value=True):
         """启用/关闭标签模式"""
@@ -534,7 +435,7 @@ class ImageKeyMode:
             mask = total_data['本地路径'].isin(self.history_data.data['本地路径'])
             filter_data = total_data[mask]
 
-            return (filter_data.shape[0], total_data.shape[0])
+            return filter_data.shape[0], total_data.shape[0]
 
     def get_image_play_data(self, n: int = 1, sample: bool = False) -> pd.DataFrame:
         """
@@ -545,17 +446,22 @@ class ImageKeyMode:
         with self.__lock:
             if self.play_data.empty:
                 return self.play_data
+
             # 获取筛选后的总数据
             total_data = self.get_filter_data()
+
             # 去除掉已经播放的
             mask_history = ~total_data['本地路径'].isin(self.history_data.data['本地路径'])
             filter_data = total_data[mask_history]
+
             # 如果为空则删除播放历史重新循环
             if filter_data.empty:
                 self.history_data.clear()
                 filter_data = total_data
+
             data = filter_data.sample(n=n) if sample else filter_data.head(n)
             self.history_data.add_data(data)
+
             return data
 
     def get_image_play_info(self, image_path: str) -> pd.Series | None:
@@ -564,13 +470,13 @@ class ImageKeyMode:
         if not image_info.empty:
             return image_info.iloc[0]
 
-    def add_play_data(self, data: pd.DataFrame):
+    def _add_play_data(self, data: pd.DataFrame):
         data.sort_values('日期', ascending=False, inplace=True)
         with self.__lock:
             self.play_data = pd.concat([self.play_data, data]).drop_duplicates(
                 subset=['本地路径'], keep='last', ignore_index=True)
 
-    def del_play_data(self, key: str | list = None):
+    def _del_play_data(self, key: str | list | set = None):
         """
         删除播放数据
         :param key:关键词/标签,为None时删除全部播放数据
@@ -595,6 +501,34 @@ class ImageKeyMode:
             self.play_data = pd.DataFrame(columns=DataConfig.image_info_columns).astype(
                 DataConfig.image_info_dtype)
 
+    def select_key(self, key: str | list, image_info: pd.DataFrame = None) -> bool:
+        """选择关键词"""
+        with self.__lock:
+            if isinstance(key, str):
+                key = [key]
+            diff_key = set(key) - set(Config.IMAGE_CHOICE_KEY)  # 求差
+            if diff_key:  # 记录已选择的关键词
+                Config.IMAGE_CHOICE_KEY.extend(diff_key)
+            image_info = get_image_info_by_key(key) if image_info is None else image_info
+            if not image_info.empty:
+                self._add_play_data(image_info)
+                text = f'为{key}' if len(key) < 5 else f'长度为{len(key)}'
+                logger.info(f'已成功选择关键词 {text}')
+                return True
+            text = f'为{key}' if len(key) < 5 else f'长度为{len(key)}'
+            logger.info(f'选择关键词失败 {text}')
+            return False
 
-if __name__ == '__main__':
-    print(get_image_info_by_key('Nian Tuanzitu').shape)
+    def deselect_key(self, key: str | list) -> bool:
+        """取消选择关键词"""
+        with self.__lock:
+            if isinstance(key, str):
+                key = [key]
+            common_key = set(Config.IMAGE_CHOICE_KEY) & set(key)  # 求交集
+            if common_key:  # 记录要取消的关键词
+                for k in common_key:
+                    Config.IMAGE_CHOICE_KEY.remove(k)
+                self._del_play_data(common_key)
+            text = f'为{common_key}' if len(common_key) < 5 else f'长度为{len(common_key)}'
+            logger.info(f'已成功取消关键词 {text}')
+            return True

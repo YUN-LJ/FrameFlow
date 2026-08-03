@@ -60,7 +60,7 @@
         <number>0</number>
        </property>
        <item>
-        <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,1">
+        <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1">
          <property name="spacing">
           <number>5</number>
          </property>
@@ -76,168 +76,6 @@
          <property name="bottomMargin">
           <number>0</number>
          </property>
-         <item>
-          <widget class="SidebarWidget" name="widget_search_params" native="true">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>0</height>
-            </size>
-           </property>
-           <layout class="QHBoxLayout" name="horizontalLayout_3">
-            <item>
-             <spacer name="horizontalSpacer">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <layout class="QGridLayout" name="gridLayout">
-              <property name="topMargin">
-               <number>15</number>
-              </property>
-              <property name="horizontalSpacing">
-               <number>10</number>
-              </property>
-              <property name="verticalSpacing">
-               <number>15</number>
-              </property>
-              <item row="0" column="0">
-               <widget class="CheckBox" name="checkBox_general">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>常规</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="CheckBox" name="checkBox_sketchy">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>粗略级</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="CheckBox" name="checkBox_anime">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>动漫</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="CheckBox" name="checkBox_sfw">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>正常级</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="2">
-               <widget class="CheckBox" name="checkBox_nsfw">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>限制级</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="2">
-               <widget class="CheckBox" name="checkBox_people">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>人物</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QVBoxLayout" name="verticalLayout_5">
-              <property name="spacing">
-               <number>0</number>
-              </property>
-              <item>
-               <widget class="SwitchButton" name="checkBox_use_network">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>联网搜索</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="SwitchButton" name="checkBox_use_tags">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>搜索标签</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <spacer name="horizontalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </widget>
-         </item>
          <item>
           <widget class="CardWidget" name="widget_title" native="true">
            <property name="minimumSize">
@@ -289,7 +127,7 @@
                </widget>
               </item>
               <item>
-               <widget class="QLabel" name="label_page_info">
+               <widget class="BodyLabel" name="label_page_info">
                 <property name="text">
                  <string/>
                 </property>
@@ -341,11 +179,6 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>SwitchButton</class>
-   <extends>QCheckBox</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
    <class>SmoothScrollArea</class>
    <extends>QScrollArea</extends>
    <header>qfluentwidgets.components.widgets</header>
@@ -362,19 +195,14 @@
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>CheckBox</class>
-   <extends>QCheckBox</extends>
-   <header>qfluentwidgets.components.widgets</header>
-  </customwidget>
-  <customwidget>
    <class>PrimaryToolButton</class>
    <extends>QPushButton</extends>
    <header>qfluentwidgets.components.widgets</header>
   </customwidget>
   <customwidget>
-   <class>SidebarWidget</class>
+   <class>CardWidget</class>
    <extends>QWidget</extends>
-   <header>Fun.QtWidget</header>
+   <header>qfluentwidgets</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -383,10 +211,9 @@
    <header>qfluentwidgets</header>
   </customwidget>
   <customwidget>
-   <class>CardWidget</class>
-   <extends>QWidget</extends>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
    <header>qfluentwidgets</header>
-   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -121,28 +121,27 @@ class LikePageSlot:
 
     @info_bar_decorator
     def pushButton_delete(self):
-        select_len = len(self.parent.tableWidget.selected_rows)
-        message = MessageBox('确认删除', f'是否删除{select_len}个？', GlobalValue.TOP_WINDOWS)
-        if message.exec() and self.parent.tableWidget.delKeyWord():
+        select = self.parent.tableWidget.data_model.getAllKeyWord(select=True)
+        content = f'是否删除{','.join(select)}？' if len(select) < 5 else f'是否删除{len(select)}个？'
+        message = MessageBox('确认删除', content, GlobalValue.TOP_WINDOWS)
+        if message.exec() and self.parent.tableWidget.delKeyWord(select):
             return True, '删除成功', self.parent
         return False, '已取消', self.parent
 
 
+def start():
+    from SubAPI.WallHaven.Desktop import DownloadPage
+    global download
+    download = DownloadPage()
+    win = LikePage()
+    win.show()
+    download.move(20, 20)
+    download.show()
+    return win
+
+
 if __name__ == '__main__':
-    from SubAPI import start_desktop
-    from SubAPI.WallHaven.Desktop import DownloadPage, SearchPage
+    from SubAPI import StartAPI
 
-
-    def start():
-        global download, search
-        # search = SearchPage()
-        download = DownloadPage()
-        win = LikePage()
-        win.show()
-        download.move(20, 20)
-        download.show()
-        # search.show()
-        return win
-
-
-    start_desktop(start)
+    start_api = StartAPI(func=start, console_level='INFO')
+    start_api.start_thread()
