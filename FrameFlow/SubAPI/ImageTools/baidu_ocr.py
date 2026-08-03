@@ -1,267 +1,55 @@
-# import threading
-# import time
-# import logging
-# from typing import Optional, Tuple
-# import requests
-# from config import 
-# # 配置日志
-# logging.basicConfig(
-#     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-# )
-# logger = logging.getLogger(__name__)
+"----------------------------------------------------------------------------"
 
-
-# def _get_access_token(api_key, secret_key):
-#     """获取百度OCR access_token"""
-#     url = "https://aip.baidubce.com/oauth/2.0/token"
-#     data = {
-#         "grant_type": "client_credentials",
-#         "client_id": api_key,
-#         "client_secret": secret_key,
-#     }
-#     response = session.post(url, data=data, timeout=(5, 10))
-#     if response.status_code == 200:
-#         result = response.json()
-#         return result.get("access_token")
-#     else:
-#         raise Exception(f"获取token失败，状态码：{response.status_code}")
-
-
-# def get_cached_access_token():
-#     """获取缓存的token，若过期则重新获取"""
-#     now = time.time()
-#     if _token_cache["token"] and _token_cache["expires_at"] > now + 60:
-#         return _token_cache["token"]
-#     token = _get_access_token(__API_KEY, __SECRET_KEY)
-#     _token_cache["token"] = token
-#     _token_cache["expires_at"] = now + 2592000  # 30天
-#     return token
-
-
-# def general_ocr(img_base64, access_token):
-#     _rate_limit()
-#     request_url_base = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
-#     request_url = request_url_base + "?access_token=" + access_token
-#     params = {
-#         "image": img_base64,
-#         "detect_direction": "true",
-#         # 'probability':'true'
-#     }
-#     headers = {"content-type": "application/x-www-form-urlencoded"}
-#     response = session.post(request_url, data=params, headers=headers, timeout=(5, 10))
-#     if response.status_code == 200:
-#         result = response.json()
-#         if "error_code" in result:
-#             # API 返回错误
-#             error_code = result.get("error_code")
-#             error_msg = result.get("error_msg")
-#             logger.error(
-#                 f"通用OCR识别失败，error_code={error_code}，error_msg={error_msg}"
-#             )
-#             return None
-#         words_list = result.get("words_result", [])
-#         full_text = "".join(item["words"] for item in words_list)
-#         idcard_keywords = ["姓名", "性别", "民族", "出生", "公民身份号码"]
-#         if any(kw in full_text for kw in idcard_keywords):
-#             logger.info("检测到身份证特征，调用身份证OCR")
-#             id_result = _idcard_ocr(img_base64, access_token)
-#             if id_result:
-#                 return {"type": "idcard", "data": id_result}
-#         bank_keywords = [
-#             "银行卡",
-#             "卡号",
-#             "有效期",
-#             "发卡行",
-#             "借记卡",
-#             "信用卡",
-#             "ABC",
-#             "ATM",
-#             "银行",
-#         ]
-#         if any(kw in full_text for kw in bank_keywords):
-#             logger.info("检测到银行卡特征，调用银行卡OCR")
-#             bank_result = _bankcard_ocr(img_base64, access_token)
-#             if bank_result:
-#                 return {"type": "bankcard", "data": bank_result}
-#         return {"type": "general", "data": {"text": full_text[:200]}}
-
-#     else:
-#         logger.error(f"请求失败，错误原因status_code = {response.status_code}")
-#         return None
-
-
-# def _idcard_ocr(img_base64, access_token):
-#     _rate_limit()
-#     request_url_base = "https://aip.baidubce.com/rest/2.0/ocr/v1/idcard"
-#     params = {"id_card_side": "front", "image": img_base64}
-#     request_url = request_url_base + "?access_token=" + access_token
-#     headers = {"content-type": "application/x-www-form-urlencoded"}
-#     response = session.post(request_url, data=params, headers=headers, timeout=(5, 10))
-#     if response.status_code == 200:
-#         result = response.json()
-#         if "error_code" in result:
-#             # API 返回错误
-#             error_code = result.get("error_code")
-#             error_msg = result.get("error_msg")
-#             logger.error(
-#                 f"身份证OCR识别失败，error_code={error_code}，error_msg={error_msg}"
-#             )
-#             return None
-#         words_result = result.get("words_result", {})
-#         return (
-#             words_result.get("住址", {}).get("words"),
-#             words_result.get("公民身份号码", {}).get("words"),
-#             words_result.get("出生", {}).get("words"),
-#             words_result.get("姓名", {}).get("words"),
-#             words_result.get("性别", {}).get("words"),
-#             words_result.get("民族", {}).get("words"),
-#         )
-#     else:
-#         logger.error(f"身份证OCR请求失败，错误原因status_code = {response.status_code}")
-#         return None
-'----------------------------------------------------------------------------'
 # acess_token 大概能被设计成读写锁的形式？只有一个写锁，其余都是读锁？还是说没必要，因为在同一个进程中，分出线程，并各自管理session
-import string
-import sys
-from pathlib import Path
-import threading
-import time
-from typing import Any, List, Tuple
-import inspect
-from attr import dataclass
-import requests
-
-import random
-import asyncio
 import logging
+import sys
+import threading
+from collections import namedtuple
+from dataclasses import dataclass
+from pathlib import Path
+from typing import ClassVar
 
+import requests
+import utils
 
-sys.path.insert(0,r'D:\WorkDirectory\PythonProject\FrameFlow')  # 往上找到 PythonProject
+from FrameFlow.SubAPI.ImageTools.auth import AccessTokenManager
+from FrameFlow.SubAPI.ImageTools.config import EditConfig, OCRPostConfig
+
+sys.path.insert(
+    0, r"D:\WorkDirectory\PythonProject\FrameFlow"
+)  # 往上找到 PythonProject
 # 必须先修改 LogConfig 的三个值，然后才能导入任何依赖 Fun.BaseTools 的模块
-from FrameFlow.SubAPI.ImageTools import payload_base
 from Fun.BaseTools.LogClass import LogConfig
-LogConfig.LOG_DIR = Path.cwd() / 'config'           # 改到当前目录下的 config
-LogConfig.LOG_FILE = LogConfig.LOG_DIR / 'app.log'
-LogConfig.ERROR_LOG_FILE = LogConfig.LOG_DIR / 'error.log'
 
-from Fun.BaseTools.AsyncHTTP import AsyncJson, Task,aiohttp,AsyncHTTPManage
+LogConfig.LOG_DIR = Path.cwd() / "config"  # 改到当前目录下的 config
+LogConfig.LOG_FILE = LogConfig.LOG_DIR / "app.log"
+LogConfig.ERROR_LOG_FILE = LogConfig.LOG_DIR / "error.log"
+
+from Fun.BaseTools.AsyncHTTP import AsyncJson, AsyncHTTPManage
 
 logger = logging.getLogger(__name__)
 
-class AccessTokenManager:
-    def __init__(self,http_client:AsyncHTTPManage,api_url,api_key,secret_key):
-        self._http = http_client
-        self.__api_url = api_url or config.ACCESS_POST_URL
-        self.__api_key = api_key or config.API_KEY
-        self.__secret_key = secret_key or config.SECRET_KEY
-        self.__token = None
-        self.__expires_at = 0
-        self.__lock = asyncio.Lock()
-    async def get_valid_token(self):
-        async with self.__lock:
-            if self.__token and time.time()+300 < self.__expires_at:
-                return self.__token
-            await self.__refresh_token()
-            return self.__token
-    async def __refresh_token(self):
-        post_url = f"{self.__api_url}?api_key={self.__api_key}&secret_key={self.__secret_key}"
-        headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'            
-        }
-        max_retries = 3
-        for attemp in range(1,max_retries+1):
-            # 遵守速率限制（若AsyncHTTPManage启用了rate_limit）
-            if not await self._http.wait_for_rate_limit(parent_task=None):
-                raise RuntimeError("任务已停止，无法刷新token")
-            try:
-                async with self._http.session.post(post_url,headers=headers,data="") as resp:
-                    if resp.status!=200:
-                        raise RuntimeError(f"HTTP {resp.status}")
-                    body = await resp.json()
-                    if "error_description" in body:
-                        err_desc = body.get("error_description")
-                        if err_desc == "unknown client id":
-                            raise ValueError("API Key不正确")
-                        if err_desc == "Client authentication failed":
-                            raise ValueError("Secret Key不正确")
-                        raise RuntimeError(f"认证错误{err_desc}")
-                    if "access_token" not in body:
-                        raise RuntimeError("响应中无access_token")
-                    self.__token = body.get("access_token")
-                    self.__expires_at = time.time()+2592000
-                return
-            except Exception as e:
-                if attemp == max_retries:
-                    raise ConnectionError(f"刷新token失败，重试{max_retries}后仍失败：{e}")
-                wait_sec = random.uniform(1,2**attemp)
-                await asyncio.sleep(wait_sec)
-class ImageLoader:
-    @staticmethod
-    def load(filepath)->bytes:
-        """从普通图片文件加载二进制数据"""
-        path = Path(filepath)
-        if not path.exists():
-            raise FileNotFoundError(f"图片文件不存在: {filepath}")
-        with open(path, 'rb') as f:
-            return f.read()
-    def load_into_self(self) -> bytes:
-        """将图片数据加载到 self.data 并返回"""
-        self.data = self.load(self.filepath)
-        return self.data
-class ImageLoader2:
-    """从 Excel (.xlsx) 的指定工作表中提取所有浮动图片的二进制数据"""
 
-    def __init__(self, xlsx_path: str):
-        """
-        :param xlsx_path: Excel 文件路径
-        """
-        self.xlsx_path = Path(xlsx_path)
-        if not self.xlsx_path.exists():
-            raise FileNotFoundError(f"Excel 文件不存在: {xlsx_path}")
-        # 可以在这里初始化提取器（延迟加载也可以）
-        self._extractor = None  # 懒加载
+class BaiduAPIException(Exception):
+    """所有百度API相关的异常的基类"""
+    pass
 
-    def _get_extractor(self):
-        if self._extractor is None:
-            # 假设你的 ExcelImageExtractor 在当前作用域可用
-            # 如果不在同一个文件，请导入：from your_module import ExcelImageExtractor
-            from extractor import ExcelImageExtractor  # 修改为实际导入路径
-            self._extractor = ExcelImageExtractor(self.xlsx_path)
-        return self._extractor
+class NetworkError(BaiduAPIException):
+    """网络请求失败(HTTP状态码非2xx)"""
+    pass
 
-    def get_float_images(self, sheet_name: str) -> List[Tuple[int, bytes]]:
-        """
-        获取指定工作表中所有的浮动图片（按行号排序）
-        :param sheet_name: 工作表名称
-        :return: 列表，元素为 (行号, 图片二进制数据)  行号从1开始
-        """
-        extractor = self._get_extractor()
-        # 假设 extractor.get_float_images 返回 List[Tuple[int, bytes]]
-        images = extractor.get_float_images(sheet_name)
-        if not images:
-            logger.info(f"工作表 '{sheet_name}' 中没有找到浮动图片")
-            return []
-        # 按行号排序，保证稳定性
-        images.sort(key=lambda x: x[0])
-        return images
-        
+class APIError(BaiduAPIException):
+    """百度API返回错误码"""
+    def __init__(self, error_code:str,error_msg:str):
+        self.error_code = error_code
+        self.error_msg = error_msg
+        super().__init__(f"API error {error_code}: {error_msg}")
+    
 
-
-class BasePayload:
-    def _img2base64(raw:str)->str:
-        """
-        将提供的图片，转换成需要的格式，存储进返回对象中
-        """
-        pass
-    def _bool2str(v:bool)->str:
-        """将bool类型的数值转换成对应的小写字符串"""
-        return "true" if v else "false"
-
-
-        
 class OCRBase:
-    OCR_ERR_DICT = {
+    """OCR基类"""
+
+    OCR_ERR_DICT: ClassVar[dict] = {
         1: "未知错误",
         2: "服务暂不可用",
         3: "不支持的OpenAPI方法",
@@ -301,18 +89,33 @@ class OCRBase:
         283507: "签名MD5不匹配",
         283602: "时间戳不正确",
     }
+    """200返回错误码的字典"""
+
     def __init__(
         self,
-        url:str,
-        access_token_manager :AccessTokenManager,
-        headers: dict = None,
-        payload: dict = None,
-        params: dict = None,
-        timeout: Tuple[int, int] = None,
+        url: str,
+        access_token_manager: AccessTokenManager,
+        headers: dict | None = None,
+        payload: dict | None = None,
+        params: dict | None = None,
+        timeout: tuple[int, int] | None = None,
         session: requests.Session = None,
         enable_rate_limit: bool = True,
         rate_limit_per_sec: int = 2,
     ):
+        """
+
+        Args:
+            url (str): 网络请求地址
+            access_token_manager (AccessTokenManager): AccessToken管理器
+            headers (dict, optional): 请求头. Defaults to None.
+            payload (dict, optional): 携带数据. Defaults to None.
+            params (dict, optional): 参数体. Defaults to None.
+            timeout (tuple[int, int], optional): 超时设置. Defaults to None.
+            session (requests.Session, optional): 会话管理. Defaults to None.
+            enable_rate_limit (bool, optional): 限流标识. Defaults to True.
+            rate_limit_per_sec (int, optional): 每秒限制请求次数. Defaults to 2.
+        """
         self.session = session or requests.Session()
         self.access_token_manager = access_token_manager
         # 限流相关（线程安全）
@@ -320,226 +123,201 @@ class OCRBase:
         self.rate_limit_per_sec = rate_limit_per_sec
         self._last_request_time = 0
         self._rate_lock = threading.Lock()
-    async def get_access_token(self)->str:
+
+    async def get_access_token(self) -> str:
         return await self.access_token_manager.get_valid_token()
-    def get_ocr_response(self)->requests.Response:
-        return ?
-    def get_ocr_error_msg(self,err_code:int)->str:
+
+    def get_ocr_response(self) -> requests.Response:
+        return ...
+
+    def get_ocr_error_msg(self, err_code: int) -> str:
         return self.OCR_ERR_DICT.get(err_code)
-    
-
-class BankcardOCR:
-    """身份证OCR类"""
-    # Payload类需求
-    # image图片文件：不提供默认值
-    # url：不提供默认值
-    # location: 基本类型，不进行配置
-    # detect_quality:基本类型，不进行配置
-    # 额外需求：本地文件的文件路径，用于从本地读取图片
-
-    # 
 
 
-
-
-    # 类常量 - 可配置的固定文本项
-    DEFAULT_TIMEOUT = (5, 10)          # (连接超时, 读取超时)
-    DEFAULT_CONTENT_TYPE = "application/x-www-form-urlencoded"
-    PAYLOAD_KEY_IMAGE = "image"
-    
-    # 响应字段映射（可根据不同 API 提供商调整）
-    RESPONSE_ERROR_CODE_KEY = "error_code"
-    RESPONSE_ERROR_MSG_KEY = "error_msg"
-    RESPONSE_RESULT_KEY = "result"
-    
-    # 结果字段提取键名
-    FIELD_BANK_CARD_NUMBER = "bank_card_number"
-    FIELD_VALID_DATE = "valid_date"
-    FIELD_BANK_CARD_TYPE = "bank_card_type"
-    FIELD_BANK_NAME = "bank_name"
-    FIELD_HOLDER_NAME = "holder_name"
-    
-    # 可选：重试次数
-    MAX_RETRIES = 3
-    @dataclass
-    class Payload(BasePayload):
-        image:str
-        """图像数据，base64编码后进行urlencode，需去掉编码头data:image/jpeg;base64"""
-        url:str 
-        """图片完整URL，URL长度不超过1024字节 当image字段存在时url字段失效 请注意关闭URL防盗链"""
-        location:bool  = False
-        """是否返回银行卡号的字段位置坐标，默认为 false"""
-        detect_quality:bool = False
-        """是否开启银行卡质量类型（清晰模糊、边框/四角不完整）检测功能，默认不开启"""
-        
-        def to_request_dict(self)->dict:
-            """将Payload转换为API所需的字典格式"""
-            result = {
-                "location":self._bool2str(self.location),
-                "detect_quality":self._bool2str(self.detect_quality)
-            }
-            if self.image:
-                result["image"] = self._img2base64(self.image)
-            elif self.url:
-                result["url"] = self.url
-            else:
-                raise ValueError("至少提供image或url中的一个参数")
-            return result
-        
+class GeneralOCR:
     def __init__(
         self,
-        url: str,
-        headers: dict = None,
-        payload: dict = None,
-        params: dict = None,
-        timeout: Tuple[int, int] = None,
-        session: requests.Session = None,
-        # 额外配置参数
-        access_token_param_name: str = "access_token",   # query string 中 token 的参数名
-        enable_rate_limit: bool = True,
-        rate_limit_per_sec: int = 2,
+        path,
+        access_token_manager: AccessTokenManager,
+        post_config: OCRPostConfig,
+        http_manager: AsyncHTTPManage,
+        edit_config:EditConfig
     ):
-        """
-        初始化银行卡OCR类
+        """创建通用OCR识别对象，能够基于post_config创建新的复制，并得到响应"""
+        self.access_token_manager = access_token_manager
+        self.http_manager = http_manager
+        with open(path, "rb") as f:
+            self.data = utils.image2base64(
+                f.read()
+            )  # TODO 待修改，适配从压缩文件中读取图片
+        self.post_config = post_config.clone(self.data)  # 需要保留的对象，会在后续转发二次识别时使用
+        self.edit_config = edit_config
+    async def recognize(self):
+        """识别图片中的文字"""
+        # self.post_dict = await self.post_config.build_request(self.access_token_manager)
+        # # response = requests.post(**self.post_dict)
+        # # 4. 使用 aiohttp 异步发送 POST 请求
+        # # async with aiohttp.ClientSession() as session:
+        # #     async with session.post(**self.post_dict
+        # #     ) as response:
+        # #         # 异步读取并解析 JSON 响应
+        # #         return await response.json()
+        # async with aiohttp.ClientSession() as session, session.post(**self.post_dict) as response:
+        #     return await response.json()
 
-        :param url:                      API 基础地址（不含 query string）
-        :param headers:                  请求头（如 API Key）
-        :param payload:                     请求体（POST 提交的 JSON 或表单数据）
-        :param params:                   URL 查询参数字典（GET 方式的固定参数）
-        :param timeout:                  超时 (connect, read)，默认使用类常量
-        :param session:                  可复用的 requests.Session
-        :param access_token:  传递 access_token 的 query 参数名
-        :param enable_rate_limit:        是否启用限流
-        :param rate_limit_per_sec:       每秒最大请求数（限流用）
-        """
-        self.url = url.rstrip('/')
-        self.headers = headers or {"content-type": "application/x-www-form-urlencoded"}
-        self.payload = self.Payload()
-        self.params = params or config.params
-        self.timeout = timeout or config.DEFAULT_TIMEOUT
-        self.session = session or requests.Session()
-        self.access_token = None
-        
-        # 限流相关（线程安全）
-        self.enable_rate_limit = enable_rate_limit
-        self.rate_limit_per_sec = rate_limit_per_sec
-        self._last_request_time = 0
-        self._rate_lock = threading.Lock()
-    def lumbda1(self,img_base64):
+        # 1. 速率限制检查
+        if not await self.http_manager.wait_for_rate_limit(parent_task=None):
+            # 如果返回 False 通常意味着父任务停止，此处可处理
+            raise RuntimeError("Task stopped due to rate limit interruption")
+        # 2. 构建请求
+        post_dict = await self.post_config.build_request(self.access_token_manager)
 
-        request_url = f"{self.url}?{self.params.__repr__()}"
-        response = self.session.post(
-            request_url, data=self.payload, headers=self.headers, timeout=(5, 10)
-        )
-        return response
-    def response_handle(self,jsonobject):
-        """这个函数能够复用，提取到父类"""
-        if jsonobject.status_code == 200:
-            result = jsonobject.json()
-            if "error_code" in result:
-                # API 返回错误
-                error_code = result.get("error_code")
-                error_msg = result.get("error_msg")
-                logger.error(
-                    f"银行卡OCR识别失败，error_code={error_code}，error_msg={error_msg}"
-                )
-                return None
-            else:
-                return self.exactor_text("XXX")
-        else:
-            logger.error(
-                f"银行卡OCR请求失败，错误原因status_code = {jsonobject.status_code}"
-            )
-            return None
-    def exactor_text(self,jsonobject):
-            _result = result.get("result", {})
-            return (
-                _result.get("bank_card_number"),
-                _result.get("valid_date"),
-                _result.get("bank_card_type"),
-                _result.get("bank_name"),
-                _result.get("holder_name"),
-            )
-    
-    def _ratelimit(self):
-        """线程安全的速率限制"""
-        if not self.enable_rate_limit:
-            return
-        with self._rate_lock:
-            import time
-            now = time.monotonic()
-            elapsed = now - self._last_request_time
-            interval = 1.0 / self.rate_limit_per_sec
-            if elapsed < interval:
-                time.sleep(interval - elapsed)
-            self._last_request_time = time.monotonic()
-    
-    def _build_request_url(self, access_token: str) -> str:
-        """构建完整的请求 URL（包括固定 params 和 access_token）"""
-        # 合并固定参数和动态 token
-        query_params = dict(self.params)
-        if access_token:
-            query_params[self.access_token_param_name] = access_token
-        # 生成 query string
-        if query_params:
-            import urllib.parse
-            query_string = urllib.parse.urlencode(query_params)
-            return f"{self.url}?{query_string}"
-        return self.url
-    
-    def _bankcard_ocr(
-        self, 
-        img_base64: str, 
-        access_token: str
-    ) -> Optional[Tuple[str, str, str, str, str]]:
-        """
-        同步 OCR 识别（线程安全）
-        返回: (卡号, 有效期, 卡片类型, 银行名称, 持卡人姓名)
-        """
-        self._ratelimit()
+        # 3. 使用管理器的 session 发送请求
+        async with self.http_manager.session.post(**post_dict) as response:
+
+            # 检查HTTP状态码
+            if response.status != 200:
+                logger.warning(f"HTTP通信失败，状态码{response.status}")
+                raise NetworkError(f"HTTP{response.status}")
+            data = await response.json()
+            return self.parse_api_response(data)
+
+    def parse_api_response(self,response:dict)->dict:
+        # 错误码处理
+        if "error_msg" in response:
+            # error_msg = response["error_msg"]
+            logger.warning(f"成功通信但执行失败，返回消息{response["error_msg"]}，错误代码{response["error_code"]}")
+            raise APIError(response["error_code"],response["error_msg"])
+        return self.extract_result(response)
+    def extract_result(self,response:dict)->list:
+        # 根据editconfig，读结果
+        return [item.get("words")    for item in response.get("words_result",[])]
+
+    async def auto_transfer(self,result:list[str]):
+        id_keywords = {"身份证", "居民身份证", "姓名", "性别", "民族", "住址", "公民身份号码"}
+        bank_keywords = {"银行卡", "信用卡", "卡号", "有效期", "银联", "借记卡"} 
+        full_text = "".join(result)
+        if any(kw in full_text for kw in id_keywords):
+            return await self.recognize_as_idcard()
+
+        if any(kw in full_text for kw in bank_keywords):
+            return await self.recognize_as_bankcard()
+
         
-        # 构造请求 body
-        payload = {self.PAYLOAD_KEY_IMAGE: img_base64}
-        request_url = self._build_request_url(access_token)
-        headers = {
-            "content-type": self.DEFAULT_CONTENT_TYPE,
-            **self.headers   # 允许外部覆盖或添加额外的 header
-        }
+
+        # 未匹配，返回原始结果
+        logger.warning("无对应匹配API")
+        return result
+
+    async def recognize_as_idcard(self):
+        return await BaiduIDCardOCR(
+            self.post_config,
+            self.access_token_manager,
+            self.http_manager,
+            self.edit_config
+        ).recognize()
+
+    async def recognize_as_bankcard(self):
+        return await BaiduBankCardOCR(
+            self.post_config,
+            self.access_token_manager,
+            self.http_manager,
+            self.edit_config
+        ).recognize()
+
+
+class BaiduBankCardOCR:
+    """百度银行卡识别类"""
+
+    def __init__(
+        self,
+        general_post_config: OCRPostConfig,
+        access_token_manager: AccessTokenManager,
+        http_manager: AsyncHTTPManage,
+        edit_config:EditConfig
+    ):
+        self.post_config = general_post_config.as_bankcard()
+        self.access_token_manager = access_token_manager
+        self.http_manager = http_manager
+        self.edit_config = edit_config
+
+    async def recognize(self):
+        if not await self.http_manager.wait_for_rate_limit(parent_task=None):
+            # 如果返回 False 通常意味着父任务停止，此处可处理
+            raise RuntimeError("Task stopped due to rate limit interruption")
+        # 2. 构建请求
+        post_dict = await self.post_config.build_request(self.access_token_manager)
+
+        # 3. 使用管理器的 session 发送请求
+        async with self.http_manager.session.post(**post_dict) as response:
+
+            # 检查HTTP状态码
+            if response.status != 200:
+                logger.warning(f"HTTP通信失败，状态码{response.status}")
+                raise NetworkError(f"HTTP{response.status}")
+            data = await response.json()
+            return self.parse_api_response(data)
+
+    def parse_api_response(self,response:dict)->dict:
+        # 错误码处理
+        if "error_msg" in response:
+            # error_msg = response["error_msg"]
+            logger.warning(f"成功通信但执行失败，返回消息{response["error_msg"]}，错误代码{response["error_code"]}")
+            raise APIError(response["error_code"],response["error_msg"])
+        return self.extract_result(response)
+    def extract_result(self,response:dict)->dict:
+        # 根据editconfig，读结果
         
-        # 使用 Session 发送请求（线程安全）
-        try:
-            response = self.session.post(
-                request_url,
-                data=payload,
-                headers=headers,
-                timeout=self.timeout
-            )
-        except requests.RequestException as e:
-            logger.error(f"银行卡OCR请求异常: {e}")
-            return None
+        result = {}
+        for display_name,api_key in self.edit_config.get_bankcard_mapping():
+            result[display_name]=response.get("result",{}).get(api_key,"error_result")
+        return result
+
+
+
+class BaiduIDCardOCR:
+    """百度身份证识别类"""
+
+    def __init__(
+        self,
+        general_post_config: OCRPostConfig,
+        access_token_manager: AccessTokenManager,
+        http_manager: AsyncHTTPManage,
+        edit_config:EditConfig
+    ):
+        self.post_config = general_post_config.as_idcard()
+        self.access_token_manager = access_token_manager
+        self.http_manager = http_manager
+        self.edit_config = edit_config
+
+    async def recognize(self) -> dict:
+        if not await self.http_manager.wait_for_rate_limit(parent_task=None):
+            # 如果返回 False 通常意味着父任务停止，此处可处理
+            raise RuntimeError("Task stopped due to rate limit interruption")
+        # 2. 构建请求
+        post_dict = await self.post_config.build_request(self.access_token_manager)
+
+        # 3. 使用管理器的 session 发送请求
+        async with self.http_manager.session.post(**post_dict) as response:
+
+            # 检查HTTP状态码
+            if response.status != 200:
+                logger.warning(f"HTTP通信失败，状态码{response.status}")
+                raise NetworkError(f"HTTP{response.status}")
+            data = await response.json()
+            return self.parse_api_response(data)
+
+    def parse_api_response(self,response:dict)->dict:
+        # 错误码处理
+        if "error_msg" in response:
+            # error_msg = response["error_msg"]
+            logger.warning(f"成功通信但执行失败，返回消息{response["error_msg"]}，错误代码{response["error_code"]}")
+            raise APIError(response["error_code"],response["error_msg"])
+        return self.extract_result(response)
+    def extract_result(self,response:dict)->dict:
+        # 根据editconfig，读结果
         
-        if response.status_code != 200:
-            logger.error(f"银行卡OCR请求失败，status_code = {response.status_code}")
-            return None
-        
-        result_json = response.json()
-        if self.RESPONSE_ERROR_CODE_KEY in result_json:
-            error_code = result_json.get(self.RESPONSE_ERROR_CODE_KEY)
-            error_msg = result_json.get(self.RESPONSE_ERROR_MSG_KEY)
-            logger.error(f"银行卡OCR识别失败，error_code={error_code}，error_msg={error_msg}")
-            return None
-        
-        ocr_result = result_json.get(self.RESPONSE_RESULT_KEY, {})
-        return (
-            ocr_result.get(self.FIELD_BANK_CARD_NUMBER),
-            ocr_result.get(self.FIELD_VALID_DATE),
-            ocr_result.get(self.FIELD_BANK_CARD_TYPE),
-            ocr_result.get(self.FIELD_BANK_NAME),
-            ocr_result.get(self.FIELD_HOLDER_NAME),
-        )
-    
-    # 可选：异步版本（用于协程）
-    async def _bankcard_ocr_async(self, img_base64: str, access_token: str):
-        """异步 OCR（需配合 aiohttp，且需自己实现异步限流）"""
-        # 此处略，如需协程支持，建议单独创建异步类
-        pass
+        result = {}
+        for display_name,api_key in self.edit_config.get_idcard_mapping():
+            result[display_name]=response.get("words_result",{}).get(api_key,"error_result")
+        return result
