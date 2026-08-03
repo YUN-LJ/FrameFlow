@@ -2,7 +2,11 @@ import asyncio
 import random
 import time
 
+import keyring
+
 from Fun.BaseTools.AsyncHTTP import AsyncHTTPManage
+
+from .utils import check_keys, input_keys
 
 
 class AccessTokenManager:
@@ -11,8 +15,14 @@ class AccessTokenManager:
     def __init__(self, http_client: AsyncHTTPManage, api_url, api_key, secret_key):
         self._http = http_client
         self.__api_url = api_url or self.ACCESS_POST_URL
-        self.__api_key = api_key or config.API_KEY
-        self.__secret_key = secret_key or config.SECRET_KEY
+        if (api_key is None or secret_key is None) and not check_keys():
+            raise ValueError(
+                "百度 OCR Key 未在系统中找到。请先调用 utils.input_keys() 进行设置，"
+                "或在初始化 AccessTokenManager 时显式传入 api_key 和 secret_key。"
+                )
+
+        self.__api_key = api_key or keyring.get_password("baidu_ocr", "api_key")
+        self.__secret_key = secret_key or keyring.get_password("baidu_ocr", "secret_key")
         self.__token = None
         self.__expires_at = 0
         self.__lock = asyncio.Lock()
