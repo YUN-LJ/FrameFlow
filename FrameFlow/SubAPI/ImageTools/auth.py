@@ -6,7 +6,7 @@ import keyring
 
 from Fun.BaseTools.AsyncHTTP import AsyncHTTPManage
 
-from .utils import check_keys, input_keys
+from .utils import check_keys
 
 
 class AccessTokenManager:
