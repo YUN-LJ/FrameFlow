@@ -4,16 +4,14 @@
 import logging
 import sys
 import threading
-from collections import namedtuple
-from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
 import requests
-import utils
 
 from FrameFlow.SubAPI.ImageTools.auth import AccessTokenManager
 from FrameFlow.SubAPI.ImageTools.config import EditConfig, OCRPostConfig
+from FrameFlow.SubAPI.ImageTools.exception import APIError, NetworkError
 
 sys.path.insert(
     0, r"D:\WorkDirectory\PythonProject\FrameFlow"
@@ -29,22 +27,6 @@ from Fun.BaseTools.AsyncHTTP import AsyncJson, AsyncHTTPManage
 
 logger = logging.getLogger(__name__)
 
-
-class BaiduAPIException(Exception):
-    """所有百度API相关的异常的基类"""
-    pass
-
-class NetworkError(BaiduAPIException):
-    """网络请求失败(HTTP状态码非2xx)"""
-    pass
-
-class APIError(BaiduAPIException):
-    """百度API返回错误码"""
-    def __init__(self, error_code:str,error_msg:str):
-        self.error_code = error_code
-        self.error_msg = error_msg
-        super().__init__(f"API error {error_code}: {error_msg}")
-    
 
 class OCRBase:
     """OCR基类"""
@@ -137,7 +119,7 @@ class OCRBase:
 class GeneralOCR:
     def __init__(
         self,
-        path,
+        img_base64,
         access_token_manager: AccessTokenManager,
         post_config: OCRPostConfig,
         http_manager: AsyncHTTPManage,
@@ -146,10 +128,7 @@ class GeneralOCR:
         """创建通用OCR识别对象，能够基于post_config创建新的复制，并得到响应"""
         self.access_token_manager = access_token_manager
         self.http_manager = http_manager
-        with open(path, "rb") as f:
-            self.data = utils.image2base64(
-                f.read()
-            )  # TODO 待修改，适配从压缩文件中读取图片
+        self.data = img_base64
         self.post_config = post_config.clone(self.data)  # 需要保留的对象，会在后续转发二次识别时使用
         self.edit_config = edit_config
     async def recognize(self):
@@ -180,7 +159,8 @@ class GeneralOCR:
                 logger.warning(f"HTTP通信失败，状态码{response.status}")
                 raise NetworkError(f"HTTP{response.status}")
             data = await response.json()
-            return self.parse_api_response(data)
+            general_result = self.parse_api_response(data)
+            return await self.auto_transfer(general_result)
 
     def parse_api_response(self,response:dict)->dict:
         # 错误码处理
@@ -193,21 +173,17 @@ class GeneralOCR:
         # 根据editconfig，读结果
         return [item.get("words")    for item in response.get("words_result",[])]
 
-    async def auto_transfer(self,result:list[str]):
+    async def auto_transfer(self,result:list[str])->tuple[str,dict|list]:
         id_keywords = {"身份证", "居民身份证", "姓名", "性别", "民族", "住址", "公民身份号码"}
         bank_keywords = {"银行卡", "信用卡", "卡号", "有效期", "银联", "借记卡"} 
         full_text = "".join(result)
         if any(kw in full_text for kw in id_keywords):
-            return await self.recognize_as_idcard()
-
+            data = await self.recognize_as_idcard()   # 返回 dict
+            return ('idcard', data)
         if any(kw in full_text for kw in bank_keywords):
-            return await self.recognize_as_bankcard()
-
-        
-
-        # 未匹配，返回原始结果
-        logger.warning("无对应匹配API")
-        return result
+            data = await self.recognize_as_bankcard() # 返回 dict
+            return ('bankcard', data)
+        return ('general', result)
 
     async def recognize_as_idcard(self):
         return await BaiduIDCardOCR(
