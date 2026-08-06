@@ -23,7 +23,7 @@ LogConfig.LOG_DIR = Path.cwd() / "config"  # 改到当前目录下的 config
 LogConfig.LOG_FILE = LogConfig.LOG_DIR / "app.log"
 LogConfig.ERROR_LOG_FILE = LogConfig.LOG_DIR / "error.log"
 
-from Fun.BaseTools.AsyncHTTP import AsyncJson, AsyncHTTPManage
+from Fun.BaseTools.AsyncHTTP import AsyncHTTPManage
 
 logger = logging.getLogger(__name__)
 
