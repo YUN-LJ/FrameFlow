@@ -12,7 +12,7 @@ from .utils import check_keys
 class AccessTokenManager:
     ACCESS_POST_URL = "https://aip.baidubce.com/oauth/2.0/token"
 
-    def __init__(self, http_client: AsyncHTTPManage, api_url, api_key, secret_key):
+    def __init__(self, http_client: AsyncHTTPManage, api_url=None, api_key=None, secret_key=None):
         self._http = http_client
         self.__api_url = api_url or self.ACCESS_POST_URL
         if (api_key is None or secret_key is None) and not check_keys():

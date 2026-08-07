@@ -1,3 +1,4 @@
+import base64
 import logging
 import posixpath
 import zipfile
@@ -360,13 +361,14 @@ class ExcelFloatImageExtractor:
             anchors.append({"row": row, "col": col, "path": image_path})
         return anchors
 
-    def _get_image_data(self, image_path: str) -> bytes | None:
+    def get_encoded_image_data(self, image_path: str) -> bytes | None:
         if self._zip_file is None:
             raise RuntimeError("must use in 'with' block")
 
         # 无缓存版本
         # 因为整个工作流只会打开图片一次并读取完数据后关闭，不保留缓存
         data = self._zip_file.read(image_path)
+        data = base64.b64encode(data).decode("utf-8")
         return data
 
     "------------------ 公共接口 ------------------------------------------"

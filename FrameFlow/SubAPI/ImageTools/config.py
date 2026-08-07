@@ -65,8 +65,8 @@ class OCRPostConfig:
             data=new_data
         )
 
-BASE_PROTOTYPE = OCRPostConfig()
-"""OCR请求字典原型"""
+# BASE_PROTOTYPE = OCRPostConfig()
+# """OCR请求字典原型"""
 
 
 class EditConfig:
